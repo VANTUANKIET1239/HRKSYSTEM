@@ -1,0 +1,23 @@
+
+services:
+
+  apigateway:
+    image: ${DOCKER_REGISTRY-}apigateway
+    build:
+      context: .
+      dockerfile: ApiGateway/ApiGateway/Dockerfile
+    depends_on:
+      - servicea
+    ports:
+      - "5000:8080"
+
+
+  hrk.auth:
+    image: ${DOCKER_REGISTRY-}hrkauth
+    build:
+      context: .
+      dockerfile: Services/HRK.AUTH/Dockerfile
+    ports:
+      - "5001:8080"
+    
+
