@@ -1,4 +1,4 @@
-@HRK.AUTH_HostAddress = http://localhost:5247
+@HRK.AUTH_HostAddress = http://localhost:5198
 
 GET {{HRK.AUTH_HostAddress}}/weatherforecast/
 Accept: application/json

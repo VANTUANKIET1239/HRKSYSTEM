@@ -11,10 +11,10 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Services/HRK.AUTH/HRK.AUTH.csproj", "Services/HRK.AUTH/"]
-RUN dotnet restore "./Services/HRK.AUTH/HRK.AUTH.csproj"
+COPY ["Services/AUTH/HRK.AUTH/HRK.AUTH.csproj", "Services/AUTH/HRK.AUTH/"]
+RUN dotnet restore "./Services/AUTH/HRK.AUTH/HRK.AUTH.csproj"
 COPY . .
-WORKDIR "/src/Services/HRK.AUTH"
+WORKDIR "/src/Services/AUTH/HRK.AUTH"
 RUN dotnet build "./HRK.AUTH.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage

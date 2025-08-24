@@ -1,0 +1,72 @@
+﻿using Core.Common.JwtHandler.Entities;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Core.Common.JwtHandler
+{
+    public interface IJwtCoreService
+    {
+        string GenerateToken(IEnumerable<Claim> claims);
+        ClaimsPrincipal? ValidateToken(string token);
+    }
+    class JwtCoreService : IJwtCoreService
+    {
+
+        private readonly JwtSettings _settings;
+        private readonly byte[] _key;
+
+        public JwtCoreService(IOptions<JwtSettings> options)
+        {
+            _settings = options.Value;
+            _key = Encoding.UTF8.GetBytes(_settings.SecretKey);
+        }
+
+        public string GenerateToken(IEnumerable<Claim> claims)
+        {
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddMinutes(_settings.ExpiryMinutes),
+                Issuer = _settings.Issuer,
+                Audience = _settings.Audience,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(_key), SecurityAlgorithms.HmacSha256Signature)
+            };
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
+
+        public ClaimsPrincipal? ValidateToken(string token)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                var validationParams = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = _settings.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = _settings.Audience,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(_key),
+                    ClockSkew = TimeSpan.Zero
+                };
+
+                return tokenHandler.ValidateToken(token, validationParams, out _);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+}

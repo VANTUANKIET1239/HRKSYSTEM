@@ -1,16 +1,17 @@
 ﻿{
   "Routes": [
     {
-      "DownstreamPathTemplate": "/AUTH/{everything}",
-      "DownstreamScheme": "http",
+      "DownstreamPathTemplate": "/api/auth/{everything}",
+      "DownstreamScheme": "https",
       "DownstreamHostAndPorts": [
         {
           "Host": "localhost",
-          "Port": 5001
+          //"Port": 5001
+          "Port": 44338
         }
       ],
       "UpstreamPathTemplate": "/gateway/{everything}",
-      "UpstreamHttpMethod": [ "Get" ]
+      "UpstreamHttpMethod": [ "Get","Post" ]
     }
   ],
   "GlobalConfiguration": { "BaseUrl": "http://localhost:5000" }
