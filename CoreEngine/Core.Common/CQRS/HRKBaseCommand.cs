@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Core.Common.Entity.MyCompany.Shared.Responses;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,6 +32,17 @@ namespace Core.Common.CQRS
         protected string? UserName => User?.Identity?.Name;
 
         protected string? IpAddress => HttpContext?.Connection?.RemoteIpAddress?.ToString();
+
+        protected static BaseResponse<T> Response<T>(T data, bool success, string? message = null, int statusCode = 200)
+        {
+            return new BaseResponse<T>
+            {
+                Data = data,
+                Success = success,
+                Message = message,
+                StatusCode = statusCode
+            };
+        }
 
     }
 }

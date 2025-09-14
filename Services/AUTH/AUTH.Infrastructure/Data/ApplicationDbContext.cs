@@ -20,9 +20,12 @@ namespace AUTH.Infrastructure.Data
 
         public DbSet<HRK_LoginSession> HrkLoginSessions { get; set; }
 
+        public DbSet<HRK_RefreshToken> HrkRefreshTokens  { get; set; }
+
+       // public DbSet<AccessTokenRecord>  HrkAccessTokenRecords { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
-
         }
 
     }

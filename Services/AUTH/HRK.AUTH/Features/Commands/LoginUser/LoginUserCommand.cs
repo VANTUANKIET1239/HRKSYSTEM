@@ -8,7 +8,15 @@ namespace HRK.AUTH.Features.Commands.LoginUser
 
     public class LoginUserResponse
     {
-         public string Message { get; set; }    
+
+        public string UserId { get; set; }  
+
+        public string UserName { get; set; }    
+
+        public string UserEmail { get; set; }   
+
+
+
     }
 
     public class LoginUserCommand : ICommand<BaseResponse<LoginUserResponse>>

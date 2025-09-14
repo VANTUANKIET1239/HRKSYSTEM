@@ -1,22 +1,23 @@
 ﻿using FluentValidation;
 
 using CoreEngine.CQRS;
+using Core.Common.FluentValidation;
 
 namespace HRK.AUTH.Features.Commands.LoginUser
 {
-    public class LoginUserCommandValidation : AbstractValidator<LoginUserCommand>
+    public class RefreshTokenCommandValidation : HRKValidator<LoginUserCommand>
     {
 
-            public LoginUserCommandValidation()
+            public RefreshTokenCommandValidation()
             {
-                RuleFor(x => x.Email)
-                    .NotEmpty()
-                    .EmailAddress();
 
-                RuleFor(x => x.Password)
-                    .NotEmpty()
-                    .MinimumLength(6)
-                    .WithMessage("Password must be at least 6 characters.");
+                NotEmpty(x => x.Email);
+                Email(x => x.Email);
+
+                NotEmpty(x => x.Password)
+                .MinimumLength(6).WithMessage("Password must be at least 6 characters.");
+                
+
 
             }
         

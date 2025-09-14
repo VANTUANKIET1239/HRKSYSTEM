@@ -42,33 +42,35 @@ namespace Core.Common.Repositories
                 await RollbackTransactionAsync();
                 throw;
             }
-            finally
-            {
-                await DisposeTransactionAsync();
-            }
+            //finally
+            //{
+            //    await DisposeTransactionAsync();
+            //}
         }
 
 
         public async Task RollbackTransactionAsync()
         {
-            try
-            {
-                await _transaction?.RollbackAsync();
-            }
-            finally
-            {
-                await DisposeTransactionAsync();
-            }
+            //try
+            //{
+
+            //}
+            //finally
+            //{
+            //    await DisposeTransactionAsync();
+            //}
+
+            await _transaction?.RollbackAsync();
         }
 
-        private async Task DisposeTransactionAsync()
-        {
-            if (_transaction != null)
-            {
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
-        }
+        //private async Task DisposeTransactionAsync()
+        //{
+        //    if (_transaction != null)
+        //    {
+        //        await _transaction.DisposeAsync();
+        //        _transaction = null;
+        //    }
+        //}
 
 
         public IRepository<T, TDbContext> Repository<T>() where T : class
@@ -100,7 +102,6 @@ namespace Core.Common.Repositories
             try
             {
                 var result = await _context.SaveChangesAsync(cancellationToken);
-                await DisposeAsync();
                 return result;
             }
             catch (DbEntityValidationException dbEx)

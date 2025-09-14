@@ -6,15 +6,21 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Core.Common.JwtHandler
 {
+
+   
+
     public interface IJwtCoreService
     {
-        string GenerateToken(IEnumerable<Claim> claims);
+        AccessTokenResponse GenerateToken(IEnumerable<Claim> claims);
         ClaimsPrincipal? ValidateToken(string token);
+
+        string CreateRefreshToken(string userId);
     }
     class JwtCoreService : IJwtCoreService
     {
@@ -28,19 +34,40 @@ namespace Core.Common.JwtHandler
             _key = Encoding.UTF8.GetBytes(_settings.SecretKey);
         }
 
-        public string GenerateToken(IEnumerable<Claim> claims)
+        public AccessTokenResponse GenerateToken(IEnumerable<Claim> claims)
         {
+
+            var expiredTime = DateTime.UtcNow.AddMinutes(_settings.ExpiryMinutes);
+
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddMinutes(_settings.ExpiryMinutes),
+                Expires = expiredTime,
                 Issuer = _settings.Issuer,
                 Audience = _settings.Audience,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(_key), SecurityAlgorithms.HmacSha256Signature)
             };
             var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
+            return new AccessTokenResponse(tokenHandler.WriteToken(token),expiredTime);
+        }
+
+
+        private static string Hash(string raw)
+        {
+            using var sha = SHA256.Create();
+            var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(raw));
+            return Convert.ToHexString(bytes); // store this
+        }
+
+        public string CreateRefreshToken(string userId)
+        {
+            // 256-bit random token
+            var bytes = new byte[32];
+            RandomNumberGenerator.Fill(bytes);
+            var tokenString = Hash(Convert.ToBase64String(bytes));
+
+            return tokenString;
         }
 
         public ClaimsPrincipal? ValidateToken(string token)
@@ -68,5 +95,7 @@ namespace Core.Common.JwtHandler
                 return null;
             }
         }
+
+      
     }
 }
