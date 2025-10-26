@@ -13,7 +13,7 @@ namespace Core.Common.Cookie
     {
         void SetCookie(string key, string value, Expiration expirationType = Expiration.Day, int? expirationTime = null, bool isEssential = false);
         string? GetCookie(string key);
-        void DeleteCookie(string key);
+        void DeleteCookie(string key, bool isEssential);
     }
 
     public enum Expiration {
@@ -71,9 +71,17 @@ namespace Core.Common.Cookie
             return null;
         }
 
-        public void DeleteCookie(string key)
+        public void DeleteCookie(string key, bool isEssential)
         {
-            _httpContextAccessor.HttpContext?.Response.Cookies.Delete(key);
+
+            var options = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                IsEssential = isEssential
+            };
+            _httpContextAccessor.HttpContext?.Response.Cookies.Delete(key, options);
         }
     }
 

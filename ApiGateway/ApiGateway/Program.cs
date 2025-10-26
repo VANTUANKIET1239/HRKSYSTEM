@@ -22,9 +22,9 @@ builder.Services
 
             ValidateAudience = true,
             // If you use a single shared audience for all backend APIs:
-         //   ValidAudience = builder.Configuration["JwtSettings:Audience"], // e.g. "your-backend-apis"
+            //   ValidAudience = builder.Configuration["JwtSettings:Audience"], // e.g. "your-backend-apis"
             // If you accept multiple audiences at the gateway, use:
-             ValidAudiences = builder.Configuration.GetSection("JwtSettings:Audiences").Get<string[]>(),
+            ValidAudiences = builder.Configuration.GetSection("JwtSettings:Audiences").Get<string[]>(),
 
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(60)
@@ -37,9 +37,22 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddCors(opts =>
+ {
+     opts.AddPolicy("AllowSpa", p => p
+         .WithOrigins(
+             "http://localhost:4200"   // Angular dev
+         )
+         .AllowAnyHeader()
+         .AllowAnyMethod()
+         .AllowCredentials()              // only if you use cookies/Authorization with credentials
+         .SetPreflightMaxAge(TimeSpan.FromHours(1)));
+ });
+
 var app = builder.Build();
 
 app.UseRouting();
+app.UseCors("AllowSpa");
 app.UseAuthentication();
 app.UseAuthorization();
 

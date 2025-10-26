@@ -11,8 +11,9 @@
         }
       ],
       "UpstreamPathTemplate": "/gateway/{everything}",
-      "UpstreamHttpMethod": [ "Get","Post" ]
-    }
+      "UpstreamHttpMethod": [ "Get", "Post" ]
+    },
+     
   ],
   "GlobalConfiguration": { "BaseUrl": "http://localhost:5000" }
 }

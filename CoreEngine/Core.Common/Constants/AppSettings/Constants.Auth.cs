@@ -12,6 +12,6 @@ namespace Core.Common.Constants.AppSettings
         {
             public const string JWTSETTINGS = "JwtSettings";
         }
-      
+
     }
 }

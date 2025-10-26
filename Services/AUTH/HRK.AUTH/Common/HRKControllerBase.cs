@@ -1,4 +1,5 @@
-﻿using Core.Common.Entity.MyCompany.Shared.Responses;
+﻿using Azure;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRK.AUTH.Common
@@ -41,6 +42,17 @@ namespace HRK.AUTH.Common
         {
             var response = BaseResponse<string>.FailResponse(message);
             return NotFound(response);
-        }   
+        }
+
+
+
+        protected ObjectResult HrkOk<T>(BaseResponse<T> response)
+        {
+            if (!response.Success)
+            {
+                return StatusCode(response.StatusCode, response);
+            }
+            return Ok(response);
+        }
     }
 }

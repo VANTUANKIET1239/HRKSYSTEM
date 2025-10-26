@@ -44,7 +44,7 @@ namespace Core.Common.Repositories
             _dbSet.Remove(entity);
         }
 
-        public virtual IQueryable<T> Query()
+        public virtual IQueryable<T> Table()
         {
             return _dbSet.AsQueryable();
         }
@@ -52,6 +52,11 @@ namespace Core.Common.Repositories
         public virtual async Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate)
         {
             return await _dbSet.AnyAsync(predicate);
+        }
+
+        public IQueryable<T> Query()
+        {
+            return _dbSet.AsQueryable();
         }
     }
 }

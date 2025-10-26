@@ -5,10 +5,10 @@ using Core.Common.FluentValidation;
 
 namespace HRK.AUTH.Features.Commands.LoginUser
 {
-    public class RefreshTokenCommandValidation : HRKValidator<LoginUserCommand>
+    public class LoginUserCommandValidation : HRKValidator<LoginUserCommand>
     {
 
-            public RefreshTokenCommandValidation()
+        public LoginUserCommandValidation()
             {
 
                 NotEmpty(x => x.Email);

@@ -6,21 +6,14 @@ using Core.Common.Constants.Common;
 using Core.Common.Cookie;
 using Core.Common.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
+using Core.Common.Helpers;
 using Core.Common.JwtHandler;
 using Core.Common.JwtHandler.Entities;
 using Core.Common.Repositories;
 using CoreEngine.CQRS;
-using HRK.AUTH.Helpers;
-using MediatR;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Options;
-using System.Reflection.Metadata;
-using System.Runtime.InteropServices;
 using System.Security.Claims;
-using System.Text;
-using static System.Net.WebRequestMethods;
 
 namespace HRK.AUTH.Features.Commands.LoginUser
 {
@@ -87,8 +80,10 @@ namespace HRK.AUTH.Features.Commands.LoginUser
                     return new BaseResponse<LoginUserResponse> {Data = new LoginUserResponse(), Success = false, StatusCode = 401, Message = "Invalid credentials." };
                 }
 
+
                 Guid sessionId = Guid.NewGuid();
-                Guid Jti = Guid.NewGuid();  
+                Guid Jti = Guid.NewGuid();
+
 
                 var claims = new List<Claim>
                 {
@@ -98,14 +93,13 @@ namespace HRK.AUTH.Features.Commands.LoginUser
                     new Claim(Constants.JSON_WEB_TOKEN.USERID, user.Id)
                 };
 
-             //   var accessToken = _jwtCoreService.GenerateToken(claims);
 
-                //if (string.IsNullOrEmpty(accessToken.AccessToken))
-                //{
-                //    return new BaseResponse<LoginUserResponse> {Data = new LoginUserResponse(), Success = false, StatusCode = 500, Message = "Cannot create JWT Token" };
-                //}
+                var claimsIdentity = new ClaimsIdentity(claims, IdentityConstants.ApplicationScheme);
+                await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, claims);
 
-                var rawRefreshToken = _jwtCoreService.CreateRefreshToken(user.Id);
+
+
+                var rawRefreshToken = _jwtCoreService.NewSecureRandomToken();
 
                 await _unitOfWork.BeginTransactionAsync();
 
@@ -114,7 +108,7 @@ namespace HRK.AUTH.Features.Commands.LoginUser
             
                 await _unitOfWork.Repository<HRK_RefreshToken>().AddAsync(new HRK_RefreshToken
                 {
-                    TokenHash = DEncryptHelpers.Hash(rawRefreshToken),
+                    TokenHash = _jwtCoreService.HashToken(rawRefreshToken),
                     UserId = user.Id,
                     CreatedAt = now,
                     CreatedByIp = IpAddress,
@@ -134,9 +128,11 @@ namespace HRK.AUTH.Features.Commands.LoginUser
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync();
 
-                //_coreCookieService.SetCookie(Constants.JSON_WEB_TOKEN.SESSIONID, sessionId.ToString(), Expiration.Day, 1, true);
-                //_coreCookieService.SetCookie(Constants.JSON_WEB_TOKEN.JWT, accessToken.AccessToken, Expiration.Minute, _jwtOptions.Value.ExpiryMinutes, true);
+
+
                 _coreCookieService.SetCookie(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, rawRefreshToken, Expiration.Day, _jwtOptions.Value.RefreshTokenDays, true);
+
+
 
                 return new BaseResponse<LoginUserResponse>
                 {

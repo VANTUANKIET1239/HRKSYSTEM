@@ -1,10 +1,11 @@
-﻿using HRK.AUTH.Common;
+﻿using Azure;
+using Core.Common.Entity.MyCompany.Shared.Responses;
+using HRK.AUTH.Common;
 using HRK.AUTH.Features.Commands.LoginUser;
 using HRK.AUTH.Features.Commands.RefreshToken;
-using Core.Common.Entity.MyCompany.Shared.Responses;
 using MediatR;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace HRK.AUTH.Controllers
 {
@@ -27,17 +28,21 @@ namespace HRK.AUTH.Controllers
         }
 
 
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(LogouUserCommand command)
+        {
+            var response = await _mediator.Send(command);
+
+
+            return HrkOk(response);
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginUserCommand command)
         {
             var response = await _mediator.Send(command);
 
-            if (!response.Success)
-            {
-                return StatusCode(response.StatusCode, response);
-            }
-
-            return Ok(response);
+            return HrkOk(response);
         }
 
         [HttpPost("refresh-token")]
@@ -45,12 +50,12 @@ namespace HRK.AUTH.Controllers
         {
             var response = await _mediator.Send(command);
 
-            return Ok(response);
+
+            return HrkOk(response);
         }
 
 
         [HttpGet("Test")]
-        [Authorize]
         public  IActionResult Test()
         {
             return Ok("test");

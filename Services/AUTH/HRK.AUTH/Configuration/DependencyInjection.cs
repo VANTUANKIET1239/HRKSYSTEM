@@ -1,7 +1,12 @@
 ﻿using AUTH.Infrastructure.Configuration;
+using AUTH.Infrastructure.Data;
 using AUTH.Infrastructure.Identity;
+using Core.Common.Common;
+using Core.Common.Extensions;
 using Core.Common.SqlExecutor;
 using FluentValidation;
+using HRK.AUTH.Interfaces;
+using HRK.AUTH.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -9,13 +14,6 @@ using Microsoft.Extensions.Configuration;
 using System;
 using System.Data;
 using System.Reflection;
-using Core.Common.Extensions;
-using AUTH.Infrastructure.Data;
-using Core.Common.Common;
-using System.Reflection.Metadata;
-using System.Configuration;
-using System.Data.Entity;
-
 namespace HRK.AUTH.Configuration
 {
     public static class DependencyInjection
@@ -32,14 +30,15 @@ namespace HRK.AUTH.Configuration
             AddServices(services, configuration);
 
             services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-            services.AddMediatR(cfg => {
+            services.AddMediatR(cfg =>
+            {
                 cfg.RegisterServicesFromAssemblies(Assembly.GetExecutingAssembly());
             });
 
-          
+
 
             // add services 
-      
+
 
 
             return services;
@@ -47,14 +46,19 @@ namespace HRK.AUTH.Configuration
 
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
-            
+
             services.AddCoreService(configuration);
+
 
             services.AddRepositoryUOW<ApplicationDbContext>();
 
+            services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+
+          
+
         }
 
-        public static void AddDbContexts(IServiceCollection services , IConfiguration configuration)
+        public static void AddDbContexts(IServiceCollection services, IConfiguration configuration)
         {
             services.AddDbContext<AuthDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString(Constants.DefaultConnection)));
@@ -75,7 +79,7 @@ namespace HRK.AUTH.Configuration
         //        .AddDefaultTokenProviders();
 
 
-        
+
         //}
     }
 }

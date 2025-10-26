@@ -7,6 +7,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 
+using Core.Common.Constants.Common;
+
 namespace Core.Common.CQRS
 {
     public interface IHRKBaseCommand
@@ -44,5 +46,15 @@ namespace Core.Common.CQRS
             };
         }
 
+       protected Guid GetCurrentLoginSession()
+       {
+            var user = HttpContext?.User;
+            var sessionClaim = user?.FindFirst(Constants.Common.Constants.JSON_WEB_TOKEN.SESSIONID)?.Value;
+            if (Guid.TryParse(sessionClaim, out Guid sessionId))
+            {
+                return sessionId;
+            }
+            throw new Exception("CurrentLoginSessionId claim is missing or invalid.");
+        }
     }
 }
