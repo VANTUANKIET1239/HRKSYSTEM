@@ -1,17 +1,17 @@
 ﻿using AUTH.Infrastructure.Configuration;
 using AUTH.Infrastructure.Data;
-using AUTH.Infrastructure.Identity;
 using Core.Common.Common;
+using Core.Common.Constants.Common;
+using Core.Common.Entity;
 using Core.Common.Extensions;
-using Core.Common.SqlExecutor;
+using Core.Common.JwtHandler.Entities;
+using Core.RabbitMQ.DependencyInjection;
+using Core.RabbitMQ.Interfaces;
 using FluentValidation;
 using HRK.AUTH.Interfaces;
 using HRK.AUTH.Services;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using System;
 using System.Data;
 using System.Reflection;
 namespace HRK.AUTH.Configuration
@@ -27,7 +27,14 @@ namespace HRK.AUTH.Configuration
             // add DbContexts
             AddDbContexts(services, configuration);
 
+
+            AddOptions(services, configuration);
+
             AddServices(services, configuration);
+
+       //     AddRabbitMq(services, configuration);
+
+           
 
             services.AddValidatorsFromAssembly(typeof(Program).Assembly);
             services.AddMediatR(cfg =>
@@ -44,6 +51,20 @@ namespace HRK.AUTH.Configuration
             return services;
         }
 
+
+        public static void AddRabbitMq(IServiceCollection services, IConfiguration configuration)
+        {
+            services
+            .AddRabbitMqMessaging(configuration)
+            .EnsureRabbitTopology();
+
+            // 2) Consumer setup (message + handler)
+            services.AddScoped<DemoMessageHandler>();
+            services.AddRabbitConsumer<DemoMessage, DemoMessageHandler>(
+                queue: configuration["RabbitMq:Consumer:Queue"]!);
+
+           
+        }   
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
 
@@ -58,17 +79,25 @@ namespace HRK.AUTH.Configuration
 
         }
 
+        public static void AddOptions(IServiceCollection services, IConfiguration configuration)
+        {
+
+            services.Configure<HRKCookieOptions>(configuration.GetSection(Constants.Cookie.COOKIE_OPTONS));
+            services.AddOptions(configuration);
+
+        }
+
         public static void AddDbContexts(IServiceCollection services, IConfiguration configuration)
         {
             services.AddDbContext<AuthDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString(Constants.DefaultConnection)));
+            options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
 
             services.AddScoped<IDbConnection>(sp =>
-            new SqlConnection(configuration.GetConnectionString(Constants.DefaultConnection)));
+            new SqlConnection(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
 
 
             services.AddDbContext<ApplicationDbContext>(options =>
-              options.UseSqlServer(configuration.GetConnectionString(Constants.DefaultConnection)));
+              options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
         }
 
 
@@ -81,5 +110,20 @@ namespace HRK.AUTH.Configuration
 
 
         //}
+
+        public sealed record DemoMessage(Guid Id, string Name, DateTime CreatedAtUtc);
+
+        public sealed class DemoMessageHandler : IMessageHandler<DemoMessage>
+        {
+            private readonly ILogger<DemoMessageHandler> _log;
+            public DemoMessageHandler(ILogger<DemoMessageHandler> log) => _log = log;
+
+            public Task HandleAsync(DemoMessage message, CancellationToken ct)
+            {
+                _log.LogInformation("Handled DemoMessage {Id} - {Name} at {At}", message.Id, message.Name, message.CreatedAtUtc);
+                // do work...
+                return Task.CompletedTask;
+            }
+        }
     }
 }

@@ -7,8 +7,10 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 builder.Configuration.AddJsonFile("Ocelot.json", optional: false, reloadOnChange: true);
 builder.Services.AddOcelot(builder.Configuration);
+
 
 // Add JWT authentication and authorization
 builder.Services
@@ -39,9 +41,10 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddCors(opts =>
  {
+     var origins = builder.Configuration.GetSection("CORS:Origins").Get<string[]>() ?? [];
      opts.AddPolicy("AllowSpa", p => p
          .WithOrigins(
-             "http://localhost:4200"   // Angular dev
+            origins
          )
          .AllowAnyHeader()
          .AllowAnyMethod()

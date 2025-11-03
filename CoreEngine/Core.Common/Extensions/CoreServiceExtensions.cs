@@ -16,10 +16,17 @@ namespace Core.Common.Extensions
             services.AddScoped<ICoreCookieService, CoreCookieService>();
             services.AddScoped(typeof(ILoggerService<>), typeof(LoggerService<>));
             services.AddScoped<ISqlExecutor, SqlExecutor.SqlExecutor>();       
-            services.Configure<JwtSettings>(configuration.GetSection(Constants.AppSettings.Constants.AppSetting_Auth.JWTSETTINGS));
             services.AddScoped<IJwtCoreService, JwtCoreService>();
             return services;
         }
+
+        public static IServiceCollection AddOptions(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.Configure<JwtSettings>(configuration.GetSection(Constants.AppSettings.Constants.AppSetting_Auth.JWTSETTINGS));
+
+            return services;
+        }
+
         public static IServiceCollection AddRepositoryUOW<TDbContext>(this IServiceCollection services) where TDbContext : DbContext
         {
             services.AddScoped<IUnitOfWork<TDbContext>, UnitOfWork<TDbContext>>();

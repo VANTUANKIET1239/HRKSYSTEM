@@ -22,35 +22,25 @@ namespace HRK.AUTH.Features.Commands.LoginUser
 {
     public class LogouUserCommandHandler : HRKBaseCommand, ICommandHandler<LogouUserCommand, BaseResponse<LogoutUserResponse>>
     {
-        private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly IJwtCoreService _jwtCoreService;
         private readonly IUnitOfWork<ApplicationDbContext> _unitOfWork;
-        private readonly IConfiguration _configuration;
         private readonly ICoreCookieService _coreCookieService;
-        private readonly IOptions<JwtSettings> _jwtOptions;
         private readonly IRefreshTokenService _refreshTokenService;
 
         //     private readonly string _apiKey;
 
-        public LogouUserCommandHandler(UserManager<ApplicationUser> userManager,
+        public LogouUserCommandHandler(
             SignInManager<ApplicationUser> signInManager,
-            IJwtCoreService jwtCoreService,
             IHttpContextAccessor httpContextAccessor,
             IUnitOfWork<ApplicationDbContext> unitOfWork,
-            IConfiguration configuration,
             ICoreCookieService coreCookieService,
             IOptions<JwtSettings> options,
             IRefreshTokenService refreshTokenService
             ) : base(httpContextAccessor)
         {
-            _userManager = userManager;
             this._signInManager = signInManager;
-            this._jwtCoreService = jwtCoreService;
             this._unitOfWork = unitOfWork;
-            this._configuration = configuration;
             this._coreCookieService = coreCookieService;
-            this._jwtOptions = options;
             this._refreshTokenService = refreshTokenService;
         }
 

@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.RabbitMQ\Core.RabbitMQ.csproj" />
     <ProjectReference Include="..\AUTH.Application\AUTH.Application.csproj" />
   </ItemGroup>
 

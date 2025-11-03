@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace Core.Common.Cookie
 {
+    using Core.Common.Entity;
     using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Options;
     using System;
 
     public interface ICoreCookieService
@@ -26,38 +29,41 @@ namespace Core.Common.Cookie
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public CoreCookieService(IHttpContextAccessor httpContextAccessor)
+
+        private readonly CookieOptions _defaultCookieOptions;
+        public CoreCookieService(IHttpContextAccessor httpContextAccessor, IOptions<HRKCookieOptions> cookieOptions)
         {
             _httpContextAccessor = httpContextAccessor;
+            _defaultCookieOptions = new CookieOptions
+            {
+                HttpOnly = cookieOptions.Value.HttpOnly,
+                Secure = cookieOptions.Value.Secure,
+                SameSite = cookieOptions.Value.SameSite,
+                IsEssential = cookieOptions.Value.IsEssential
+            };
         }
 
         public void SetCookie(string key, string value, Expiration expirationType = Expiration.Day, int? expirationTime = null, bool isEssential = false)
         {
-            var options = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Lax,
-                IsEssential = isEssential
-            };
+
 
             if (expirationTime.HasValue)
             {
                 switch (expirationTime)
                 {
                     case (int)Expiration.Minute:
-                        options.Expires = DateTimeOffset.UtcNow.AddMinutes(expirationTime.Value);
+                        _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddMinutes(expirationTime.Value);
                         break;
-                    case (int)Expiration.Hour: 
-                        options.Expires = DateTimeOffset.UtcNow.AddHours(expirationTime.Value);
+                    case (int)Expiration.Hour:
+                        _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddHours(expirationTime.Value);
                         break;
                     case (int)Expiration.Day:
-                        options.Expires = DateTimeOffset.UtcNow.AddDays(expirationTime.Value);
+                        _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(expirationTime.Value);
                         break;  
                 }
             }
 
-            _httpContextAccessor.HttpContext?.Response.Cookies.Append(key, value, options);
+            _httpContextAccessor.HttpContext?.Response.Cookies.Append(key, value, _defaultCookieOptions);
         }
 
         public string? GetCookie(string key)
@@ -73,15 +79,7 @@ namespace Core.Common.Cookie
 
         public void DeleteCookie(string key, bool isEssential)
         {
-
-            var options = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Lax,
-                IsEssential = isEssential
-            };
-            _httpContextAccessor.HttpContext?.Response.Cookies.Delete(key, options);
+            _httpContextAccessor.HttpContext?.Response.Cookies.Delete(key, _defaultCookieOptions);
         }
     }
 

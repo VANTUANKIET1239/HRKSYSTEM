@@ -1,11 +1,14 @@
 ﻿using Azure;
 using Core.Common.Entity.MyCompany.Shared.Responses;
+using Core.RabbitMQ.Interfaces;
 using HRK.AUTH.Common;
 using HRK.AUTH.Features.Commands.LoginUser;
 using HRK.AUTH.Features.Commands.RefreshToken;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using static HRK.AUTH.Configuration.DependencyInjection;
 
 namespace HRK.AUTH.Controllers
 {
@@ -14,10 +17,12 @@ namespace HRK.AUTH.Controllers
     public class AuthController : HRKControllerBase
     {
         private readonly IMediator _mediator;
+      //  private readonly IMessagePublisher _messagePublisher;
 
         public AuthController(IMediator mediator)
         {
             _mediator = mediator;
+          //  this._messagePublisher = messagePublisher;
         }
 
         [HttpPost("register")]
@@ -29,10 +34,10 @@ namespace HRK.AUTH.Controllers
 
 
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout(LogouUserCommand command)
+        public async Task<IActionResult> Logout()
         {
+            LogouUserCommand command = new();
             var response = await _mediator.Send(command);
-
 
             return HrkOk(response);
         }
@@ -56,9 +61,11 @@ namespace HRK.AUTH.Controllers
 
 
         [HttpGet("Test")]
-        public  IActionResult Test()
+        public async Task<IActionResult> Test()
         {
-            return Ok("test");
+            var msg = new DemoMessage(Guid.NewGuid(), "kiet", DateTime.UtcNow);
+           // await _messagePublisher.PublishJsonAsync(msg, ct: default);
+            return Ok(new { status = "published", msg.Id });
         }
     }
 }
