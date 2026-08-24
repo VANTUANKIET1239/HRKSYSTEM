@@ -1,14 +1,22 @@
-﻿
+using System;
+using System.Collections.Generic;
+using System.Data.Entity.Validation;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+
 namespace Core.Common.Repositories
 {
     public class UnitOfWork<TDbContext> : IUnitOfWork<TDbContext>, IDisposable, IAsyncDisposable where TDbContext : DbContext
     {
         private readonly TDbContext _context;
-        private  readonly Dictionary<Type, object> _repositories = new();
-        private  readonly Dictionary<Type, object> _readOnlyRepositories = new();
-        private IDbContextTransaction _transaction;
+        private readonly Dictionary<Type, object> _repositories = new();
+        private readonly Dictionary<Type, object> _readOnlyRepositories = new();
+        private IDbContextTransaction? _transaction;
         private string _errorMessage = string.Empty;
         public bool HasActiveTransaction => _transaction != null;
+
         public UnitOfWork(TDbContext context)
         {
             _context = context;
@@ -29,49 +37,75 @@ namespace Core.Common.Repositories
             return _context.SaveChanges();
         }
 
-       
         public async Task CommitTransactionAsync()
         {
             try
             {
                 await _context.SaveChangesAsync();
-                await _transaction?.CommitAsync();
+                if (_transaction != null)
+                {
+                    await _transaction.CommitAsync();
+                }
             }
             catch
             {
                 await RollbackTransactionAsync();
                 throw;
             }
-            //finally
-            //{
-            //    await DisposeTransactionAsync();
-            //}
+            finally
+            {
+                if (_transaction != null)
+                {
+                    await _transaction.DisposeAsync();
+                    _transaction = null;
+                }
+            }
         }
-
 
         public async Task RollbackTransactionAsync()
         {
-            //try
-            //{
-
-            //}
-            //finally
-            //{
-            //    await DisposeTransactionAsync();
-            //}
-
-            await _transaction?.RollbackAsync();
+            try
+            {
+                if (_transaction != null)
+                {
+                    await _transaction.RollbackAsync();
+                }
+            }
+            finally
+            {
+                if (_transaction != null)
+                {
+                    await _transaction.DisposeAsync();
+                    _transaction = null;
+                }
+            }
         }
 
-        //private async Task DisposeTransactionAsync()
-        //{
-        //    if (_transaction != null)
-        //    {
-        //        await _transaction.DisposeAsync();
-        //        _transaction = null;
-        //    }
-        //}
+        public async Task ExecuteStrategyAsync(Func<Task> operation)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(operation);
+        }
 
+        public async Task ExecuteInTransactionAsync(Func<Task> action)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async () =>
+            {
+                await BeginTransactionAsync();
+                try
+                {
+                    await action();
+                    await SaveChangesAsync();
+                    await CommitTransactionAsync();
+                }
+                catch
+                {
+                    await RollbackTransactionAsync();
+                    throw;
+                }
+            });
+        }
 
         public IRepository<T, TDbContext> Repository<T>() where T : class
         {
@@ -84,6 +118,10 @@ namespace Core.Common.Repositories
             return (IRepository<T, TDbContext>)_repositories[type];
         }
 
+        IRepository<T> IUnitOfWork.Repository<T>() where T : class
+        {
+            return Repository<T>();
+        }
 
         public IReadOnlyRepository<T, TDbContext> ReadOnlyRepository<T>() where T : class
         {
@@ -98,7 +136,6 @@ namespace Core.Common.Repositories
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-
             try
             {
                 var result = await _context.SaveChangesAsync(cancellationToken);
@@ -109,10 +146,7 @@ namespace Core.Common.Repositories
                 _errorMessage = dbEx.InnerException?.Message ?? dbEx.Message;
                 throw new Exception(_errorMessage, dbEx);
             }
-
-          
         }
-
 
         public void Dispose()
         {
@@ -128,7 +162,5 @@ namespace Core.Common.Repositories
 
             await _context.DisposeAsync();
         }
-
     }
-
 }

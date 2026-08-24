@@ -35,5 +35,13 @@ namespace Core.Common.Constants.Common
             public const string COOKIE_OPTONS = "CookieOptions";
         }
 
+
+        public class Database
+        {
+            public const string SQL_SERVER = "SqlServer";
+            public const string POSTGRE_SQL = "PostgreSql";
+            public const string DATABASE = "Database";
+        }
+
     }
 }

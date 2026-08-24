@@ -1,4 +1,4 @@
-﻿
+
 namespace Core.Common.Repositories
 {
     public class ReadOnlyRepository<T, TDbContext> : IReadOnlyRepository<T, TDbContext> 
@@ -37,6 +37,11 @@ namespace Core.Common.Repositories
         public virtual async Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate)
         {
             return await _dbSet.AsNoTracking().AnyAsync(predicate);
+        }
+
+        public virtual async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet.AsNoTracking().FirstOrDefaultAsync(predicate, cancellationToken);
         }
     }
 }

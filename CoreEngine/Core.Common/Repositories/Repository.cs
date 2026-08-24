@@ -1,4 +1,4 @@
-﻿
+
 namespace Core.Common.Repositories
 {
     public class Repository<T, TDbContext> : IRepository<T, TDbContext> 
@@ -57,6 +57,11 @@ namespace Core.Common.Repositories
         public IQueryable<T> Query()
         {
             return _dbSet.AsQueryable();
+        }
+
+        public virtual async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        {
+            return await _dbSet.FirstOrDefaultAsync(predicate, cancellationToken);
         }
     }
 }

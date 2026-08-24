@@ -1,5 +1,6 @@
 ﻿using AUTH.Infrastructure.Data;
 using AUTH.Infrastructure.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,13 @@ namespace AUTH.Infrastructure.Configuration
             .AddEntityFrameworkStores<AuthDbContext>()
             .AddDefaultTokenProviders();
 
+
+            services.ConfigureApplicationCookie(options =>
+            {
+                options.Cookie.SameSite = SameSiteMode.None;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.HttpOnly = true;
+            });
 
 
             services.Configure<IdentityOptions>(options =>

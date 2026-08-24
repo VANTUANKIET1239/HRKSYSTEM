@@ -38,7 +38,7 @@ namespace Core.Common.Cookie
             {
                 HttpOnly = cookieOptions.Value.HttpOnly,
                 Secure = cookieOptions.Value.Secure,
-                SameSite = cookieOptions.Value.SameSite,
+                SameSite = SameSiteMode.None,
                 IsEssential = cookieOptions.Value.IsEssential
             };
         }
@@ -49,15 +49,15 @@ namespace Core.Common.Cookie
 
             if (expirationTime.HasValue)
             {
-                switch (expirationTime)
+                switch (expirationType)
                 {
-                    case (int)Expiration.Minute:
+                    case Expiration.Minute:
                         _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddMinutes(expirationTime.Value);
                         break;
-                    case (int)Expiration.Hour:
+                    case Expiration.Hour:
                         _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddHours(expirationTime.Value);
                         break;
-                    case (int)Expiration.Day:
+                    case Expiration.Day:
                         _defaultCookieOptions.Expires = DateTimeOffset.UtcNow.AddDays(expirationTime.Value);
                         break;  
                 }

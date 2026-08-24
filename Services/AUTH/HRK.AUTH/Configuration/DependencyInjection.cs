@@ -1,15 +1,18 @@
-﻿using AUTH.Infrastructure.Configuration;
+using AUTH.Application.Interfaces;
+using AUTH.Infrastructure.Configuration;
 using AUTH.Infrastructure.Data;
+using AUTH.Infrastructure.Identity;
+using AUTH.Infrastructure.Services;
 using Core.Common.Common;
 using Core.Common.Constants.Common;
+using Core.Common.Database.Extensions;
+using Core.Common.Database.Options;
 using Core.Common.Entity;
 using Core.Common.Extensions;
 using Core.Common.JwtHandler.Entities;
 using Core.RabbitMQ.DependencyInjection;
 using Core.RabbitMQ.Interfaces;
 using FluentValidation;
-using HRK.AUTH.Interfaces;
-using HRK.AUTH.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -36,10 +39,10 @@ namespace HRK.AUTH.Configuration
 
            
 
-            services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+            services.AddValidatorsFromAssembly(typeof(IIdentityService).Assembly);
             services.AddMediatR(cfg =>
             {
-                cfg.RegisterServicesFromAssemblies(Assembly.GetExecutingAssembly());
+                cfg.RegisterServicesFromAssemblies(typeof(IIdentityService).Assembly);
             });
 
 
@@ -54,9 +57,9 @@ namespace HRK.AUTH.Configuration
 
         public static void AddRabbitMq(IServiceCollection services, IConfiguration configuration)
         {
-            services
-            .AddRabbitMqMessaging(configuration)
-            .EnsureRabbitTopology();
+            //services
+            //.AddRabbitMqMessaging(configuration)
+            //.EnsureRabbitTopology();
 
             // 2) Consumer setup (message + handler)
             services.AddScoped<DemoMessageHandler>();
@@ -67,16 +70,12 @@ namespace HRK.AUTH.Configuration
         }   
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
-
             services.AddCoreService(configuration);
-
 
             services.AddRepositoryUOW<ApplicationDbContext>();
 
+            services.AddScoped<IIdentityService, IdentityService>();
             services.AddScoped<IRefreshTokenService, RefreshTokenService>();
-
-          
-
         }
 
         public static void AddOptions(IServiceCollection services, IConfiguration configuration)
@@ -89,15 +88,24 @@ namespace HRK.AUTH.Configuration
 
         public static void AddDbContexts(IServiceCollection services, IConfiguration configuration)
         {
-            services.AddDbContext<AuthDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
+            //services.AddDbContext<AuthDbContext>(options =>
+            //options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
+
+
+            //services.AddDbContext<ApplicationDbContext>(options =>
+            //  options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
+
+            services.Configure<DatabaseOptions>(
+    configuration.GetSection("Database"));
+
+            services.AddDatabase<AuthDbContext>(configuration);
+
+            services.AddDatabase<ApplicationDbContext>(configuration);
 
             services.AddScoped<IDbConnection>(sp =>
             new SqlConnection(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
 
 
-            services.AddDbContext<ApplicationDbContext>(options =>
-              options.UseSqlServer(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
         }
 
 

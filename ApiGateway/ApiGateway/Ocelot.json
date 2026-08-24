@@ -1,4 +1,4 @@
-﻿{
+{
   "Routes": [
     {
       "DownstreamPathTemplate": "/api/auth/{everything}",
@@ -6,16 +6,16 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "localhost",
-          //"Port": 5001
           "Port": 44338
         }
       ],
       "UpstreamPathTemplate": "/gateway/auth/{everything}",
-      "UpstreamHttpMethod": [ "Get", "Post" ]
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post"
+      ]
     },
     {
-      "UpstreamPathTemplate": "/gateway/auth/logout",
-      "UpstreamHttpMethod": [ "Post" ],
       "DownstreamPathTemplate": "/api/auth/logout",
       "DownstreamScheme": "https",
       "DownstreamHostAndPorts": [
@@ -24,17 +24,136 @@
           "Port": 44338
         }
       ],
+      "UpstreamPathTemplate": "/gateway/auth/logout",
+      "UpstreamHttpMethod": [
+        "Post"
+      ],
       "Priority": 10,
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
+    },
+    {
+      "DownstreamPathTemplate": "/api/metadata/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/metadata/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/catalog/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/catalog/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/player/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/player/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/inventory/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/inventory/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/formation/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/formation/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/battle/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/battle/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5298
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
     }
-
   ],
-  "CORS": {
-    "Origins": [
-      "http://localhost:4200"
-    ]
-  },
-  "GlobalConfiguration": { "BaseUrl": "http://localhost:5000" }
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:5000"
+  }
 }

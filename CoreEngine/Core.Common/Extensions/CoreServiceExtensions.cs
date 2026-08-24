@@ -1,4 +1,4 @@
-﻿
+
 using Core.Common.Constants.Common;
 using Core.Common.Cookie;
 using Core.Common.JwtHandler;
@@ -30,10 +30,15 @@ namespace Core.Common.Extensions
         public static IServiceCollection AddRepositoryUOW<TDbContext>(this IServiceCollection services) where TDbContext : DbContext
         {
             services.AddScoped<IUnitOfWork<TDbContext>, UnitOfWork<TDbContext>>();
+            services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IUnitOfWork<TDbContext>>());
 
             // Register open generic repository with the current DbContext
             services.AddScoped(typeof(IRepository<,>), typeof(Repository<,>));
             services.AddScoped(typeof(IReadOnlyRepository<,>), typeof(ReadOnlyRepository<,>));
+
+            // Register open generic adapters
+            services.AddScoped(typeof(IRepository<>), typeof(RepositoryAdapter<>));
+            services.AddScoped(typeof(IReadOnlyRepository<>), typeof(ReadOnlyRepositoryAdapter<>));
 
             return services;
         }

@@ -8,7 +8,11 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 
-builder.Configuration.AddJsonFile("Ocelot.json", optional: false, reloadOnChange: true);
+// builder.Configuration.AddJsonFile("Ocelot.json", optional: false, reloadOnChange: true);
+var ocelotConfig = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
+    ? "Ocelot.docker.json"
+    : "Ocelot.json";
+builder.Configuration.AddJsonFile(ocelotConfig, optional: false, reloadOnChange: true);
 builder.Services.AddOcelot(builder.Configuration);
 
 
@@ -27,6 +31,12 @@ builder.Services
             //   ValidAudience = builder.Configuration["JwtSettings:Audience"], // e.g. "your-backend-apis"
             // If you accept multiple audiences at the gateway, use:
             ValidAudiences = builder.Configuration.GetSection("JwtSettings:Audiences").Get<string[]>(),
+
+
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"])
+            ),
 
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(60)
@@ -48,8 +58,8 @@ builder.Services.AddCors(opts =>
          )
          .AllowAnyHeader()
          .AllowAnyMethod()
-         .AllowCredentials()              // only if you use cookies/Authorization with credentials
-         .SetPreflightMaxAge(TimeSpan.FromHours(1)));
+         .AllowCredentials()              
+        );
  });
 
 var app = builder.Build();

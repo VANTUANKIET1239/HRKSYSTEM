@@ -8,7 +8,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AUTH.Domain\AUTH.Domain.csproj" />
-    <ProjectReference Include="..\AUTH.Infrastructure\AUTH.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

@@ -1,13 +1,16 @@
-﻿using Azure;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.RabbitMQ.Interfaces;
 using HRK.AUTH.Common;
-using HRK.AUTH.Features.Commands.LoginUser;
-using HRK.AUTH.Features.Commands.RefreshToken;
+using AUTH.Application.Features.Commands.LoginUser;
+using AUTH.Application.Features.Commands.RegisterUser;
+using AUTH.Application.Features.Commands.RefreshToken;
+using AUTH.Application.Features.Commands.LogoutUser;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using static HRK.AUTH.Configuration.DependencyInjection;
 
 namespace HRK.AUTH.Controllers
@@ -50,7 +53,7 @@ namespace HRK.AUTH.Controllers
             return HrkOk(response);
         }
 
-        [HttpPost("refresh-token")]
+        [HttpPost("refresh-token")]  
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
         {
             var response = await _mediator.Send(command);
@@ -60,9 +63,21 @@ namespace HRK.AUTH.Controllers
         }
 
 
-        [HttpGet("Test")]
+        [HttpPost("Test")]
         public async Task<IActionResult> Test()
         {
+
+            var _defaultCookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                IsEssential = true,
+                
+
+            };
+            Response.Cookies.Append("Test","vantuankiet" , _defaultCookieOptions);
+
             var msg = new DemoMessage(Guid.NewGuid(), "kiet", DateTime.UtcNow);
            // await _messagePublisher.PublishJsonAsync(msg, ct: default);
             return Ok(new { status = "published", msg.Id });

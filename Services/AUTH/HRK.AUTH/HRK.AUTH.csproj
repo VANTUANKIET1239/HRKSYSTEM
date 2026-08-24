@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
     <ProjectReference Include="..\..\..\CoreEngine\Core.RabbitMQ\Core.RabbitMQ.csproj" />
     <ProjectReference Include="..\AUTH.Application\AUTH.Application.csproj" />
+    <ProjectReference Include="..\AUTH.Infrastructure\AUTH.Infrastructure.csproj" />
   </ItemGroup>
 
   <ProjectExtensions><VisualStudio><UserProperties appsettings_1json__JsonSchema="https://www.schemastore.org/appveyor.json" /></VisualStudio></ProjectExtensions>

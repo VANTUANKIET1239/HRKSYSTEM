@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
     <ProjectReference Include="..\AUTH.Domain\AUTH.Domain.csproj" />
+    <ProjectReference Include="..\AUTH.Application\AUTH.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

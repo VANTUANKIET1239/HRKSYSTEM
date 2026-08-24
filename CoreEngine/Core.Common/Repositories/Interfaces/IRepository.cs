@@ -1,13 +1,16 @@
-﻿
 
 namespace Core.Common.Repositories
 {
-    public interface IRepository<T, TDbContext> : IReadOnlyRepository<T, TDbContext> where T : class
+    public interface IRepository<T> : IReadOnlyRepository<T> where T : class
     {
         Task AddAsync(T entity);
         void Update(T entity);  
         void Remove(T entity);
+        IQueryable<T> Table();
+    }
 
-         IQueryable<T> Table();
+    public interface IRepository<T, TDbContext> : IRepository<T>, IReadOnlyRepository<T, TDbContext> 
+        where T : class
+    {
     }
 }

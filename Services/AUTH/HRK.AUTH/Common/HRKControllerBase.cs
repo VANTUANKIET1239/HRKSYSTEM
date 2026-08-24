@@ -1,4 +1,3 @@
-﻿using Azure;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Microsoft.AspNetCore.Mvc;
 

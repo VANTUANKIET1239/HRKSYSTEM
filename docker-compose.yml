@@ -8,6 +8,7 @@ services:
       dockerfile: ApiGateway/ApiGateway/Dockerfile
     depends_on:
       - hrk.auth
+      - hrk.game
     ports:
       - "5000:8080"
 
@@ -16,8 +17,16 @@ services:
     image: ${DOCKER_REGISTRY-}hrkauth
     build:
       context: .
-      dockerfile: Services/HRK.AUTH/Dockerfile
+      dockerfile: Services/AUTH/HRK.AUTH/Dockerfile
     ports:
       - "5001:8080"
+
+  hrk.game:
+    image: ${DOCKER_REGISTRY-}hrkgame
+    build:
+      context: .
+      dockerfile: Services/HRKGAME/HRK.GAME/Dockerfile
+    ports:
+      - "5002:8080"
     
 
