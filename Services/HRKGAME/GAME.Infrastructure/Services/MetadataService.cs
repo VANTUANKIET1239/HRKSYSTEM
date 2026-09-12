@@ -18,8 +18,7 @@ namespace GAME.Infrastructure.Services
 
         public async Task<List<RarityDto>> GetRaritiesAsync(CancellationToken cancellationToken = default)
         {
-            return await _unitOfWork.Repository<HrkRarity>().Query()
-                .AsNoTracking()
+            return await _unitOfWork.ReadOnlyRepository<HrkRarity>().Query()
                 .OrderBy(r => r.DisplayOrder)
                 .Select(r => new RarityDto
                 {
@@ -34,8 +33,7 @@ namespace GAME.Infrastructure.Services
 
         public async Task<List<HeroFactionDto>> GetFactionsAsync(CancellationToken cancellationToken = default)
         {
-            return await _unitOfWork.Repository<HrkHeroFaction>().Query()
-                .AsNoTracking()
+            return await _unitOfWork.ReadOnlyRepository<HrkHeroFaction>().Query()
                 .OrderBy(f => f.DisplayOrder)
                 .Select(f => new HeroFactionDto
                 {
@@ -50,8 +48,7 @@ namespace GAME.Infrastructure.Services
 
         public async Task<List<HeroClassDto>> GetClassesAsync(CancellationToken cancellationToken = default)
         {
-            return await _unitOfWork.Repository<HrkHeroClass>().Query()
-                .AsNoTracking()
+            return await _unitOfWork.ReadOnlyRepository<HrkHeroClass>().Query()
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => new HeroClassDto
                 {
@@ -66,8 +63,7 @@ namespace GAME.Infrastructure.Services
 
         public async Task<List<ItemCategoryDto>> GetItemCategoriesAsync(CancellationToken cancellationToken = default)
         {
-            return await _unitOfWork.Repository<HrkItemCategory>().Query()
-                .AsNoTracking()
+            return await _unitOfWork.ReadOnlyRepository<HrkItemCategory>().Query()
                 .OrderBy(c => c.DisplayOrder)
                 .Select(c => new ItemCategoryDto
                 {
@@ -84,24 +80,20 @@ namespace GAME.Infrastructure.Services
 
         public async Task<SkillEnumsDto> GetSkillEnumsAsync(CancellationToken cancellationToken = default)
         {
-            var costTypes = await _unitOfWork.Repository<HrkSkillCostType>().Query()
-                .AsNoTracking()
+            var costTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillCostType>().Query()
                 .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name })
                 .ToListAsync(cancellationToken);
 
-            var categories = await _unitOfWork.Repository<HrkSkillCategory>().Query()
-                .AsNoTracking()
+            var categories = await _unitOfWork.ReadOnlyRepository<HrkSkillCategory>().Query()
                 .OrderBy(x => x.DisplayOrder)
                 .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, DisplayOrder = x.DisplayOrder })
                 .ToListAsync(cancellationToken);
 
-            var damageTypes = await _unitOfWork.Repository<HrkSkillDamageType>().Query()
-                .AsNoTracking()
+            var damageTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillDamageType>().Query()
                 .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name })
                 .ToListAsync(cancellationToken);
 
-            var effectTypes = await _unitOfWork.Repository<HrkSkillEffectType>().Query()
-                .AsNoTracking()
+            var effectTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillEffectType>().Query()
                 .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, IsDebuff = x.IsDebuff })
                 .ToListAsync(cancellationToken);
 

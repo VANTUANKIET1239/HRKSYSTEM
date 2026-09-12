@@ -12,6 +12,7 @@ namespace GAME.Domain.Entities
         public long? Position4 { get; set; }
         public long? Position5 { get; set; }
         public int TotalPower { get; set; } = 0;
+        public bool IsActive { get; set; } = true;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 
         public virtual HrkPlayer Player { get; set; } = null!;

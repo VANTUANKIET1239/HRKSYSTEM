@@ -49,12 +49,24 @@ namespace AUTH.Infrastructure.Services
          TimeSpan? refreshTtl = null,
          CancellationToken ct = default)
         {
-            var tokens = await _unitOfWork.Repository<HRK_RefreshToken>().Query()
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(500)
-                .ToListAsync(ct);
+            var presentedHash = _jwtCoreService.HashToken(refreshTokenRaw);
 
-            var rt = tokens.FirstOrDefault(t => TokenHelper.VerifyToken(refreshTokenRaw, t.TokenHash));
+            // 1) Fast lookup directly via database index on TokenHash (~1ms)
+            var rt = await _unitOfWork.Repository<HRK_RefreshToken>().Query()
+                .FirstOrDefaultAsync(t => t.TokenHash == presentedHash, ct);
+
+            // Fallback for any legacy PBKDF2 tokens during migration
+            if (rt is null)
+            {
+                var legacyCandidates = await _unitOfWork.Repository<HRK_RefreshToken>().Query()
+                    .Where(x => x.ExpiresAt > DateTime.UtcNow && x.RevokedAt == null)
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Take(10)
+                    .ToListAsync(ct);
+
+                rt = legacyCandidates.FirstOrDefault(t => TokenHelper.VerifyToken(refreshTokenRaw, t.TokenHash));
+            }
+
             if (rt is null) throw new SecurityException("Invalid refresh token.");
 
             // 2) Basic checks

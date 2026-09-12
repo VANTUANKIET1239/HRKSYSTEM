@@ -12,7 +12,7 @@ using CoreEngine.CQRS;
 using AUTH.Application.Interfaces;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
-using System.Data.Entity;
+using Microsoft.EntityFrameworkCore;
 
 namespace AUTH.Application.Features.Commands.LogoutUser
 {
@@ -41,24 +41,43 @@ namespace AUTH.Application.Features.Commands.LogoutUser
         {
             try
             {
-                await _unitOfWork.BeginTransactionAsync();
-
-                var currentSession = GetCurrentLoginSession();
-                var currrentLoginSession = await _unitOfWork.Repository<HRK_LoginSession>().Query().FirstOrDefaultAsync(x => x.UserId == UserId && x.SessionId == currentSession, cancellationToken);
-
-                if (currrentLoginSession == null)
+                Guid? currentSession = null;
+                try
                 {
-                    return BaseResponse<LogoutUserResponse>.FailResponse("Failed to logout");
+                    currentSession = GetCurrentLoginSession();
+                }
+                catch
+                {
+                    // Session claim may not be present if token was anonymous/expired
                 }
 
-                currrentLoginSession.LogoutTime = DateTime.UtcNow;
-                await _refreshTokenService.RevokeAllUserRefreshTokensAsync(UserId, cancellationToken);
+                if (currentSession.HasValue && !string.IsNullOrEmpty(UserId))
+                {
 
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                await _unitOfWork.CommitTransactionAsync();
+                    await _unitOfWork.ExecuteStrategyAsync(async () =>
+                    {
+                        await _unitOfWork.BeginTransactionAsync();
+                        var currrentLoginSession = await _unitOfWork.Repository<HRK_LoginSession>()
+                                            .Query()
+                                            .FirstOrDefaultAsync(x => x.UserId == UserId && x.SessionId == currentSession.Value, cancellationToken);
+
+                        if (currrentLoginSession != null)
+                        {
+                            currrentLoginSession.LogoutTime = DateTime.UtcNow;
+                        }
+
+                        await _refreshTokenService.RevokeAllUserRefreshTokensAsync(UserId, cancellationToken);
+
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
+                        await _unitOfWork.CommitTransactionAsync();
+                    });
+                }
+                else if (!string.IsNullOrEmpty(UserId))
+                {
+                    await _refreshTokenService.RevokeAllUserRefreshTokensAsync(UserId, cancellationToken);
+                }
 
                 _coreCookieService.DeleteCookie(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, true);
-
                 await _identityService.SignOutAsync();
 
                 return new BaseResponse<LogoutUserResponse>
@@ -74,6 +93,16 @@ namespace AUTH.Application.Features.Commands.LogoutUser
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackTransactionAsync();
+
+                try
+                {
+                    _coreCookieService.DeleteCookie(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, true);
+                    await _identityService.SignOutAsync();
+                }
+                catch
+                {
+                    // ignored
+                }
 
                 return new BaseResponse<LogoutUserResponse>
                 {

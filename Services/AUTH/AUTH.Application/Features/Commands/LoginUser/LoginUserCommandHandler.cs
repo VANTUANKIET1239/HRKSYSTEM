@@ -127,6 +127,9 @@ namespace AUTH.Application.Features.Commands.LoginUser
 
                 _coreCookieService.SetCookie(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, rawRefreshToken, Expiration.Day, _jwtOptions.Value.RefreshTokenDays, true);
 
+                string audience = !string.IsNullOrWhiteSpace(request.Audience) ? request.Audience : _jwtOptions.Value.Audience;
+                var tokenResult = _jwtCoreService.GenerateToken(claims, audience);
+
                 return new BaseResponse<LoginUserResponse>
                 {
                     Data = new LoginUserResponse
@@ -134,6 +137,8 @@ namespace AUTH.Application.Features.Commands.LoginUser
                         UserEmail = user.Email,
                         UserId = user.Id,
                         UserName = user.UserName,
+                        AccessToken = tokenResult.AccessToken,
+                        AccessTokenExpiresAt = tokenResult.ExpiresAt
                     },
                     Success = true,
                     StatusCode = 200

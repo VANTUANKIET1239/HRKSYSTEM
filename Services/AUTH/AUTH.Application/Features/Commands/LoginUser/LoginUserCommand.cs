@@ -8,15 +8,11 @@ namespace AUTH.Application.Features.Commands.LoginUser
 
     public class LoginUserResponse
     {
-
         public string UserId { get; set; }  
-
         public string UserName { get; set; }    
-
         public string UserEmail { get; set; }   
-
-
-
+        public string? AccessToken { get; set; }
+        public DateTime? AccessTokenExpiresAt { get; set; }
     }
 
     public class LoginUserCommand : ICommand<BaseResponse<LoginUserResponse>>
@@ -27,6 +23,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
         public required string Password { get; set; }
 
         public required bool RememberMe { get; set; }
+        public string? Audience { get; set; }
     }
 
 }

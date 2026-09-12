@@ -41,7 +41,7 @@ namespace Core.Common.Repositories
 
         public ReadOnlyRepositoryAdapter(IUnitOfWork uow)
         {
-            _repo = uow.Repository<T>();
+            _repo = uow.ReadOnlyRepository<T>();
         }
 
         public virtual Task<T?> GetByIdAsync<TKey>(TKey id, Expression<Func<T, TKey>> keySelector) => _repo.GetByIdAsync(id, keySelector);

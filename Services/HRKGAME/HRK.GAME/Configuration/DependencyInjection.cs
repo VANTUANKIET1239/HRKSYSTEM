@@ -1,6 +1,7 @@
 using Core.Common.Database.Extensions;
 using Core.Common.Database.Options;
 using Core.Common.Extensions;
+using GAME.Application.Configuration;
 using GAME.Application.Interfaces;
 using GAME.Infrastructure.Data;
 using GAME.Infrastructure.Services;
@@ -54,15 +55,18 @@ namespace HRK.GAME.Configuration
             // Register Application Services
             services.AddScoped<IMetadataService, MetadataService>();
             services.AddScoped<ICatalogService, CatalogService>();
+            services.AddScoped<IItemStatCalculationService, ItemStatCalculationService>();
             services.AddScoped<IGamePlayerService, GamePlayerService>();
             services.AddScoped<IInventoryService, InventoryService>();
             services.AddScoped<IFormationService, FormationService>();
             services.AddScoped<IBattleService, BattleService>();
+            services.AddScoped<IEquipmentEnhancementService, EquipmentEnhancementService>();
         }
 
         public static void AddOptions(IServiceCollection services, IConfiguration configuration)
         {
             services.AddOptions(configuration);
+            services.Configure<InventorySettings>(configuration.GetSection(InventorySettings.SectionName));
         }
     }
 }

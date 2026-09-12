@@ -131,7 +131,12 @@ namespace Core.Common.Repositories
                 _readOnlyRepositories[type] = new ReadOnlyRepository<T, TDbContext>(_context);
             }
 
-            return (IRepository<T, TDbContext>)_readOnlyRepositories[type];
+            return (IReadOnlyRepository<T, TDbContext>)_readOnlyRepositories[type];
+        }
+
+        IReadOnlyRepository<T> IUnitOfWork.ReadOnlyRepository<T>() where T : class
+        {
+            return ReadOnlyRepository<T>();
         }
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

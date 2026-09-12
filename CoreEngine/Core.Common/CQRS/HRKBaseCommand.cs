@@ -46,7 +46,17 @@ namespace Core.Common.CQRS
             };
         }
 
-       protected Guid GetCurrentLoginSession()
+        protected string GetUserId()
+        {
+            var userId = UserId;
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new UnauthorizedAccessException("User is not authenticated or UserId claim is missing.");
+            }
+            return userId;
+        }
+
+        protected Guid GetCurrentLoginSession()
        {
             var user = HttpContext?.User;
             var sessionClaim = user?.FindFirst(Constants.Common.Constants.JSON_WEB_TOKEN.SESSIONID)?.Value;

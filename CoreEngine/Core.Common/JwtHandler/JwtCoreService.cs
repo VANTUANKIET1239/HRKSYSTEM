@@ -1,4 +1,4 @@
-﻿using Core.Common.JwtHandler.Entities;
+using Core.Common.JwtHandler.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -77,26 +77,14 @@ namespace Core.Common.JwtHandler
         //}
 
 
-        public  string NewSecureRandomToken(int bytes = 64) =>
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(bytes));
+        public string NewSecureRandomToken(int bytes = 64) =>
+            Core.Common.Helpers.TokenHelper.NewSecureRandomToken(bytes);
 
-        public string HashToken(string raw)
-        {
-            using var pbkdf2 = new Rfc2898DeriveBytes(raw, 16, 100_000, HashAlgorithmName.SHA256);
-            var salt = pbkdf2.Salt;
-            var hash = pbkdf2.GetBytes(32);
-            return Convert.ToBase64String(salt.Concat(hash).ToArray());
-        }
+        public string HashToken(string raw) =>
+            Core.Common.Helpers.TokenHelper.HashToken(raw);
 
-        public bool VerifyToken(string raw, string stored)
-        {
-            var data = Convert.FromBase64String(stored);
-            var salt = data.AsSpan(0, 16).ToArray();
-            var hash = data.AsSpan(16, 32).ToArray();
-            using var pbkdf2 = new Rfc2898DeriveBytes(raw, salt, 100_000, HashAlgorithmName.SHA256);
-            var test = pbkdf2.GetBytes(32);
-            return CryptographicOperations.FixedTimeEquals(test, hash);
-        }
+        public bool VerifyToken(string raw, string stored) =>
+            Core.Common.Helpers.TokenHelper.VerifyToken(raw, stored);
 
 
         public ClaimsPrincipal? ValidateToken(string token)

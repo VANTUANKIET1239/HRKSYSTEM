@@ -9,6 +9,7 @@ namespace GAME.Domain.Entities
         public string UserId { get; set; } = null!;
         public string PlayerName { get; set; } = null!;
         public int Level { get; set; } = 1;
+        public bool IsActive { get; set; } = true;
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 

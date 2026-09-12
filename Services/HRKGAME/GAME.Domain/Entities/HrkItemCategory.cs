@@ -16,5 +16,6 @@ namespace GAME.Domain.Entities
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 
         public virtual ICollection<HrkItemTemplate> ItemTemplates { get; set; } = new List<HrkItemTemplate>();
+        public virtual ICollection<HrkCategoryAllowedAttribute> AllowedAttributes { get; set; } = new List<HrkCategoryAllowedAttribute>();
     }
 }

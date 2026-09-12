@@ -8,6 +8,7 @@ namespace Core.Common.Repositories
     public interface IUnitOfWork : IDisposable
     {
         IRepository<T> Repository<T>() where T : class;
+        IReadOnlyRepository<T> ReadOnlyRepository<T>() where T : class;
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();
@@ -20,5 +21,6 @@ namespace Core.Common.Repositories
     public interface IUnitOfWork<TDbContext> : IUnitOfWork, IDisposable where TDbContext : DbContext
     {
         new IRepository<T, TDbContext> Repository<T>() where T : class;
+        new IReadOnlyRepository<T, TDbContext> ReadOnlyRepository<T>() where T : class;
     }
 }

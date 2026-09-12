@@ -16,6 +16,7 @@ namespace GAME.Domain.Entities
         public byte AuraTier { get; set; } = 1;
         public bool IsLocked { get; set; } = false;
         public bool IsFavorite { get; set; } = false;
+        public bool IsActive { get; set; } = true;
         public string? CurrentStats { get; set; }
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;

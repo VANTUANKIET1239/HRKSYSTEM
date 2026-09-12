@@ -60,18 +60,18 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             var httpContext = _httpContextAccessor.HttpContext;
 
             if (httpContext == null || !httpContext.Request.Cookies.TryGetValue(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, out var presentedRaw))
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid or expired refresh token.");
+                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid or expired refresh token.", statusCode: 401);
 
             var currentJti = User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
 
             if (currentJti is null)
             {
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid token");
+                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid token", statusCode: 401);
             };
 
             if (!OnCheckValidAudience(request))
             {
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Unauthorized");
+                return BaseResponse<RefreshTokenResponse>.FailResponse("Unauthorized", statusCode: 401);
             };
 
             RotatedSession? rotatedSession = null;
