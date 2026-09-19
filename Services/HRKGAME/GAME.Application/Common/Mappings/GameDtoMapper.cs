@@ -93,9 +93,16 @@ namespace GAME.Application.Common.Mappings
                 }
             }
 
-            // Bổ sung alias tương thích với giao diện Angular (atk, def, hp, crit, spd)
+            // Bổ sung alias tương thích với giao diện Angular (atk, def, hp, crit, spd, magicDamage, magicResistance)
             if (dict.TryGetValue("PHYSICAL_ATK", out var pAtk) && !dict.ContainsKey("atk")) dict["atk"] = pAtk;
-            if (dict.TryGetValue("MAGIC_ATK", out var mAtk) && !dict.ContainsKey("atk")) dict["atk"] = mAtk;
+            if (dict.TryGetValue("MAGIC_DAMAGE", out var mDmg) && !dict.ContainsKey("magicDamage")) dict["magicDamage"] = mDmg;
+            else if (dict.TryGetValue("MAGIC_ATK", out var mAtk) && !dict.ContainsKey("magicDamage")) dict["magicDamage"] = mAtk;
+            else if (dict.TryGetValue("MATK", out var mAtkShort) && !dict.ContainsKey("magicDamage")) dict["magicDamage"] = mAtkShort;
+
+            if (dict.TryGetValue("MAGIC_RESISTANCE", out var mRes) && !dict.ContainsKey("magicResistance")) dict["magicResistance"] = mRes;
+            else if (dict.TryGetValue("MAGIC_RESIST", out var mResist) && !dict.ContainsKey("magicResistance")) dict["magicResistance"] = mResist;
+            else if (dict.TryGetValue("MRES", out var mResShort) && !dict.ContainsKey("magicResistance")) dict["magicResistance"] = mResShort;
+
             if (dict.TryGetValue("ARMOR", out var armor) && !dict.ContainsKey("def")) dict["def"] = armor;
             if (dict.TryGetValue("HP", out var hp) && !dict.ContainsKey("hp")) dict["hp"] = hp;
             if (dict.TryGetValue("SPEED", out var spd) && !dict.ContainsKey("spd")) dict["spd"] = spd;
@@ -143,31 +150,94 @@ namespace GAME.Application.Common.Mappings
         }
 
         /// <summary>
+        /// Map HrkSkillEffectScaling sang SkillEffectScalingDto.
+        /// </summary>
+        public static SkillEffectScalingDto MapSkillEffectScaling(HrkSkillEffectScaling sc)
+        {
+            return new SkillEffectScalingDto
+            {
+                AttributeTypeCode = sc.AttributeType?.Code ?? "",
+                AttributeTypeName = sc.AttributeType?.Name ?? "",
+                Coefficient = sc.Coefficient,
+                FlatValue = sc.FlatValue
+            };
+        }
+
+        /// <summary>
+        /// Map HrkSkillEffectStatModifier sang SkillEffectStatModifierDto.
+        /// </summary>
+        public static SkillEffectStatModifierDto MapSkillEffectStatModifier(HrkSkillEffectStatModifier sm)
+        {
+            return new SkillEffectStatModifierDto
+            {
+                AttributeTypeCode = sm.AttributeType?.Code ?? "",
+                AttributeTypeName = sm.AttributeType?.Name ?? "",
+                ValueType = sm.ValueType,
+                Value = sm.Value
+            };
+        }
+
+        /// <summary>
+        /// Map HrkSkillEffect sang SkillEffectDto.
+        /// </summary>
+        public static SkillEffectDto MapSkillEffect(HrkSkillEffect e)
+        {
+            return new SkillEffectDto
+            {
+                Id = e.Id,
+                EffectTypeCode = e.EffectType?.Code ?? "",
+                EffectTypeName = e.EffectType?.Name ?? "",
+                EffectGroup = e.EffectType?.EffectGroup ?? "SPECIAL",
+                IsBeneficial = e.EffectType?.IsBeneficial ?? false,
+                TargetTypeCode = e.TargetType?.Code ?? "",
+                TargetTypeName = e.TargetType?.Name ?? "",
+                TargetSide = e.TargetType?.TargetSide ?? "ENEMY",
+                SelectionRule = e.TargetType?.SelectionRule ?? "SINGLE",
+                DamageSchoolCode = e.DamageSchoolCode,
+                BaseValue = e.BaseValue,
+                DurationTurns = e.DurationTurns,
+                ChancePercent = e.ChancePercent,
+                MaxStacks = e.MaxStacks,
+                DisplayOrder = e.DisplayOrder,
+                Scalings = e.Scalings?.Select(MapSkillEffectScaling).ToList() ?? new List<SkillEffectScalingDto>(),
+                StatModifiers = e.StatModifiers?.Select(MapSkillEffectStatModifier).ToList() ?? new List<SkillEffectStatModifierDto>()
+            };
+        }
+
+        /// <summary>
         /// Map HrkSkillTemplate entity sang SkillTemplateDto.
         /// </summary>
         public static SkillTemplateDto? MapSkillTemplate(HrkSkillTemplate? s)
         {
             if (s == null) return null;
+            var primaryEffect = s.Effects?.OrderBy(e => e.DisplayOrder).FirstOrDefault();
             return new SkillTemplateDto
             {
                 Id = s.Id,
                 Name = s.Name,
+                ImagePath = s.ImagePath,
                 Icon = s.Icon,
                 Description = s.Description,
-                Cost = s.Cost,
-                CostTypeCode = s.CostType?.Code ?? "",
-                CostTypeName = s.CostType?.Name ?? "",
-                CategoryCode = s.Category?.Code ?? "",
-                CategoryName = s.Category?.Name ?? "",
-                DamageTypeCode = s.DamageType?.Code ?? "",
-                DamageTypeName = s.DamageType?.Name ?? "",
-                EffectTypeCode = s.EffectType?.Code ?? "",
-                EffectTypeName = s.EffectType?.Name ?? "",
-                IsDebuff = s.EffectType?.IsDebuff ?? false,
-                DamageMultiplier = s.DamageMultiplier,
-                TargetType = s.TargetType,
-                Cooldown = s.Cooldown,
-                PhaseDurations = GameJsonHelper.ParsePhaseDurations(s.PhaseDurations)
+                SkillTypeCode = s.SkillTypeCode,
+                TriggerCode = s.TriggerCode,
+                EnergyCost = s.EnergyCost,
+                DisplayOrder = s.DisplayOrder,
+                Effects = s.Effects?.OrderBy(e => e.DisplayOrder).Select(MapSkillEffect).ToList() ?? new List<SkillEffectDto>(),
+                // Legacy compatibility synthesized from data-driven schema
+                Cost = s.EnergyCost,
+                CostTypeCode = s.EnergyCost > 0 ? "MP" : "NONE",
+                CostTypeName = s.EnergyCost > 0 ? "Năng Lượng" : "Không tốn",
+                CategoryCode = s.SkillTypeCode.ToLowerInvariant(),
+                CategoryName = s.SkillTypeCode,
+                DamageTypeCode = primaryEffect?.DamageSchoolCode ?? "",
+                DamageTypeName = primaryEffect?.DamageSchoolCode ?? "",
+                EffectTypeCode = primaryEffect?.EffectType?.Code ?? "",
+                EffectTypeName = primaryEffect?.EffectType?.Name ?? "",
+                IsDebuff = primaryEffect?.EffectType != null && !primaryEffect.EffectType.IsBeneficial,
+                DamageMultiplier = 1.0m,
+                TargetType = primaryEffect?.TargetType?.SelectionRule ?? "single",
+                Cooldown = "0s",
+                PhaseDurations = null
             };
         }
 
@@ -188,6 +258,7 @@ namespace GAME.Application.Common.Mappings
                 FactionName = ht?.Faction?.Name ?? "",
                 ClassCode = ht?.Class?.Code ?? "",
                 ClassName = ht?.Class?.Name ?? "",
+                RarityId = ht?.RarityId ?? 0,
                 RarityCode = ht?.Rarity?.Code ?? "",
                 RarityName = ht?.Rarity?.Name ?? "",
                 RarityColorHex = ht?.Rarity?.ColorHex,
@@ -237,6 +308,8 @@ namespace GAME.Application.Common.Mappings
                 BaseLifesteal = h.BaseLifesteal,
                 BaseAccuracy = h.BaseAccuracy,
                 BaseResistance = h.BaseResistance,
+                BaseMagicDamage = h.BaseMagicDamage,
+                BaseMagicResistance = h.BaseMagicResistance,
                 Skills = h.HeroSkills?.OrderBy(hs => hs.SkillOrder)
                     .Select(hs => MapSkillTemplate(hs.Skill)!)
                     .Where(s => s != null)

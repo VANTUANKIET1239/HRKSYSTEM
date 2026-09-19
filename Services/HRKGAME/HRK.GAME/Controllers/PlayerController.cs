@@ -17,6 +17,16 @@ namespace HRK.GAME.Controllers
             _mediator = mediator;
         }
 
+        [HttpGet("me")]
+        public async Task<IActionResult> GetGameInfo()
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+            var service = HttpContext.RequestServices.GetRequiredService<global::GAME.Application.Interfaces.IGamePlayerService>();
+            var data = await service.GetPlayerGameInfoAsync(userId);
+            return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<global::GAME.Application.DTOs.PlayerGameInfoDto?>.SuccessResponse(data));
+        }
+
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {

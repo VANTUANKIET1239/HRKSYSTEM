@@ -1,9 +1,13 @@
 using Core.Common.Database.Extensions;
 using Core.Common.Database.Options;
 using Core.Common.Extensions;
+using Core.Common.Caching;
 using GAME.Application.Configuration;
 using GAME.Application.Interfaces;
+using GAME.Domain.Interfaces;
+using GAME.Domain.Services;
 using GAME.Infrastructure.Data;
+using GAME.Infrastructure.Random;
 using GAME.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +52,7 @@ namespace HRK.GAME.Configuration
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
             services.AddCoreService(configuration);
+            services.AddHrkRedisCache(configuration);
 
             // Register UnitOfWork for GameDbContext
             services.AddRepositoryUOW<GameDbContext>();
@@ -60,7 +65,15 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IInventoryService, InventoryService>();
             services.AddScoped<IFormationService, FormationService>();
             services.AddScoped<IBattleService, BattleService>();
-            services.AddScoped<IEquipmentEnhancementService, EquipmentEnhancementService>();
+            services.AddScoped<IHeroStatCalculationService, HeroStatCalculationService>();
+            services.AddScoped<IHeroEquipmentService, HeroEquipmentService>();
+            services.AddScoped<IGameFeatureConfigService, GameFeatureConfigService>();
+            services.AddScoped<ICombatPowerService, CombatPowerService>();
+            services.AddScoped<IHeroUpgradeService, HeroUpgradeService>();
+
+            // Domain Services & Infrastructure abstractions (DDD)
+            services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
+            services.AddScoped<IEquipmentEnhancementDomainService, EquipmentEnhancementDomainService>();
         }
 
         public static void AddOptions(IServiceCollection services, IConfiguration configuration)

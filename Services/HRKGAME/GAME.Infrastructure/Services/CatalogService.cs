@@ -4,16 +4,15 @@ using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Infrastructure.Services
 {
     public class CatalogService : ICatalogService
     {
-        private readonly IUnitOfWork<GameDbContext> _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public CatalogService(IUnitOfWork<GameDbContext> unitOfWork)
+        public CatalogService(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
         }
@@ -24,10 +23,10 @@ namespace GAME.Infrastructure.Services
                 .Include(h => h.Faction)
                 .Include(h => h.Class)
                 .Include(h => h.Rarity)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.CostType)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Category)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.DamageType)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.EffectType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .ToListAsync(cancellationToken);
 
             return heroes
@@ -42,10 +41,10 @@ namespace GAME.Infrastructure.Services
                 .Include(h => h.Faction)
                 .Include(h => h.Class)
                 .Include(h => h.Rarity)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.CostType)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Category)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.DamageType)
-                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.EffectType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
             return hero != null ? GameDtoMapper.MapHeroTemplate(hero) : null;
@@ -54,10 +53,10 @@ namespace GAME.Infrastructure.Services
         public async Task<List<SkillTemplateDto>> GetSkillTemplatesAsync(CancellationToken cancellationToken = default)
         {
             var skills = await _unitOfWork.ReadOnlyRepository<HrkSkillTemplate>().Query()
-                .Include(s => s.CostType)
-                .Include(s => s.Category)
-                .Include(s => s.DamageType)
-                .Include(s => s.EffectType)
+                .Include(s => s.Effects).ThenInclude(e => e.EffectType)
+                .Include(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
+                .Include(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .ToListAsync(cancellationToken);
 
             return skills

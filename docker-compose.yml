@@ -28,5 +28,30 @@ services:
       dockerfile: Services/HRKGAME/HRK.GAME/Dockerfile
     ports:
       - "5002:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      Redis__ConnectionString: "redis:6379,abortConnect=false"
+      Redis__InstanceName: "hrk:game:"
+      Redis__DefaultExpirationMinutes: "10"
+
+  redis:
+    image: redis:7-alpine
+    container_name: hrk-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  redis-data:
     
 

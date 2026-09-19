@@ -5,6 +5,9 @@ using GAME.Application.Features.Commands.Inventory.SellItems;
 using GAME.Application.Features.Commands.Inventory.ToggleItemLock;
 using GAME.Application.Features.Queries.Inventory;
 using GAME.Application.Features.Queries.Inventory.GetEnhancementConfigs;
+using GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPreview;
+using GAME.Application.Features.Queries.Inventory.GetForgeEquipment;
+using GAME.Application.Features.Queries.Inventory.GetPlayerEquipment;
 using HRK.GAME.Common;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +30,15 @@ namespace HRK.GAME.Controllers
         public async Task<IActionResult> GetInventory([FromQuery] string? categoryCode)
         {
             var response = await _mediator.Send(new GetPlayerInventoryQuery(categoryCode));
+            return HrkOk(response);
+        }
+
+        [HttpGet("equipment")]
+        public async Task<IActionResult> GetEquipment(
+            [FromQuery] string? categoryCode,
+            [FromQuery] bool includeEquipped = false)
+        {
+            var response = await _mediator.Send(new GetPlayerEquipmentQuery(categoryCode, includeEquipped));
             return HrkOk(response);
         }
 
@@ -69,6 +81,20 @@ namespace HRK.GAME.Controllers
         public async Task<IActionResult> GetEnhancementConfigs()
         {
             var response = await _mediator.Send(new GetEnhancementConfigsQuery());
+            return HrkOk(response);
+        }
+
+        [HttpGet("forge-equipment")]
+        public async Task<IActionResult> GetForgeEquipment()
+        {
+            var response = await _mediator.Send(new GetForgeEquipmentQuery());
+            return HrkOk(response);
+        }
+
+        [HttpGet("enhancement/preview/{id}")]
+        public async Task<IActionResult> GetEnhancementPreview([FromRoute] long id)
+        {
+            var response = await _mediator.Send(new GetEquipmentEnhancementPreviewQuery(id));
             return HrkOk(response);
         }
     }

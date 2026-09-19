@@ -13,6 +13,32 @@ namespace GAME.Application.DTOs
         public decimal Lifesteal { get; set; }
         public decimal Accuracy { get; set; }
         public decimal Resistance { get; set; }
+        public int MagicDamage { get; set; }
+        public int MagicResistance { get; set; }
+    }
+
+    public class HeroStatSourceDto
+    {
+        public string SourceType { get; set; } = null!; // BASE, HERO_GROWTH, EQUIPMENT, AURA, OTHER
+        public string SourceName { get; set; } = null!;
+        public string? ItemName { get; set; }
+        public long? InventoryItemId { get; set; }
+        public decimal Value { get; set; }
+    }
+
+    public class HeroStatBreakdownDto
+    {
+        public string StatCode { get; set; } = null!;
+        public string DisplayName { get; set; } = null!;
+        public decimal Total { get; set; }
+
+        public decimal BaseValue { get; set; }
+        public decimal HeroGrowthValue { get; set; }
+        public decimal EquipmentValue { get; set; }
+        public decimal AuraValue { get; set; }
+        public decimal OtherValue { get; set; }
+
+        public List<HeroStatSourceDto> Sources { get; set; } = new();
     }
 
     public class PlayerHeroDto
@@ -25,6 +51,7 @@ namespace GAME.Application.DTOs
         public string FactionName { get; set; } = null!;
         public string ClassCode { get; set; } = null!;
         public string ClassName { get; set; } = null!;
+        public int RarityId { get; set; }
         public string RarityCode { get; set; } = null!;
         public string RarityName { get; set; } = null!;
         public string? RarityColorHex { get; set; }
@@ -43,5 +70,30 @@ namespace GAME.Application.DTOs
     public class PlayerHeroDetailDto : PlayerHeroDto
     {
         public HeroEquipmentDto Equipment { get; set; } = new();
+        public List<HeroStatBreakdownDto> StatBreakdowns { get; set; } = new();
+    }
+
+    public class EquipHeroItemRequestDto
+    {
+        public long InventoryItemId { get; set; }
+    }
+
+    public class HeroUpgradePreviewDto
+    {
+        public long HeroId { get; set; }
+        public int CurrentLevel { get; set; }
+        public int NextLevel { get; set; }
+        public int MaxLevel { get; set; }
+        public long GoldCost { get; set; }
+        public int MaterialCost { get; set; }
+        public CalculatedStatsDto CurrentStats { get; set; } = new();
+        public CalculatedStatsDto NextStats { get; set; } = new();
+        public CalculatedStatsDto StatIncrease { get; set; } = new();
+    }
+
+    public class UpgradeHeroRequestDto
+    {
+        /// <summary>Number of levels to buy. The server caps this at 50.</summary>
+        public int Levels { get; set; } = 1;
     }
 }

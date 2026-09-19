@@ -2,6 +2,11 @@ using System;
 
 namespace GAME.Application.DTOs
 {
+    public class PlayerGameInfoDto
+    {
+        public PlayerProfileDto? Profile { get; set; }
+        public PlayerWalletDto? Wallet { get; set; }
+    }
     public class PlayerProfileDto
     {
         public long Id { get; set; }

@@ -13,9 +13,7 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkRarity> Rarities { get; set; } = null!;
         public DbSet<HrkHeroFaction> HeroFactions { get; set; } = null!;
         public DbSet<HrkHeroClass> HeroClasses { get; set; } = null!;
-        public DbSet<HrkSkillCostType> SkillCostTypes { get; set; } = null!;
-        public DbSet<HrkSkillCategory> SkillCategories { get; set; } = null!;
-        public DbSet<HrkSkillDamageType> SkillDamageTypes { get; set; } = null!;
+
         public DbSet<HrkSkillEffectType> SkillEffectTypes { get; set; } = null!;
         public DbSet<HrkItemCategory> ItemCategories { get; set; } = null!;
         public DbSet<HrkItemTemplate> ItemTemplates { get; set; } = null!;
@@ -24,6 +22,10 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkCategoryAllowedAttribute> CategoryAllowedAttributes { get; set; } = null!;
         public DbSet<HrkHeroTemplate> HeroTemplates { get; set; } = null!;
         public DbSet<HrkSkillTemplate> SkillTemplates { get; set; } = null!;
+        public DbSet<HrkSkillTargetType> SkillTargetTypes { get; set; } = null!;
+        public DbSet<HrkSkillEffect> SkillEffects { get; set; } = null!;
+        public DbSet<HrkSkillEffectScaling> SkillEffectScalings { get; set; } = null!;
+        public DbSet<HrkSkillEffectStatModifier> SkillEffectStatModifiers { get; set; } = null!;
         public DbSet<HrkHeroSkill> HeroSkills { get; set; } = null!;
         public DbSet<HrkPlayer> Players { get; set; } = null!;
         public DbSet<HrkPlayerWallet> PlayerWallets { get; set; } = null!;
@@ -35,6 +37,9 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkEnhancementLevelConfig> EnhancementLevelConfigs { get; set; } = null!;
         public DbSet<HrkEnhancementMaterial> EnhancementMaterials { get; set; } = null!;
         public DbSet<HrkEquipmentEnhancementHistory> EquipmentEnhancementHistories { get; set; } = null!;
+        public DbSet<HrkGameFeatureConfig> GameFeatureConfigs { get; set; } = null!;
+        public DbSet<HrkCombatPowerConfig> CombatPowerConfigs { get; set; } = null!;
+        public DbSet<HrkHeroRarityUpgradeConfig> HeroRarityUpgradeConfigs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -89,38 +94,7 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
             });
 
-            // 5. HRK_SkillCostTypes
-            modelBuilder.Entity<HrkSkillCostType>(entity =>
-            {
-                entity.ToTable("HRK_SkillCostTypes");
-                entity.HasKey(e => e.Id);
-                entity.HasIndex(e => e.Code).IsUnique();
-                entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
-                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
-                entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
-            });
 
-            // 6. HRK_SkillCategories
-            modelBuilder.Entity<HrkSkillCategory>(entity =>
-            {
-                entity.ToTable("HRK_SkillCategories");
-                entity.HasKey(e => e.Id);
-                entity.HasIndex(e => e.Code).IsUnique();
-                entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
-                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
-                entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
-            });
-
-            // 7. HRK_SkillDamageTypes
-            modelBuilder.Entity<HrkSkillDamageType>(entity =>
-            {
-                entity.ToTable("HRK_SkillDamageTypes");
-                entity.HasKey(e => e.Id);
-                entity.HasIndex(e => e.Code).IsUnique();
-                entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
-                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
-                entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
-            });
 
             // 8. HRK_SkillEffectTypes
             modelBuilder.Entity<HrkSkillEffectType>(entity =>
@@ -130,7 +104,12 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(e => e.Code).IsUnique();
                 entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
                 entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.EffectGroup).HasMaxLength(30).IsRequired().HasDefaultValue("SPECIAL");
+                entity.Property(e => e.IsBeneficial).HasDefaultValue(false);
+                entity.Property(e => e.IsStackable).HasDefaultValue(false);
+                entity.Property(e => e.Description).HasMaxLength(500);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
             });
 
             // 9. HRK_ItemCategories
@@ -240,6 +219,8 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.BaseLifesteal).HasPrecision(5, 2);
                 entity.Property(e => e.BaseAccuracy).HasPrecision(5, 2);
                 entity.Property(e => e.BaseResistance).HasPrecision(5, 2);
+                entity.Property(e => e.BaseMagicDamage).HasDefaultValue(0);
+                entity.Property(e => e.BaseMagicResistance).HasDefaultValue(0);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
 
                 entity.HasOne(d => d.Faction)
@@ -266,29 +247,102 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.Id).HasMaxLength(100);
                 entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.Icon).HasMaxLength(100).IsRequired();
-                entity.Property(e => e.TargetType).HasMaxLength(50).IsRequired().HasDefaultValue("single");
-                entity.Property(e => e.Cooldown).HasMaxLength(20).IsRequired().HasDefaultValue("0s");
-                entity.Property(e => e.DamageMultiplier).HasPrecision(5, 2).HasDefaultValue(1.0m);
+                entity.Property(e => e.ImagePath).HasMaxLength(255);
+                entity.Property(e => e.SkillTypeCode).HasMaxLength(30).IsRequired().HasDefaultValue("ENERGY");
+                entity.Property(e => e.TriggerCode).HasMaxLength(30).IsRequired().HasDefaultValue("MANUAL_ENERGY_FULL");
+                entity.Property(e => e.EnergyCost).HasDefaultValue(100);
+                entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
 
-                entity.HasOne(d => d.CostType)
-                    .WithMany(p => p.SkillTemplates)
-                    .HasForeignKey(d => d.CostTypeId)
-                    .OnDelete(DeleteBehavior.Restrict);
+            // 12a. HRK_SkillTargetTypes
+            modelBuilder.Entity<HrkSkillTargetType>(entity =>
+            {
+                entity.ToTable("HRK_SkillTargetTypes");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.TargetSide).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.SelectionRule).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
 
-                entity.HasOne(d => d.Category)
-                    .WithMany(p => p.SkillTemplates)
-                    .HasForeignKey(d => d.CategoryId)
-                    .OnDelete(DeleteBehavior.Restrict);
+            // 12b. HRK_SkillEffects
+            modelBuilder.Entity<HrkSkillEffect>(entity =>
+            {
+                entity.ToTable("HRK_SkillEffects");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.SkillId).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.DamageSchoolCode).HasMaxLength(20);
+                entity.Property(e => e.BaseValue).HasPrecision(18, 4).HasDefaultValue(0);
+                entity.Property(e => e.ChancePercent).HasPrecision(5, 2).HasDefaultValue(100.0m);
+                entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
 
-                entity.HasOne(d => d.DamageType)
-                    .WithMany(p => p.SkillTemplates)
-                    .HasForeignKey(d => d.DamageTypeId)
-                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(d => d.Skill)
+                    .WithMany(p => p.Effects)
+                    .HasForeignKey(d => d.SkillId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(d => d.EffectType)
-                    .WithMany(p => p.SkillTemplates)
+                    .WithMany(p => p.Effects)
                     .HasForeignKey(d => d.EffectTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(d => d.TargetType)
+                    .WithMany(p => p.Effects)
+                    .HasForeignKey(d => d.TargetTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // 12c. HRK_SkillEffectScalings
+            modelBuilder.Entity<HrkSkillEffectScaling>(entity =>
+            {
+                entity.ToTable("HRK_SkillEffectScalings");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.SkillEffectId, e.AttributeTypeId }).IsUnique();
+                entity.Property(e => e.Coefficient).HasPrecision(18, 6).HasDefaultValue(0);
+                entity.Property(e => e.FlatValue).HasPrecision(18, 4).HasDefaultValue(0);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+
+                entity.HasOne(d => d.SkillEffect)
+                    .WithMany(p => p.Scalings)
+                    .HasForeignKey(d => d.SkillEffectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.AttributeType)
+                    .WithMany()
+                    .HasForeignKey(d => d.AttributeTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // 12d. HRK_SkillEffectStatModifiers
+            modelBuilder.Entity<HrkSkillEffectStatModifier>(entity =>
+            {
+                entity.ToTable("HRK_SkillEffectStatModifiers");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ValueType).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.Value).HasPrecision(18, 4);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+
+                entity.HasOne(d => d.SkillEffect)
+                    .WithMany(p => p.StatModifiers)
+                    .HasForeignKey(d => d.SkillEffectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.AttributeType)
+                    .WithMany()
+                    .HasForeignKey(d => d.AttributeTypeId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -548,6 +602,40 @@ namespace GAME.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(d => d.ItemTemplateId)
                     .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<HrkGameFeatureConfig>(entity =>
+            {
+                entity.ToTable("HRK_GameFeatureConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(80).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(120).IsRequired();
+                entity.Property(e => e.Icon).HasMaxLength(100);
+                entity.Property(e => e.Placement).HasMaxLength(40).IsRequired();
+                entity.Property(e => e.ActionCode).HasMaxLength(80);
+                entity.HasOne(e => e.ParentFeature).WithMany(e => e.Children)
+                    .HasForeignKey(e => e.ParentFeatureId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkCombatPowerConfig>(entity =>
+            {
+                entity.ToTable("HRK_CombatPowerConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.StatCode).IsUnique();
+                entity.Property(e => e.StatCode).HasMaxLength(40).IsRequired();
+                entity.Property(e => e.PowerPerUnit).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<HrkHeroRarityUpgradeConfig>(entity =>
+            {
+                entity.ToTable("HRK_HeroRarityUpgradeConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.RarityId).IsUnique();
+                entity.Property(e => e.StatGrowthRate).HasPrecision(10, 6);
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
+                entity.HasOne(e => e.Rarity).WithMany()
+                    .HasForeignKey(e => e.RarityId).OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

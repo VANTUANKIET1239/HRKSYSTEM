@@ -20,6 +20,8 @@ namespace GAME.Domain.Entities
         public decimal BaseLifesteal { get; set; } = 0.0m;
         public decimal BaseAccuracy { get; set; } = 80.0m;
         public decimal BaseResistance { get; set; } = 10.0m;
+        public int BaseMagicDamage { get; set; }
+        public int BaseMagicResistance { get; set; }
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
 
         public virtual HrkHeroFaction Faction { get; set; } = null!;

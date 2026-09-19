@@ -4,17 +4,16 @@ using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Infrastructure.Services
 {
     public class BattleService : IBattleService
     {
-        private readonly IUnitOfWork<GameDbContext> _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
 
-        public BattleService(IUnitOfWork<GameDbContext> unitOfWork, IGamePlayerService gamePlayerService)
+        public BattleService(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
@@ -32,27 +31,27 @@ namespace GAME.Infrastructure.Services
                     .Include(f => f.Hero1).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Faction)
                     .Include(f => f.Hero1).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Class)
                     .Include(f => f.Hero1).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                    .Include(f => f.Hero1).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                    .Include(f => f.Hero1).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
 
                     .Include(f => f.Hero2).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Faction)
                     .Include(f => f.Hero2).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Class)
                     .Include(f => f.Hero2).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                    .Include(f => f.Hero2).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                    .Include(f => f.Hero2).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
 
                     .Include(f => f.Hero3).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Faction)
                     .Include(f => f.Hero3).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Class)
                     .Include(f => f.Hero3).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                    .Include(f => f.Hero3).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                    .Include(f => f.Hero3).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
 
                     .Include(f => f.Hero4).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Faction)
                     .Include(f => f.Hero4).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Class)
                     .Include(f => f.Hero4).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                    .Include(f => f.Hero4).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                    .Include(f => f.Hero4).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
 
                     .Include(f => f.Hero5).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Faction)
                     .Include(f => f.Hero5).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Class)
                     .Include(f => f.Hero5).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                    .Include(f => f.Hero5).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                    .Include(f => f.Hero5).ThenInclude(h => h!.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
                     .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationName == "Main Team" && f.IsActive, cancellationToken);
 
                 if (formation != null)
@@ -69,7 +68,10 @@ namespace GAME.Infrastructure.Services
                 .Include(ht => ht.Faction)
                 .Include(ht => ht.Class)
                 .Include(ht => ht.Rarity)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill)
+                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
+                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
+                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .Take(5)
                 .ToListAsync(cancellationToken);
 
@@ -105,19 +107,15 @@ namespace GAME.Infrastructure.Services
                     CritDmg = ht.BaseCritDmg,
                     Lifesteal = ht.BaseLifesteal,
                     Accuracy = ht.BaseAccuracy,
-                    Resistance = ht.BaseResistance
+                    Resistance = ht.BaseResistance,
+                    MagicDamage = (int)(ht.BaseMagicDamage * 1.5),
+                    MagicResistance = (int)(ht.BaseMagicResistance * 1.2)
                 },
-                Skills = ht.HeroSkills.OrderBy(hs => hs.SkillOrder).Select(hs => new SkillTemplateDto
-                {
-                    Id = hs.Skill.Id,
-                    Name = hs.Skill.Name,
-                    Icon = hs.Skill.Icon,
-                    Description = hs.Skill.Description,
-                    Cost = hs.Skill.Cost,
-                    DamageMultiplier = hs.Skill.DamageMultiplier,
-                    TargetType = hs.Skill.TargetType,
-                    Cooldown = hs.Skill.Cooldown
-                }).ToList()
+                Skills = ht.HeroSkills
+                    .OrderBy(hs => hs.SkillOrder)
+                    .Select(hs => GameDtoMapper.MapSkillTemplate(hs.Skill)!)
+                    .Where(s => s != null)
+                    .ToList()
             }).ToList();
 
             return new BattleInitialStateDto

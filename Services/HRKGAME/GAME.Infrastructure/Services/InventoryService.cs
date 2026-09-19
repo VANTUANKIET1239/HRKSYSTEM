@@ -4,7 +4,6 @@ using GAME.Application.Configuration;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System;
@@ -17,13 +16,13 @@ namespace GAME.Infrastructure.Services
 {
     public class InventoryService : IInventoryService
     {
-        private readonly IUnitOfWork<GameDbContext> _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
         private readonly IItemStatCalculationService _statCalculationService;
         private readonly InventorySettings _settings;
 
         public InventoryService(
-            IUnitOfWork<GameDbContext> unitOfWork,
+            IUnitOfWork unitOfWork,
             IGamePlayerService gamePlayerService,
             IItemStatCalculationService statCalculationService,
             IOptions<InventorySettings>? options = null)
@@ -51,6 +50,39 @@ namespace GAME.Infrastructure.Services
             {
                 query = query.Where(inv => inv.ItemTemplate.Category.Code == categoryCode);
             }
+
+            var items = await query.ToListAsync(cancellationToken);
+
+            return items.Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
+        }
+
+        public async Task<List<InventoryItemDto>> GetPlayerEquipmentAsync(string userId, string? categoryCode, bool includeEquipped = false, CancellationToken cancellationToken = default)
+        {
+            var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken);
+            if (player == null) return new List<InventoryItemDto>();
+
+            var query = _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
+                .Where(inv => inv.PlayerId == player.Id && inv.IsActive && inv.ItemTemplate.Category.IsEquipment)
+                .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Rarity)
+                .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Attributes).ThenInclude(a => a.AttributeType)
+                .AsQueryable();
+
+            if (!includeEquipped)
+            {
+                query = query.Where(inv => !inv.IsEquipped);
+            }
+
+            if (!string.IsNullOrWhiteSpace(categoryCode) && !categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                var upperCategoryCode = categoryCode.ToUpper();
+                query = query.Where(inv => inv.ItemTemplate.Category.Code.ToUpper() == upperCategoryCode);
+            }
+
+            query = query
+                .OrderByDescending(x => x.ItemTemplate.RarityId)
+                .ThenByDescending(x => x.Enhancement)
+                .ThenBy(x => x.ItemTemplate.Name);
 
             var items = await query.ToListAsync(cancellationToken);
 

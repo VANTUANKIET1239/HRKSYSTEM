@@ -1,7 +1,6 @@
 using Core.Common.Repositories;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -14,9 +13,9 @@ namespace GAME.Infrastructure.Services
 {
     public class ItemStatCalculationService : IItemStatCalculationService
     {
-        private readonly IUnitOfWork<GameDbContext> _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public ItemStatCalculationService(IUnitOfWork<GameDbContext> unitOfWork)
+        public ItemStatCalculationService(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
         }

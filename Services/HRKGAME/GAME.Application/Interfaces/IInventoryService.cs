@@ -9,6 +9,7 @@ namespace GAME.Application.Interfaces
     public interface IInventoryService
     {
         Task<List<InventoryItemDto>> GetPlayerInventoryAsync(string userId, string? categoryCode, CancellationToken cancellationToken = default);
+        Task<List<InventoryItemDto>> GetPlayerEquipmentAsync(string userId, string? categoryCode, bool includeEquipped = false, CancellationToken cancellationToken = default);
         Task<HeroEquipmentDto> GetHeroEquipmentAsync(string userId, long heroId, CancellationToken cancellationToken = default);
         Task<SellItemsResponseDto> SellItemsAsync(string userId, List<SellItemRequestItem> items, CancellationToken cancellationToken = default);
         Task<bool> ToggleItemLockAsync(string userId, long inventoryItemId, bool isLocked, CancellationToken cancellationToken = default);

@@ -2,16 +2,15 @@ using Core.Common.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Infrastructure.Services
 {
     public class MetadataService : IMetadataService
     {
-        private readonly IUnitOfWork<GameDbContext> _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public MetadataService(IUnitOfWork<GameDbContext> unitOfWork)
+        public MetadataService(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
         }
@@ -80,28 +79,29 @@ namespace GAME.Infrastructure.Services
 
         public async Task<SkillEnumsDto> GetSkillEnumsAsync(CancellationToken cancellationToken = default)
         {
-            var costTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillCostType>().Query()
-                .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name })
-                .ToListAsync(cancellationToken);
-
-            var categories = await _unitOfWork.ReadOnlyRepository<HrkSkillCategory>().Query()
-                .OrderBy(x => x.DisplayOrder)
-                .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, DisplayOrder = x.DisplayOrder })
-                .ToListAsync(cancellationToken);
-
-            var damageTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillDamageType>().Query()
-                .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name })
-                .ToListAsync(cancellationToken);
-
             var effectTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillEffectType>().Query()
-                .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, IsDebuff = x.IsDebuff })
+                .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, IsDebuff = !x.IsBeneficial })
                 .ToListAsync(cancellationToken);
 
             return new SkillEnumsDto
             {
-                CostTypes = costTypes,
-                Categories = categories,
-                DamageTypes = damageTypes,
+                CostTypes = new List<LookupItemDto>
+                {
+                    new() { Id = 1, Code = "NONE", Name = "Không tốn" },
+                    new() { Id = 2, Code = "MP", Name = "Năng Lượng" }
+                },
+                Categories = new List<LookupItemDto>
+                {
+                    new() { Id = 1, Code = "passive", Name = "Nội tại", DisplayOrder = 1 },
+                    new() { Id = 2, Code = "active", Name = "Chủ động", DisplayOrder = 2 },
+                    new() { Id = 3, Code = "ultimate", Name = "Tuyệt kỹ", DisplayOrder = 3 }
+                },
+                DamageTypes = new List<LookupItemDto>
+                {
+                    new() { Id = 1, Code = "PHYSICAL", Name = "Vật lý" },
+                    new() { Id = 2, Code = "MAGICAL", Name = "Phép thuật" },
+                    new() { Id = 3, Code = "TRUE", Name = "Chuẩn" }
+                },
                 EffectTypes = effectTypes
             };
         }

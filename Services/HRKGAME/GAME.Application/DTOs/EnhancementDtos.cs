@@ -78,4 +78,44 @@ namespace GAME.Application.DTOs
         public List<EnhancementLevelConfigDto> LevelConfigs { get; set; } = new();
         public List<EnhancementMaterialDto> Materials { get; set; } = new();
     }
+
+    public class ForgeEquipmentItemDto
+    {
+        public long InventoryItemId { get; set; }
+        public int ItemTemplateId { get; set; }
+        public string Code { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public string? ImagePath { get; set; }
+        public string? Icon { get; set; }
+        public string CategoryCode { get; set; } = null!;
+        public string CategoryName { get; set; } = null!;
+        public string RarityCode { get; set; } = null!;
+        public string RarityName { get; set; } = null!;
+        public string? RarityColorHex { get; set; }
+        public int RarityOrder { get; set; }
+        public int LevelReq { get; set; }
+        public int Enhancement { get; set; }
+        public int Stars { get; set; }
+        public bool IsEquipped { get; set; }
+        public bool IsLocked { get; set; }
+        public bool CanEnhance { get; set; }
+        public string? EnhancementBlockedReasonCode { get; set; }
+        public string? EnhancementBlockedMessage { get; set; }
+    }
+
+    public class EquipmentEnhancementPreviewDto
+    {
+        public long InventoryItemId { get; set; }
+        public int CurrentEnhancement { get; set; }
+        public int TargetEnhancement { get; set; }
+        public Dictionary<string, decimal> CurrentStats { get; set; } = new();
+        public Dictionary<string, decimal> NextStats { get; set; } = new();
+        public decimal BaseSuccessRate { get; set; }
+        public int GoldCost { get; set; }
+        public int FailureDropLevels { get; set; }
+        public int MaxStoneSlots { get; set; }
+        public bool CanEnhance { get; set; }
+        public string? ReasonCode { get; set; }
+        public string? Message { get; set; }
+    }
 }
