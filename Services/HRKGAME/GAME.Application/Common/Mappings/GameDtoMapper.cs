@@ -210,7 +210,7 @@ namespace GAME.Application.Common.Mappings
         public static SkillTemplateDto? MapSkillTemplate(HrkSkillTemplate? s)
         {
             if (s == null) return null;
-            var primaryEffect = s.Effects?.OrderBy(e => e.DisplayOrder).FirstOrDefault();
+            var primaryEffect = s.Effects?.Where(e => e.IsActive).OrderBy(e => e.DisplayOrder).FirstOrDefault();
             return new SkillTemplateDto
             {
                 Id = s.Id,
@@ -222,7 +222,7 @@ namespace GAME.Application.Common.Mappings
                 TriggerCode = s.TriggerCode,
                 EnergyCost = s.EnergyCost,
                 DisplayOrder = s.DisplayOrder,
-                Effects = s.Effects?.OrderBy(e => e.DisplayOrder).Select(MapSkillEffect).ToList() ?? new List<SkillEffectDto>(),
+                Effects = s.Effects?.Where(e => e.IsActive).OrderBy(e => e.DisplayOrder).Select(MapSkillEffect).ToList() ?? new List<SkillEffectDto>(),
                 // Legacy compatibility synthesized from data-driven schema
                 Cost = s.EnergyCost,
                 CostTypeCode = s.EnergyCost > 0 ? "MP" : "NONE",

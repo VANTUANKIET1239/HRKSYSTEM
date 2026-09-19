@@ -1,4 +1,6 @@
 using GAME.Application.Features.Queries.Battle;
+using GAME.Application.DTOs;
+using GAME.Application.Features.Commands.Battle;
 using HRK.GAME.Common;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +17,13 @@ namespace HRK.GAME.Controllers
         public BattleController(IMediator mediator)
         {
             _mediator = mediator;
+        }
+
+        [HttpPost("start")]
+        public async Task<IActionResult> Start([FromBody] StartBattleRequestDto request)
+        {
+            var response = await _mediator.Send(new StartBattleCommand(request));
+            return HrkOk(response);
         }
 
         [HttpGet("initial-state")]

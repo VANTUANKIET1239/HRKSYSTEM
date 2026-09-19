@@ -53,6 +53,7 @@ namespace GAME.Infrastructure.Services
         public async Task<List<SkillTemplateDto>> GetSkillTemplatesAsync(CancellationToken cancellationToken = default)
         {
             var skills = await _unitOfWork.ReadOnlyRepository<HrkSkillTemplate>().Query()
+                .Where(s => s.IsActive)
                 .Include(s => s.Effects).ThenInclude(e => e.EffectType)
                 .Include(s => s.Effects).ThenInclude(e => e.TargetType)
                 .Include(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)

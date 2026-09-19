@@ -32,6 +32,9 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkPlayerHero> PlayerHeroes { get; set; } = null!;
         public DbSet<HrkPlayerInventory> PlayerInventories { get; set; } = null!;
         public DbSet<HrkPlayerEquipment> PlayerEquipments { get; set; } = null!;
+        public DbSet<HrkFormationTemplate> FormationTemplates { get; set; } = null!;
+        public DbSet<HrkFormationSlotTemplate> FormationSlotTemplates { get; set; } = null!;
+        public DbSet<HrkFormationLevelConfig> FormationLevelConfigs { get; set; } = null!;
         public DbSet<HrkPlayerFormation> PlayerFormations { get; set; } = null!;
         public DbSet<HrkBattleLog> BattleLogs { get; set; } = null!;
         public DbSet<HrkEnhancementLevelConfig> EnhancementLevelConfigs { get; set; } = null!;
@@ -278,6 +281,7 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_SkillEffects");
                 entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.SkillId, e.DisplayOrder }).IsUnique();
                 entity.Property(e => e.SkillId).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.DamageSchoolCode).HasMaxLength(20);
                 entity.Property(e => e.BaseValue).HasPrecision(18, 4).HasDefaultValue(0);
@@ -351,6 +355,7 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_HeroSkills");
                 entity.HasKey(e => new { e.HeroTemplateId, e.SkillId });
+                entity.HasIndex(e => new { e.HeroTemplateId, e.SkillOrder }).IsUnique();
                 entity.Property(e => e.SkillId).HasMaxLength(100);
 
                 entity.HasOne(d => d.HeroTemplate)
@@ -492,8 +497,12 @@ namespace GAME.Infrastructure.Data
             modelBuilder.Entity<HrkPlayerFormation>(entity =>
             {
                 entity.ToTable("HRK_PlayerFormations");
-                entity.HasKey(e => new { e.PlayerId, e.FormationName });
-                entity.Property(e => e.FormationName).HasMaxLength(50).HasDefaultValue("Main Team");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.PlayerId, e.FormationTemplateId }).IsUnique();
+                entity.Property(e => e.Level).HasDefaultValue(1);
+                entity.Property(e => e.IsSelected).HasDefaultValue(false);
+                entity.Property(e => e.FormationName).HasMaxLength(50);
+                entity.Property(e => e.TotalPower).HasDefaultValue(0);
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
 
@@ -501,6 +510,11 @@ namespace GAME.Infrastructure.Data
                     .WithMany(p => p.Formations)
                     .HasForeignKey(d => d.PlayerId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.FormationTemplate)
+                    .WithMany(p => p.PlayerFormations)
+                    .HasForeignKey(d => d.FormationTemplateId)
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(d => d.Hero1)
                     .WithMany()
@@ -526,6 +540,63 @@ namespace GAME.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(d => d.Position5)
                     .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // 19a. HRK_FormationTemplates
+            modelBuilder.Entity<HrkFormationTemplate>(entity =>
+            {
+                entity.ToTable("HRK_FormationTemplates");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.ImagePath).HasMaxLength(255);
+                entity.Property(e => e.MaxLevel).HasDefaultValue(5);
+                entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+                entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
+
+            // 19b. HRK_FormationSlotTemplates
+            modelBuilder.Entity<HrkFormationSlotTemplate>(entity =>
+            {
+                entity.ToTable("HRK_FormationSlotTemplates");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.FormationTemplateId, e.Slot }).IsUnique();
+                entity.Property(e => e.RowType).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.DisplayX).HasDefaultValue(0);
+                entity.Property(e => e.DisplayY).HasDefaultValue(0);
+                entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+
+                entity.HasOne(d => d.FormationTemplate)
+                    .WithMany(p => p.Slots)
+                    .HasForeignKey(d => d.FormationTemplateId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // 19c. HRK_FormationLevelConfigs
+            modelBuilder.Entity<HrkFormationLevelConfig>(entity =>
+            {
+                entity.ToTable("HRK_FormationLevelConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.FormationTemplateId, e.Level }).IsUnique();
+                entity.Property(e => e.GoldCost).HasDefaultValue(0);
+                entity.Property(e => e.StoneCost).HasDefaultValue(0);
+                entity.Property(e => e.StatBonusJson).IsRequired();
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+
+                entity.HasOne(d => d.FormationTemplate)
+                    .WithMany(p => p.LevelConfigs)
+                    .HasForeignKey(d => d.FormationTemplateId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.StoneItemTemplate)
+                    .WithMany()
+                    .HasForeignKey(d => d.StoneItemTemplateId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // 20. HRK_BattleLogs

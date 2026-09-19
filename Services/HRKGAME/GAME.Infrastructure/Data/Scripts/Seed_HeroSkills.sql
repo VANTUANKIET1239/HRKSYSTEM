@@ -1,70 +1,92 @@
 /*
-  Reset and seed HRK_HeroSkills from INITIAL_HEROES.skills in mock-battle.data.ts.
+  Canonical skill mapping for the 10 current DCS heroes.
+  Run Migration_BasicAttackAndHealSkills.sql first.
+
+  Every hero has exactly one NORMAL/ON_ATTACK skill at order 1.
+  HeroTemplateId 9 heals one random ally; the others attack normally.
 */
 SET XACT_ABORT ON;
-BEGIN TRANSACTION;
+BEGIN TRY
+    BEGIN TRANSACTION;
 
-IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_HRK_HeroSkills_HeroTemplateId'
-           AND object_id = OBJECT_ID('dbo.HRK_HeroSkills'))
-BEGIN
-    DROP INDEX UX_HRK_HeroSkills_HeroTemplateId ON dbo.HRK_HeroSkills;
-END;
+    IF NOT EXISTS (SELECT 1 FROM dbo.HRK_SkillTemplates WHERE Id = 'BASIC_RANDOM_HEAL')
+        THROW 51000, 'Missing BASIC_RANDOM_HEAL. Run Migration_BasicAttackAndHealSkills.sql first.', 1;
 
-/* A hero may own many skills, but a skill can be assigned once per hero. */
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_HRK_HeroSkills_HeroTemplateId_SkillId'
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_HRK_HeroSkills_HeroTemplateId'
                AND object_id = OBJECT_ID('dbo.HRK_HeroSkills'))
-BEGIN
-    CREATE UNIQUE INDEX UX_HRK_HeroSkills_HeroTemplateId_SkillId
-        ON dbo.HRK_HeroSkills(HeroTemplateId, SkillId);
-END;
+        DROP INDEX UX_HRK_HeroSkills_HeroTemplateId ON dbo.HRK_HeroSkills;
 
-/* Intentional full reset requested: mappings not listed below are removed. */
-DELETE FROM dbo.HRK_HeroSkills;
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_HRK_HeroSkills_HeroTemplateId_SkillId'
+                   AND object_id = OBJECT_ID('dbo.HRK_HeroSkills'))
+        CREATE UNIQUE INDEX UX_HRK_HeroSkills_HeroTemplateId_SkillId
+            ON dbo.HRK_HeroSkills(HeroTemplateId, SkillId);
 
-/*
-  Mapping uses hero/skill names so it is portable across databases where IDs differ.
-  A row is inserted only when both the hero template and skill template already exist.
-  Add/change rows here when HRK_SkillTemplates receives new skills.
-*/
-DECLARE @Mappings TABLE (HeroName NVARCHAR(200), SkillId NVARCHAR(100), SkillOrder TINYINT);
-INSERT INTO @Mappings (HeroName, SkillId, SkillOrder) VALUES
-  (N'K Cởi Trần',          'HEAVENLY_JUDGMENT', 1),
-  (N'K Cởi Trần',          'ULTIMATE_SIXPACK', 2),
-  (N'Nam Deadline',        'NORMAL_ATTACK', 1),
-  (N'Nam Deadline',        'HEAVY_SLASH', 2),
-  (N'Nam Deadline',        'VAX_A_MILLION_SANITZATION', 3),
-  (N'Chuẩn Men',           'NORMAL_ATTACK', 1),
-  (N'Chuẩn Men',           'SLASH', 2),
-  (N'Chuẩn Men',           'SWORD_DANCE', 3),
-  (N'Chuẩn Men',           'RICARDO_MILOS', 4),
-  (N'Coder Bảnh',          'NORMAL_ATTACK', 1),
-  (N'Coder Bảnh',          'RANDOM_KNOWLEDGE_DROP', 2),
-  (N'Coder Bảnh',          'REFACTOR_CODE', 3),
-  (N'Coder Bảnh',          'DEPLOY_PROD', 4),
-  (N'Tester Đẹp',          'NORMAL_ATTACK', 1),
-  (N'Tester Đẹp',          'AUTOMATION_TEST', 2),
-  (N'Tester Đẹp',          'DARK_KNOWLEDGE_SHIELD_CONVERSION', 3),
-  (N'Tướng Long Quân Đội', 'NORMAL_ATTACK', 1),
-  (N'Tướng Long Quân Đội', 'TACTICAL_AIR_STRIKE', 2),
-  (N'PM Hối Hả',           'NORMAL_ATTACK', 1),
-  (N'PM Hối Hả',           'DOI_NGOI_DAU_DOC', 2),
-  (N'QA Kỹ Tính',          'NORMAL_ATTACK', 1),
-  (N'QA Kỹ Tính',          'FATAL_ALL_IN_DIRECTIVE', 2),
-  (N'Kiet Noel',           'NORMAL_ATTACK', 1),
-  (N'Kiet Noel',           'WINTER_NIGHT_BLESSINGS', 2),
-  (N'Hoàng Nguyên',        'NORMAL_ATTACK', 1),
-  (N'Hoàng Nguyên',        'DEADLIFT_DIA_CHAN', 2);
+    DECLARE @Mappings TABLE
+    (
+        HeroTemplateId INT NOT NULL,
+        SkillId NVARCHAR(100) NOT NULL,
+        SkillOrder TINYINT NOT NULL,
+        PRIMARY KEY (HeroTemplateId, SkillId)
+    );
 
-INSERT INTO dbo.HRK_HeroSkills (HeroTemplateId, SkillId, SkillOrder)
-SELECT h.Id, s.Id, m.SkillOrder
-FROM @Mappings m
-JOIN dbo.HRK_HeroTemplates h ON h.Name = m.HeroName
-JOIN dbo.HRK_SkillTemplates s ON s.Id = m.SkillId;
+    INSERT INTO @Mappings (HeroTemplateId, SkillId, SkillOrder) VALUES
+        (1,  'NORMAL_ATTACK',                     1),
+        (1,  'HEAVENLY_JUDGMENT',                2),
+        (2,  'NORMAL_ATTACK',                     1),
+        (2,  'VAX_A_MILLION_SANITZATION',        2),
+        (3,  'NORMAL_ATTACK',                     1),
+        (3,  'RICARDO_MILOS',                     2),
+        (4,  'NORMAL_ATTACK',                     1),
+        (4,  'RANDOM_KNOWLEDGE_DROP',             2),
+        (5,  'NORMAL_ATTACK',                     1),
+        (5,  'DARK_KNOWLEDGE_SHIELD_CONVERSION', 2),
+        (6,  'NORMAL_ATTACK',                     1),
+        (6,  'TACTICAL_AIR_STRIKE',               2),
+        (7,  'NORMAL_ATTACK',                     1),
+        (7,  'DOI_NGOI_DAU_DOC',                  2),
+        (8,  'NORMAL_ATTACK',                     1),
+        (8,  'FATAL_ALL_IN_DIRECTIVE',            2),
+        (9,  'BASIC_RANDOM_HEAL',                 1),
+        (9,  'WINTER_NIGHT_BLESSINGS',            2),
+        (10, 'NORMAL_ATTACK',                     1),
+        (10, 'DEADLIFT_DIA_CHAN',                 2);
 
-COMMIT TRANSACTION;
+    IF EXISTS (
+        SELECT 1
+        FROM @Mappings m
+        LEFT JOIN dbo.HRK_HeroTemplates h ON h.Id = m.HeroTemplateId
+        LEFT JOIN dbo.HRK_SkillTemplates s ON s.Id = m.SkillId
+        WHERE h.Id IS NULL OR s.Id IS NULL
+    )
+        THROW 51001, 'A required hero or skill template is missing.', 1;
 
-/* Report missing mappings so seed data can be corrected without silently failing. */
-SELECT m.HeroName, m.SkillId
-FROM @Mappings m
-WHERE NOT EXISTS (SELECT 1 FROM dbo.HRK_HeroTemplates h WHERE h.Name = m.HeroName)
-   OR NOT EXISTS (SELECT 1 FROM dbo.HRK_SkillTemplates s WHERE s.Id = m.SkillId);
+    /* Preserve mappings for future heroes outside the current 1..10 set. */
+    DELETE FROM dbo.HRK_HeroSkills WHERE HeroTemplateId BETWEEN 1 AND 10;
+
+    INSERT INTO dbo.HRK_HeroSkills (HeroTemplateId, SkillId, SkillOrder)
+    SELECT HeroTemplateId, SkillId, SkillOrder FROM @Mappings;
+
+    IF EXISTS (
+        SELECT hs.HeroTemplateId
+        FROM dbo.HRK_HeroSkills hs
+        JOIN dbo.HRK_SkillTemplates s ON s.Id = hs.SkillId
+        WHERE hs.HeroTemplateId BETWEEN 1 AND 10
+          AND s.SkillTypeCode = 'NORMAL'
+          AND s.TriggerCode = 'ON_ATTACK'
+          AND s.IsActive = 1
+        GROUP BY hs.HeroTemplateId
+        HAVING COUNT(*) <> 1
+    )
+        THROW 51002, 'Each seeded hero must have exactly one active basic skill.', 1;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+
+SELECT hs.HeroTemplateId, hs.SkillId, hs.SkillOrder
+FROM dbo.HRK_HeroSkills hs
+WHERE hs.HeroTemplateId BETWEEN 1 AND 10
+ORDER BY hs.HeroTemplateId, hs.SkillOrder;

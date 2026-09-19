@@ -63,6 +63,7 @@ namespace GAME.Application.DTOs
         public byte AuraTier { get; set; }
         public bool IsLocked { get; set; }
         public bool IsFavorite { get; set; }
+        public int? Position { get; set; }
         public CalculatedStatsDto Stats { get; set; } = new();
         public List<SkillTemplateDto> Skills { get; set; } = new();
     }

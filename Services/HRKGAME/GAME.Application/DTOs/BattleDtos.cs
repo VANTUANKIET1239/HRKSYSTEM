@@ -3,6 +3,44 @@ using System.Collections.Generic;
 
 namespace GAME.Application.DTOs
 {
+    public class StartBattleRequestDto
+    {
+        public string BattleType { get; set; } = "PVE";
+        public int? StageId { get; set; }
+        public string? FormationCode { get; set; }
+        public int? RandomSeed { get; set; }
+    }
+
+    public class StartBattleResultDto
+    {
+        public string BattleId { get; set; } = null!;
+        public int RandomSeed { get; set; }
+        public string Status { get; set; } = "COMPLETED";
+        public string Winner { get; set; } = null!;
+        public BattleInitialStateDto InitialState { get; set; } = new();
+        public List<BattleEventDto> Events { get; set; } = new();
+    }
+
+    public class BattleEventDto
+    {
+        public int Sequence { get; set; }
+        public int Round { get; set; }
+        public int Turn { get; set; }
+        public string EventType { get; set; } = null!;
+        public long? ActorId { get; set; }
+        public long? TargetId { get; set; }
+        public string? SkillId { get; set; }
+        public string? EffectTypeCode { get; set; }
+        public string? DamageSchoolCode { get; set; }
+        public int Value { get; set; }
+        public int? HpBefore { get; set; }
+        public int? HpAfter { get; set; }
+        public int? EnergyBefore { get; set; }
+        public int? EnergyAfter { get; set; }
+        public bool IsCrit { get; set; }
+        public int? RemainingTurns { get; set; }
+    }
+
     public class BattleInitialStateDto
     {
         public string BattleId { get; set; } = null!;

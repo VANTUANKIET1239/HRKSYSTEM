@@ -102,6 +102,40 @@
       ]
     },
     {
+      "DownstreamPathTemplate": "/api/formations/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "hrk.game",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/formations/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/formations",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "hrk.game",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/dcs-game/formations",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete"
+      ]
+    },
+    {
       "DownstreamPathTemplate": "/api/formation/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
