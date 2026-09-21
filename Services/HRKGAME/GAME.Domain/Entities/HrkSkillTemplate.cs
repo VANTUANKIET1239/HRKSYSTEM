@@ -20,5 +20,6 @@ namespace GAME.Domain.Entities
 
         public virtual ICollection<HrkHeroSkill> HeroSkills { get; set; } = new List<HrkHeroSkill>();
         public virtual ICollection<HrkSkillEffect> Effects { get; set; } = new List<HrkSkillEffect>();
+        public virtual HrkSkillAnimationConfig? AnimationConfig { get; set; }
     }
 }

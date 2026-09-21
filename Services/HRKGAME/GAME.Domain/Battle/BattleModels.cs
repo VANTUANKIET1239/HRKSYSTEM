@@ -8,6 +8,14 @@ public static class BattleCodes
     public const string Heal = "HEAL";
     public const string StatBuff = "STAT_BUFF";
     public const string StatDebuff = "STAT_DEBUFF";
+    public const string Stun = "STUN";
+    public const string Shield = "SHIELD";
+    public const string Mark = "MARK";
+    public const string PositionSwap = "POSITION_SWAP";
+    public const string Silence = "SILENCE";
+    public const string DamageReduction = "DAMAGE_REDUCTION";
+    public const string Taunt = "TAUNT";
+    public const string DamageReflection = "DAMAGE_REFLECTION";
     public const string Physical = "PHYSICAL";
     public const string Magic = "MAGIC";
     public const string True = "TRUE";
@@ -28,6 +36,8 @@ public sealed class BattleSimulationRequest
 {
     public int RandomSeed { get; init; }
     public int MaxRounds { get; init; } = 100;
+    public int BasicAttackEnergyGain { get; init; } = 25;
+    public int BasicAttackHitEnergyGain { get; init; } = 25;
     public required IReadOnlyList<BattleCombatant> Combatants { get; init; }
 }
 
@@ -61,8 +71,30 @@ public sealed class BattleSkill
     public required string Name { get; init; }
     public required string SkillTypeCode { get; init; }
     public int EnergyCost { get; init; }
+    public BattleSkillAnimation Animation { get; init; } = BattleSkillAnimation.Default;
     public required IReadOnlyList<BattleSkillEffect> Effects { get; init; }
 }
+
+public sealed class BattleSkillAnimation
+{
+    public static BattleSkillAnimation Default { get; } = new();
+    public string AnimationKey { get; init; } = "basic";
+    public int TotalDurationMs { get; init; } = 2400;
+    public IReadOnlyList<BattleSkillTimelinePhase> Phases { get; init; } =
+    [
+        new("CAST", 0, 800, "SKILL_CAST"),
+        new("IMPACT", 800, 800, "DAMAGE"),
+        new("STATUS", 1600, 0, "STATUS_APPLIED"),
+        new("RECOVERY", 1600, 800, "SKILL_COMPLETED")
+    ];
+
+    public BattleSkillTimelinePhase Phase(string code) =>
+        Phases.FirstOrDefault(x => x.PhaseCode.Equals(code, StringComparison.OrdinalIgnoreCase))
+        ?? new BattleSkillTimelinePhase(code, 0, 0, null);
+}
+
+public sealed record BattleSkillTimelinePhase(
+    string PhaseCode, int StartAtMs, int DurationMs, string? TriggerEventType);
 
 public sealed class BattleSkillEffect
 {
@@ -89,6 +121,9 @@ public sealed class BattleStatusEffect
     public int RemainingTurns { get; set; }
     public int Stacks { get; set; } = 1;
     public int MaxStacks { get; init; } = 1;
+    public decimal Value { get; set; }
+    public int ShieldRemaining { get; set; }
+    public int AppliedTurn { get; set; }
     public required IReadOnlyList<BattleStatModifier> StatModifiers { get; init; }
 }
 
@@ -110,6 +145,9 @@ public sealed class BattleEvent
     public int? EnergyAfter { get; init; }
     public bool IsCrit { get; init; }
     public int? RemainingTurns { get; init; }
+    public int? CastSequence { get; init; }
+    public int TimelineOffsetMs { get; init; }
+    public string? PhaseCode { get; init; }
 }
 
 public sealed class BattleSimulationResult

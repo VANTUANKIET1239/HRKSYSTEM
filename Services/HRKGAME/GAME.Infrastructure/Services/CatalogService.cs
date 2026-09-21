@@ -27,6 +27,7 @@ namespace GAME.Infrastructure.Services
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.AnimationConfig)!.ThenInclude(a => a.Phases)
                 .ToListAsync(cancellationToken);
 
             return heroes
@@ -45,6 +46,7 @@ namespace GAME.Infrastructure.Services
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                .Include(h => h.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.AnimationConfig)!.ThenInclude(a => a.Phases)
                 .FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
             return hero != null ? GameDtoMapper.MapHeroTemplate(hero) : null;
@@ -58,6 +60,7 @@ namespace GAME.Infrastructure.Services
                 .Include(s => s.Effects).ThenInclude(e => e.TargetType)
                 .Include(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                .Include(s => s.AnimationConfig)!.ThenInclude(a => a.Phases)
                 .ToListAsync(cancellationToken);
 
             return skills

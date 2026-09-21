@@ -22,6 +22,8 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkCategoryAllowedAttribute> CategoryAllowedAttributes { get; set; } = null!;
         public DbSet<HrkHeroTemplate> HeroTemplates { get; set; } = null!;
         public DbSet<HrkSkillTemplate> SkillTemplates { get; set; } = null!;
+        public DbSet<HrkSkillAnimationConfig> SkillAnimationConfigs { get; set; } = null!;
+        public DbSet<HrkSkillTimelinePhase> SkillTimelinePhases { get; set; } = null!;
         public DbSet<HrkSkillTargetType> SkillTargetTypes { get; set; } = null!;
         public DbSet<HrkSkillEffect> SkillEffects { get; set; } = null!;
         public DbSet<HrkSkillEffectScaling> SkillEffectScalings { get; set; } = null!;
@@ -37,12 +39,14 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkFormationLevelConfig> FormationLevelConfigs { get; set; } = null!;
         public DbSet<HrkPlayerFormation> PlayerFormations { get; set; } = null!;
         public DbSet<HrkBattleLog> BattleLogs { get; set; } = null!;
+        public DbSet<HrkBattleConfig> BattleConfigs { get; set; } = null!;
         public DbSet<HrkEnhancementLevelConfig> EnhancementLevelConfigs { get; set; } = null!;
         public DbSet<HrkEnhancementMaterial> EnhancementMaterials { get; set; } = null!;
         public DbSet<HrkEquipmentEnhancementHistory> EquipmentEnhancementHistories { get; set; } = null!;
         public DbSet<HrkGameFeatureConfig> GameFeatureConfigs { get; set; } = null!;
         public DbSet<HrkCombatPowerConfig> CombatPowerConfigs { get; set; } = null!;
         public DbSet<HrkHeroRarityUpgradeConfig> HeroRarityUpgradeConfigs { get; set; } = null!;
+        public DbSet<HrkHeroStarAuraConfig> HeroStarAuraConfigs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -111,6 +115,8 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.IsBeneficial).HasDefaultValue(false);
                 entity.Property(e => e.IsStackable).HasDefaultValue(false);
                 entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.ImagePath).HasMaxLength(255);
+                entity.Property(e => e.ColorHex).HasMaxLength(20);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
             });
@@ -258,6 +264,29 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
+
+            modelBuilder.Entity<HrkSkillAnimationConfig>(entity =>
+            {
+                entity.ToTable("HRK_SkillAnimationConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.SkillId).IsUnique();
+                entity.Property(e => e.SkillId).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.AnimationKey).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.DefaultPlaybackSpeed).HasPrecision(5, 2).HasDefaultValue(1m);
+                entity.HasOne(e => e.Skill).WithOne(e => e.AnimationConfig)
+                    .HasForeignKey<HrkSkillAnimationConfig>(e => e.SkillId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkSkillTimelinePhase>(entity =>
+            {
+                entity.ToTable("HRK_SkillTimelinePhases");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.SkillAnimationConfigId, e.PhaseCode }).IsUnique();
+                entity.Property(e => e.PhaseCode).HasMaxLength(30).IsRequired();
+                entity.Property(e => e.TriggerEventType).HasMaxLength(40);
+                entity.HasOne(e => e.SkillAnimationConfig).WithMany(e => e.Phases)
+                    .HasForeignKey(e => e.SkillAnimationConfigId).OnDelete(DeleteBehavior.Cascade);
             });
 
             // 12a. HRK_SkillTargetTypes
@@ -614,6 +643,20 @@ namespace GAME.Infrastructure.Data
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
+            modelBuilder.Entity<HrkBattleConfig>(entity =>
+            {
+                entity.ToTable("HRK_BattleConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(80).IsRequired();
+                entity.Property(e => e.Value).HasPrecision(18, 4);
+                entity.Property(e => e.ValueType).HasMaxLength(20).IsRequired().HasDefaultValue("NUMBER");
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+            });
+
             // 21. HRK_EnhancementLevelConfigs
             modelBuilder.Entity<HrkEnhancementLevelConfig>(entity =>
             {
@@ -707,6 +750,30 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
                 entity.HasOne(e => e.Rarity).WithMany()
                     .HasForeignKey(e => e.RarityId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkHeroStarAuraConfig>(entity =>
+            {
+                entity.ToTable("HRK_HeroStarAuraConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.HeroTemplateId, e.StarLevel }).IsUnique();
+                entity.HasIndex(e => e.AuraCode).IsUnique();
+                entity.Property(e => e.AuraCode).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.VisualKey).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(150).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.PrimaryColorHex).HasMaxLength(9);
+                entity.Property(e => e.SecondaryColorHex).HasMaxLength(9);
+                entity.Property(e => e.Intensity).HasPrecision(5, 2).HasDefaultValue(1m);
+                entity.Property(e => e.ParticleLevel).HasDefaultValue((byte)1);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+
+                entity.HasOne(d => d.HeroTemplate)
+                    .WithMany(p => p.StarAuraConfigs)
+                    .HasForeignKey(d => d.HeroTemplateId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

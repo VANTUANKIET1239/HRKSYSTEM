@@ -189,6 +189,9 @@ namespace GAME.Application.Common.Mappings
                 EffectTypeName = e.EffectType?.Name ?? "",
                 EffectGroup = e.EffectType?.EffectGroup ?? "SPECIAL",
                 IsBeneficial = e.EffectType?.IsBeneficial ?? false,
+                EffectDescription = e.EffectType?.Description,
+                EffectImagePath = e.EffectType?.ImagePath,
+                EffectColorHex = e.EffectType?.ColorHex,
                 TargetTypeCode = e.TargetType?.Code ?? "",
                 TargetTypeName = e.TargetType?.Name ?? "",
                 TargetSide = e.TargetType?.TargetSide ?? "ENEMY",
@@ -222,6 +225,17 @@ namespace GAME.Application.Common.Mappings
                 TriggerCode = s.TriggerCode,
                 EnergyCost = s.EnergyCost,
                 DisplayOrder = s.DisplayOrder,
+                Animation = s.AnimationConfig == null ? null : new SkillAnimationConfigDto
+                {
+                    AnimationKey = s.AnimationConfig.AnimationKey,
+                    TotalDurationMs = s.AnimationConfig.TotalDurationMs,
+                    DefaultPlaybackSpeed = s.AnimationConfig.DefaultPlaybackSpeed,
+                    Phases = s.AnimationConfig.Phases.OrderBy(p => p.DisplayOrder).Select(p => new SkillTimelinePhaseDto
+                    {
+                        PhaseCode = p.PhaseCode, StartAtMs = p.StartAtMs, DurationMs = p.DurationMs,
+                        TriggerEventType = p.TriggerEventType, DisplayOrder = p.DisplayOrder
+                    }).ToList()
+                },
                 Effects = s.Effects?.Where(e => e.IsActive).OrderBy(e => e.DisplayOrder).Select(MapSkillEffect).ToList() ?? new List<SkillEffectDto>(),
                 // Legacy compatibility synthesized from data-driven schema
                 Cost = s.EnergyCost,
@@ -242,12 +256,40 @@ namespace GAME.Application.Common.Mappings
         }
 
         /// <summary>
+        /// Map HrkHeroStarAuraConfig entity sang HeroStarAuraConfigDto.
+        /// </summary>
+        public static HeroStarAuraConfigDto? MapStarAura(HrkHeroStarAuraConfig? config)
+        {
+            if (config == null || !config.IsActive) return null;
+            return new HeroStarAuraConfigDto
+            {
+                HeroTemplateId = config.HeroTemplateId,
+                StarLevel = config.StarLevel,
+                AuraCode = config.AuraCode,
+                VisualKey = config.VisualKey,
+                Name = config.Name,
+                Description = config.Description,
+                PrimaryColorHex = config.PrimaryColorHex,
+                SecondaryColorHex = config.SecondaryColorHex,
+                Intensity = config.Intensity,
+                ParticleLevel = config.ParticleLevel
+            };
+        }
+
+        /// <summary>
         /// Map HrkPlayerHero entity sang PlayerHeroDto.
         /// </summary>
-        public static PlayerHeroDto? MapPlayerHero(HrkPlayerHero? ph)
+        public static PlayerHeroDto? MapPlayerHero(HrkPlayerHero? ph, HrkHeroStarAuraConfig? explicitAura = null)
         {
             if (ph == null) return null;
             var ht = ph.HeroTemplate;
+            var clampedStars = Math.Clamp(ph.Stars, 0, 5);
+            var starAuraConfig = explicitAura;
+            if (starAuraConfig == null && clampedStars >= 2 && ht?.StarAuraConfigs != null)
+            {
+                starAuraConfig = ht.StarAuraConfigs.FirstOrDefault(c => c.StarLevel == clampedStars && c.IsActive);
+            }
+
             return new PlayerHeroDto
             {
                 Id = ph.Id,
@@ -267,6 +309,7 @@ namespace GAME.Application.Common.Mappings
                 MaxExp = ph.MaxExp,
                 Stars = ph.Stars,
                 Power = ph.Power,
+                // Note: AuraTier is the legacy stat progression system. Visual star aura is driven exclusively by Stars.
                 AuraTier = ph.AuraTier,
                 IsLocked = ph.IsLocked,
                 IsFavorite = ph.IsFavorite,
@@ -274,7 +317,8 @@ namespace GAME.Application.Common.Mappings
                 Skills = ht?.HeroSkills?.OrderBy(hs => hs.SkillOrder)
                     .Select(hs => MapSkillTemplate(hs.Skill)!)
                     .Where(s => s != null)
-                    .ToList() ?? new List<SkillTemplateDto>()
+                    .ToList() ?? new List<SkillTemplateDto>(),
+                StarAura = MapStarAura(starAuraConfig)
             };
         }
 

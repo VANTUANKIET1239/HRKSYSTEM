@@ -39,6 +39,9 @@ namespace GAME.Application.DTOs
         public int? EnergyAfter { get; set; }
         public bool IsCrit { get; set; }
         public int? RemainingTurns { get; set; }
+        public int? CastSequence { get; set; }
+        public int TimelineOffsetMs { get; set; }
+        public string? PhaseCode { get; set; }
     }
 
     public class BattleInitialStateDto

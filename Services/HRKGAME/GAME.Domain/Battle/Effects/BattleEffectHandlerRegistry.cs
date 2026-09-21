@@ -14,12 +14,17 @@ public sealed class BattleEffectHandlerRegistry
             ? handler
             : throw new NotSupportedException($"No battle effect handler is registered for '{effectTypeCode}'.");
 
+    public bool CanHandle(string effectTypeCode) =>
+        !string.IsNullOrWhiteSpace(effectTypeCode) && _handlers.ContainsKey(effectTypeCode);
+
     public static BattleEffectHandlerRegistry CreateDefault() => new IBattleEffectHandler[]
     {
         new DamageEffectHandler(),
         new HealEffectHandler(),
         new StatBuffEffectHandler(),
-        new StatDebuffEffectHandler()
+        new StatDebuffEffectHandler(), new StunEffectHandler(), new ShieldEffectHandler(),
+        new MarkEffectHandler(), new PositionSwapEffectHandler(), new SilenceEffectHandler(),
+        new DamageReductionEffectHandler(), new TauntEffectHandler(), new DamageReflectionEffectHandler()
     }.ToRegistry();
 }
 

@@ -14,6 +14,8 @@ namespace GAME.Domain.Entities
         public bool IsStackable { get; set; }
         public int? DefaultStackLimit { get; set; }
         public string? Description { get; set; }
+        public string? ImagePath { get; set; }
+        public string? ColorHex { get; set; }
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 

@@ -50,6 +50,52 @@ public sealed class BattleSimulationEngineTests
     }
 
     [Fact]
+    public void Living_target_gains_energy_once_when_hit_by_basic_damage()
+    {
+        var doubleDamageBasic = new BattleSkill
+        {
+            Id = "DOUBLE_BASIC", Name = "Double visual hit", SkillTypeCode = BattleCodes.Normal,
+            Effects =
+            [
+                new BattleSkillEffect { EffectTypeCode = BattleCodes.Damage,
+                    TargetTypeCode = BattleCodes.EnemySingle, DamageSchoolCode = BattleCodes.True, BaseValue = 10 },
+                new BattleSkillEffect { EffectTypeCode = BattleCodes.Damage,
+                    TargetTypeCode = BattleCodes.EnemySingle, DamageSchoolCode = BattleCodes.True, BaseValue = 10 }
+            ]
+        };
+        var target = Hero(2, 1, hp: 5000, speed: 1);
+        var result = _engine.Simulate(new BattleSimulationRequest
+        {
+            RandomSeed = 1, MaxRounds = 1, BasicAttackHitEnergyGain = 25,
+            Combatants = [Hero(1, 0, speed: 200, basicSkill: doubleDamageBasic), target]
+        });
+
+        var targetEnergyEvents = result.Events.Where(x => x.EventType == "ENERGY_CHANGED" &&
+                                                          x.TargetId == target.Id && x.ActorId == 1).ToList();
+        Assert.Single(targetEnergyEvents);
+        Assert.Equal(25, targetEnergyEvents[0].EnergyAfter);
+    }
+
+    [Fact]
+    public void Energy_skill_does_not_grant_hit_energy_to_target()
+    {
+        var target = Hero(2, 1, hp: 5000, speed: 1);
+        var result = _engine.Simulate(new BattleSimulationRequest
+        {
+            RandomSeed = 1, MaxRounds = 1, BasicAttackHitEnergyGain = 25,
+            Combatants =
+            [
+                Hero(1, 0, speed: 200, energy: 100,
+                    energySkill: DamageSkill("ULT", BattleCodes.Energy, 100, 1m)),
+                target
+            ]
+        });
+
+        Assert.DoesNotContain(result.Events, x => x.EventType == "ENERGY_CHANGED" &&
+                                                   x.TargetId == target.Id && x.ActorId != target.Id);
+    }
+
+    [Fact]
     public void Basic_random_heal_heals_one_living_ally_without_exceeding_max_hp()
     {
         var healer = Hero(1, 0, attack: 10, basicSkill: HealSkill());
@@ -102,6 +148,36 @@ public sealed class BattleSimulationEngineTests
     }
 
     [Fact]
+    public void Emits_one_real_damage_at_configured_impact_time()
+    {
+        var baseSkill = DamageSkill("THREE_VISUAL_HITS", BattleCodes.Energy, 100, 1m);
+        var skill = new BattleSkill
+        {
+            Id = baseSkill.Id, Name = baseSkill.Name, SkillTypeCode = baseSkill.SkillTypeCode,
+            EnergyCost = baseSkill.EnergyCost, Effects = baseSkill.Effects,
+            Animation = new BattleSkillAnimation
+            {
+                AnimationKey = "three-visual-hits", TotalDurationMs = 1000,
+                Phases =
+                [
+                    new BattleSkillTimelinePhase("CAST", 0, 300, "SKILL_CAST"),
+                    new BattleSkillTimelinePhase("IMPACT", 300, 500, "DAMAGE"),
+                    new BattleSkillTimelinePhase("STATUS", 800, 0, "STATUS_APPLIED"),
+                    new BattleSkillTimelinePhase("RECOVERY", 800, 200, "SKILL_COMPLETED")
+                ]
+            }
+        };
+        var result = Run(Hero(1, 0, energy: 100, energySkill: skill), Hero(2, 1, hp: 5000));
+        var damages = result.Events.Where(x => x.CastSequence == 1 && x.EventType == "DAMAGE").ToList();
+
+        Assert.Single(damages);
+        Assert.Equal(800, damages[0].TimelineOffsetMs);
+        Assert.Equal("IMPACT", damages[0].PhaseCode);
+        Assert.Contains(result.Events, x => x.CastSequence == 1 && x.EventType == "SKILL_COMPLETED" &&
+                                            x.TimelineOffsetMs == 1000);
+    }
+
+    [Fact]
     public void Dispatches_effect_to_registered_handler_without_changing_engine()
     {
         var customHandler = new TestEffectHandler();
@@ -147,6 +223,68 @@ public sealed class BattleSimulationEngineTests
             Combatants = [Hero(1, 0, attack: 10000, basicSkill: skill), Hero(2, 1)]
         });
         Assert.True(selector.WasCalled);
+    }
+
+    [Fact]
+    public void Taunted_actor_redirects_single_target_attack_to_the_status_source()
+    {
+        var tauntSkill = new BattleSkill
+        {
+            Id = "TAUNT_SKILL", Name = "Taunt", SkillTypeCode = BattleCodes.Normal,
+            Effects = [new BattleSkillEffect
+            {
+                EffectTypeCode = BattleCodes.Taunt,
+                TargetTypeCode = BattleCodes.EnemySingle,
+                DurationTurns = 2
+            }]
+        };
+        var taunter = Hero(10, 0, speed: 300, basicSkill: tauntSkill);
+        taunter.Position = 5;
+        var nearerAlly = Hero(11, 0, speed: 1);
+        nearerAlly.Position = 1;
+        var tauntedEnemy = Hero(20, 1, speed: 200);
+        tauntedEnemy.Position = 1;
+
+        var result = Run(taunter, nearerAlly, tauntedEnemy);
+        var redirectedHit = result.Events.First(x =>
+            x.EventType == "DAMAGE" && x.ActorId == tauntedEnemy.Id);
+
+        Assert.Equal(taunter.Id, redirectedHit.TargetId);
+    }
+
+    [Fact]
+    public void Effects_with_same_row_target_do_not_jump_rows_mid_cast_after_lethal_damage()
+    {
+        var frontRowSkill = new BattleSkill
+        {
+            Id = "FRONT_ROW_COMBO", Name = "Front row combo", SkillTypeCode = BattleCodes.Normal,
+            Effects =
+            [
+                new BattleSkillEffect
+                {
+                    EffectTypeCode = BattleCodes.Damage,
+                    TargetTypeCode = BattleCodes.EnemyFrontRow,
+                    DamageSchoolCode = BattleCodes.True,
+                    BaseValue = 10000
+                },
+                new BattleSkillEffect
+                {
+                    EffectTypeCode = BattleCodes.Stun,
+                    TargetTypeCode = BattleCodes.EnemyFrontRow,
+                    DurationTurns = 1
+                }
+            ]
+        };
+        var actor = Hero(1, 0, speed: 300, basicSkill: frontRowSkill);
+        var frontEnemy = Hero(2, 1, hp: 100, speed: 1);
+        frontEnemy.Position = 1;
+        var backEnemy = Hero(3, 1, hp: 5000, speed: 1);
+        backEnemy.Position = 2;
+
+        var result = Run(actor, frontEnemy, backEnemy);
+
+        Assert.DoesNotContain(result.Events, x => x.CastSequence == 1 &&
+            x.EventType == "STATUS_APPLIED" && x.TargetId == backEnemy.Id);
     }
 
     private BattleSimulationResult Run(params BattleCombatant[] heroes) =>

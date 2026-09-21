@@ -2,11 +2,8 @@
   Prepares INPUT data for POST /api/battle/start.
   It does not seed battle logs or battle results: StartBattleAsync must generate them.
 
-  Player team : selected formation of PlayerId = 1, hero templates 1 and 2.
-  Enemy team  : hero templates 1 and 2 (temporary copies built by BattleService).
-
-  These two templates have NORMAL + ENERGY skills whose current active effects are DAMAGE,
-  allowing the StartBattleAsync flow to be tested before the remaining effect handlers land.
+  Player team : selected formation of PlayerId = 1, hero templates 1..5.
+  Enemy team  : five random hero templates selected temporarily by BattleService.
 
   Prerequisites:
     - full_data_dcs.sql
@@ -33,7 +30,7 @@ BEGIN TRY
     IF (SELECT COUNT(*) FROM dbo.HRK_HeroTemplates WHERE Id BETWEEN 1 AND 10) <> 10
         THROW 51302, 'Hero templates 1..10 are required for the test battle.', 1;
 
-    /* Give the player the two templates used by the left team if they are missing. */
+    /* Give the player the five templates used by the left team if they are missing. */
     INSERT dbo.HRK_PlayerHeroes
         (PlayerId, HeroTemplateId, Level, Exp, MaxExp, Stars, Power, AuraTier,
          IsLocked, IsFavorite, CurrentStats, CreatedOn, UpdatedOn, IsActive)
@@ -41,7 +38,7 @@ BEGIN TRY
            CAST(ht.BaseHp * 0.25 + ht.BaseAtk * 2 + ht.BaseDef * 1.5 AS INT),
            1, 0, 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME(), 1
     FROM dbo.HRK_HeroTemplates ht
-    WHERE ht.Id BETWEEN 1 AND 2
+    WHERE ht.Id BETWEEN 1 AND 5
       AND NOT EXISTS
       (
           SELECT 1
@@ -51,10 +48,13 @@ BEGIN TRY
 
     UPDATE dbo.HRK_PlayerHeroes
     SET IsActive = 1, UpdatedOn = SYSUTCDATETIME()
-    WHERE PlayerId = @PlayerId AND HeroTemplateId BETWEEN 1 AND 2;
+    WHERE PlayerId = @PlayerId AND HeroTemplateId BETWEEN 1 AND 5;
 
     DECLARE @Hero1 BIGINT = (SELECT TOP (1) Id FROM dbo.HRK_PlayerHeroes WHERE PlayerId = @PlayerId AND HeroTemplateId = 1 AND IsActive = 1 ORDER BY Id);
     DECLARE @Hero2 BIGINT = (SELECT TOP (1) Id FROM dbo.HRK_PlayerHeroes WHERE PlayerId = @PlayerId AND HeroTemplateId = 2 AND IsActive = 1 ORDER BY Id);
+    DECLARE @Hero3 BIGINT = (SELECT TOP (1) Id FROM dbo.HRK_PlayerHeroes WHERE PlayerId = @PlayerId AND HeroTemplateId = 3 AND IsActive = 1 ORDER BY Id);
+    DECLARE @Hero4 BIGINT = (SELECT TOP (1) Id FROM dbo.HRK_PlayerHeroes WHERE PlayerId = @PlayerId AND HeroTemplateId = 4 AND IsActive = 1 ORDER BY Id);
+    DECLARE @Hero5 BIGINT = (SELECT TOP (1) Id FROM dbo.HRK_PlayerHeroes WHERE PlayerId = @PlayerId AND HeroTemplateId = 5 AND IsActive = 1 ORDER BY Id);
 
     UPDATE dbo.HRK_PlayerFormations
     SET IsSelected = 0, UpdatedOn = SYSUTCDATETIME()
@@ -68,8 +68,8 @@ BEGIN TRY
     BEGIN
         UPDATE dbo.HRK_PlayerFormations
         SET FormationName = N'StartBattle Test Formation',
-            Position1 = @Hero1, Position2 = @Hero2, Position3 = NULL,
-            Position4 = NULL, Position5 = NULL,
+            Position1 = @Hero1, Position2 = @Hero2, Position3 = @Hero3,
+            Position4 = @Hero4, Position5 = @Hero5,
             Level = 1, TotalPower = 0, IsActive = 1, IsSelected = 1,
             UpdatedOn = SYSUTCDATETIME()
         WHERE PlayerId = @PlayerId AND FormationTemplateId = @FormationTemplateId;
@@ -82,7 +82,7 @@ BEGIN TRY
              TotalPower, IsSelected, IsActive, UpdatedOn)
         VALUES
             (@PlayerId, @FormationTemplateId, 1, N'StartBattle Test Formation',
-             @Hero1, @Hero2, NULL, NULL, NULL,
+             @Hero1, @Hero2, @Hero3, @Hero4, @Hero5,
              0, 1, 1, SYSUTCDATETIME());
     END;
 

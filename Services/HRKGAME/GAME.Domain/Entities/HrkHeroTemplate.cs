@@ -30,5 +30,6 @@ namespace GAME.Domain.Entities
 
         public virtual ICollection<HrkHeroSkill> HeroSkills { get; set; } = new List<HrkHeroSkill>();
         public virtual ICollection<HrkPlayerHero> PlayerHeroes { get; set; } = new List<HrkPlayerHero>();
+        public virtual ICollection<HrkHeroStarAuraConfig> StarAuraConfigs { get; set; } = new List<HrkHeroStarAuraConfig>();
     }
 }

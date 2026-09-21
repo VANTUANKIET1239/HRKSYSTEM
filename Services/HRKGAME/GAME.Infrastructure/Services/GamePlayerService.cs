@@ -119,10 +119,21 @@ namespace GAME.Infrastructure.Services
                 .ToListAsync(cancellationToken);
             var equipmentByHeroId = equipments.ToDictionary(e => e.HeroId);
             var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
+
+            // Batch load star auras for player heroes (no N+1 query)
+            var templateIds = playerHeroes.Select(h => h.HeroTemplateId).Distinct().ToList();
+            var starAuraConfigs = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
+                .Where(c => c.IsActive && templateIds.Contains(c.HeroTemplateId))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+            var auraLookup = starAuraConfigs.ToDictionary(c => (c.HeroTemplateId, c.StarLevel));
+
             var result = new List<PlayerHeroDto>(playerHeroes.Count);
             foreach (var hero in playerHeroes)
             {
-                var dto = GameDtoMapper.MapPlayerHero(hero);
+                var clampedStars = (byte)Math.Clamp(hero.Stars, 0, 5);
+                auraLookup.TryGetValue((hero.HeroTemplateId, clampedStars), out var auraCfg);
+                var dto = GameDtoMapper.MapPlayerHero(hero, auraCfg);
                 if (dto == null) continue;
                 equipmentByHeroId.TryGetValue(hero.Id, out var equipment);
                 var stats = _heroStatCalculationService.CalculateStats(hero, equipment).FinalStats;
@@ -155,7 +166,11 @@ namespace GAME.Infrastructure.Services
             var eq = await GetEquipmentQuery()
                 .FirstOrDefaultAsync(e => e.PlayerId == player.Id && e.HeroId == ph.Id, cancellationToken);
 
-            var baseHero = GameDtoMapper.MapPlayerHero(ph);
+            var detailClampedStars = (byte)Math.Clamp(ph.Stars, 0, 5);
+            var starAura = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
+                .FirstOrDefaultAsync(c => c.HeroTemplateId == ph.HeroTemplateId && c.StarLevel == detailClampedStars && c.IsActive, cancellationToken);
+
+            var baseHero = GameDtoMapper.MapPlayerHero(ph, starAura);
             if (baseHero == null) return null;
 
             var statResult = _heroStatCalculationService.CalculateStats(ph, eq);

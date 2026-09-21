@@ -8,6 +8,23 @@ namespace GAME.Application.DTOs
         public int Phase2Duration { get; set; }
     }
 
+    public class SkillTimelinePhaseDto
+    {
+        public string PhaseCode { get; set; } = null!;
+        public int StartAtMs { get; set; }
+        public int DurationMs { get; set; }
+        public string? TriggerEventType { get; set; }
+        public int DisplayOrder { get; set; }
+    }
+
+    public class SkillAnimationConfigDto
+    {
+        public string AnimationKey { get; set; } = null!;
+        public int TotalDurationMs { get; set; }
+        public decimal DefaultPlaybackSpeed { get; set; } = 1m;
+        public List<SkillTimelinePhaseDto> Phases { get; set; } = new();
+    }
+
     public class SkillEffectScalingDto
     {
         public string AttributeTypeCode { get; set; } = null!;
@@ -31,6 +48,9 @@ namespace GAME.Application.DTOs
         public string EffectTypeName { get; set; } = null!;
         public string EffectGroup { get; set; } = "SPECIAL";
         public bool IsBeneficial { get; set; }
+        public string? EffectDescription { get; set; }
+        public string? EffectImagePath { get; set; }
+        public string? EffectColorHex { get; set; }
         public string TargetTypeCode { get; set; } = null!;
         public string TargetTypeName { get; set; } = null!;
         public string TargetSide { get; set; } = "ENEMY";
@@ -57,6 +77,7 @@ namespace GAME.Application.DTOs
         public int EnergyCost { get; set; } = 100;
         public int DisplayOrder { get; set; }
         public List<SkillEffectDto> Effects { get; set; } = new();
+        public SkillAnimationConfigDto? Animation { get; set; }
 
         // Legacy compatibility properties
         public int Cost { get; set; }

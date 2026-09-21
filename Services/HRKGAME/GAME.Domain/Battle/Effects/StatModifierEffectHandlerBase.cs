@@ -21,6 +21,7 @@ public abstract class StatModifierEffectHandlerBase : IBattleEffectHandler
                 SourceSkillId = context.Skill.Id,
                 SourceHeroId = context.Actor.Id,
                 RemainingTurns = effect.DurationTurns,
+                AppliedTurn = context.Turn,
                 MaxStacks = Math.Max(1, effect.MaxStacks),
                 StatModifiers = effect.StatModifiers
             });

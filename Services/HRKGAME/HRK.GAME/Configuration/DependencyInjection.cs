@@ -73,6 +73,14 @@ namespace HRK.GAME.Configuration
             services.AddSingleton<IBattleEffectHandler, HealEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, StatBuffEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, StatDebuffEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, StunEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, ShieldEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, MarkEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, PositionSwapEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, SilenceEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, DamageReductionEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, TauntEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, DamageReflectionEffectHandler>();
             services.AddSingleton<BattleEffectHandlerRegistry>();
             services.AddSingleton<IBattleTargetSelector, SelfTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, AllyAllTargetSelector>();
