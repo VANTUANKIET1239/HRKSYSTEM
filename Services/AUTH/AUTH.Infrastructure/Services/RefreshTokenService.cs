@@ -105,7 +105,7 @@ namespace AUTH.Infrastructure.Services
             var newRaw = _jwtCoreService.NewSecureRandomToken();
             var newHash = _jwtCoreService.HashToken(newRaw);
 
-            var ttl = refreshTtl ?? TimeSpan.FromDays(_jwtOptions.Value.RefreshTokenDays);
+            var ttl = refreshTtl ?? _jwtOptions.Value.GetRefreshTokenLifetime();
 
             var newRt = new HRK_RefreshToken
             {

@@ -108,6 +108,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 var equipment = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
                     .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
                     .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
+                    .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
                     .FirstOrDefaultAsync(i => i.Id == req.InventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken);
 
                 if (equipment == null)
@@ -240,11 +241,28 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                     await _unitOfWork.BeginTransactionAsync();
                     try
                     {
-                        // A. Recalculate and update Equipment Snapshot Stats cache
+                        // A. Recalculate and update Equipment Instance Attributes & Snapshot Stats cache
+                        decimal growthPercent = equipment.EnhancementGrowthPercent ?? 10.0m;
+                        int safeStars = Math.Max(0, equipment.Stars);
+                        decimal starMultiplier = 1.0m + (safeStars * 0.10m);
+
+                        if (equipment.Attributes != null && equipment.Attributes.Count > 0)
+                        {
+                            foreach (var attr in equipment.Attributes)
+                            {
+                                bool isPercentage = attr.AttributeType?.IsPercentage ?? false;
+                                decimal mult = 1.0m + (executionResult.NewEnhancement * growthPercent / 100.0m);
+                                attr.CurrentValue = isPercentage
+                                    ? Math.Round(attr.BaseRolledValue * mult, 4)
+                                    : Math.Round(attr.BaseRolledValue * mult * starMultiplier, 2);
+                                attr.UpdatedOn = DateTime.UtcNow;
+                                _unitOfWork.Repository<HrkPlayerInventoryAttribute>().Update(attr);
+                            }
+                        }
+
                         var currentStatsJson = _statCalculationService.CalculateCurrentStatsJson(
-                            equipment.ItemTemplate,
-                            executionResult.NewEnhancement,
-                            equipment.Stars);
+                            equipment,
+                            executionResult.NewEnhancement);
 
                         equipment.UpdateCurrentStatsCache(currentStatsJson);
                         _unitOfWork.Repository<HrkPlayerInventory>().Update(equipment);
@@ -312,7 +330,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 });
 
                 // 11. Build Response DTO
-                var calculatedStats = _statCalculationService.CalculateCurrentStats(equipment.ItemTemplate, executionResult.NewEnhancement, equipment.Stars);
+                var calculatedStats = _statCalculationService.CalculateCurrentStats(equipment, executionResult.NewEnhancement);
 
                 var responseDto = new EnhanceEquipmentResultDto
                 {

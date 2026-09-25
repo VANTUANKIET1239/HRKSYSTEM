@@ -46,6 +46,7 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
             var item = await _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
                 .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
                 .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
+                .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
                 .FirstOrDefaultAsync(i => i.Id == request.InventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken);
 
             if (item == null)
@@ -60,8 +61,8 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
             var levelConfig = await _unitOfWork.ReadOnlyRepository<HrkEnhancementLevelConfig>().Query()
                 .FirstOrDefaultAsync(c => c.CurrentLevel == currentLevel, cancellationToken);
 
-            var currentStats = _statCalculationService.CalculateCurrentStats(item.ItemTemplate, currentLevel, item.Stars);
-            var nextStats = _statCalculationService.CalculateCurrentStats(item.ItemTemplate, targetLevel, item.Stars);
+            var currentStats = _statCalculationService.CalculateCurrentStats(item, currentLevel);
+            var nextStats = _statCalculationService.CalculateCurrentStats(item, targetLevel);
 
             var dto = new EquipmentEnhancementPreviewDto
             {

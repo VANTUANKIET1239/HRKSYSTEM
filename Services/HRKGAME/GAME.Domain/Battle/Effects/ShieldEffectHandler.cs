@@ -6,6 +6,14 @@ public sealed class ShieldEffectHandler : IBattleEffectHandler
 
     public IReadOnlyList<PendingBattleEvent> Apply(BattleEffectContext context)
     {
+        // If target has PANIC or SHIELD_BLOCK, new shields cannot be applied
+        if (context.Target.StatusEffects.Any(x => x.RemainingTurns > 0 &&
+            (x.EffectTypeCode.Equals(BattleCodes.Panic, StringComparison.OrdinalIgnoreCase) ||
+             x.EffectTypeCode.Equals(BattleCodes.ShieldBlock, StringComparison.OrdinalIgnoreCase))))
+        {
+            return [];
+        }
+
         var shield = Math.Max(1, (int)Math.Round(BattleStatCalculator.CalculateEffectValue(context.Effect, context.Actor)));
         var duration = Math.Max(1, context.Effect.DurationTurns);
         var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{EffectTypeCode}:{context.Target.Id}";

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using static HRK.AUTH.Configuration.DependencyInjection;
+using AUTH.Application.Interfaces;
 
 namespace HRK.AUTH.Controllers
 {
@@ -20,12 +21,31 @@ namespace HRK.AUTH.Controllers
     public class AuthController : HRKControllerBase
     {
         private readonly IMediator _mediator;
+        private readonly IApplicationRouteConfigService _applicationRouteConfigs;
       //  private readonly IMessagePublisher _messagePublisher;
 
-        public AuthController(IMediator mediator)
+        public AuthController(IMediator mediator, IApplicationRouteConfigService applicationRouteConfigs)
         {
             _mediator = mediator;
+            _applicationRouteConfigs = applicationRouteConfigs;
           //  this._messagePublisher = messagePublisher;
+        }
+
+        [AllowAnonymous]
+        [HttpGet("applications")]
+        public async Task<IActionResult> Applications(CancellationToken cancellationToken)
+        {
+            var configs = await _applicationRouteConfigs.GetActiveAsync(cancellationToken);
+            return Ok(BaseResponse<object>.SuccessResponse(configs.Select(x => new
+            {
+                x.AppCode,
+                x.RoutePrefix,
+                x.ApiPrefix,
+                x.Audience,
+                x.DefaultRoute,
+                x.LoginTitle,
+                x.ThemeClass
+            })));
         }
 
         [HttpPost("register")]

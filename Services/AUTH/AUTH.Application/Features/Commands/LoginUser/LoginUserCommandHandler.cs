@@ -27,6 +27,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
         private readonly IConfiguration _configuration;
         private readonly ICoreCookieService _coreCookieService;
         private readonly IOptions<JwtSettings> _jwtOptions;
+        private readonly IApplicationRouteConfigService _applicationRouteConfigs;
 
         public LoginUserCommandHandler(IIdentityService identityService,
             IJwtCoreService jwtCoreService,
@@ -34,7 +35,8 @@ namespace AUTH.Application.Features.Commands.LoginUser
             IUnitOfWork unitOfWork,
             IConfiguration configuration,
             ICoreCookieService coreCookieService,
-            IOptions<JwtSettings> options
+            IOptions<JwtSettings> options,
+            IApplicationRouteConfigService applicationRouteConfigs
             ) : base(httpContextAccessor)
         {
             _identityService = identityService;
@@ -44,12 +46,21 @@ namespace AUTH.Application.Features.Commands.LoginUser
             this._configuration = configuration;
             this._coreCookieService = coreCookieService;
             this._jwtOptions = options;
+            _applicationRouteConfigs = applicationRouteConfigs;
         }
 
         public async Task<BaseResponse<LoginUserResponse>> Handle(LoginUserCommand request, CancellationToken cancellationToken)
         {
             try
             {
+                var audience = !string.IsNullOrWhiteSpace(request.Audience)
+                    ? request.Audience
+                    : _jwtOptions.Value.Audience;
+                if (!await _applicationRouteConfigs.IsAudienceAllowedAsync(audience, cancellationToken))
+                {
+                    return BaseResponse<LoginUserResponse>.FailResponse("Unsupported application audience.", statusCode: 401);
+                }
+
                 var user = await _identityService.FindByNameOrEmailAsync(request.Email);
 
                 var validation = await OnValidatingUser(user, request);
@@ -78,6 +89,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
                     await _unitOfWork.BeginTransactionAsync();
 
                     var now = DateTime.UtcNow;
+                    var refreshTokenLifetime = _jwtOptions.Value.GetRefreshTokenLifetime();
 
                     // Deactivate previous active login sessions for this user
                     var oldActiveSessions = await _unitOfWork.Repository<HRK_LoginSession>()
@@ -107,7 +119,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
                         UserId = user.Id,
                         CreatedAt = now,
                         CreatedByIp = IpAddress,
-                        ExpiresAt = now.AddDays(_jwtOptions.Value.RefreshTokenDays),
+                        ExpiresAt = now.Add(refreshTokenLifetime),
                         SessionId = sessionId
                     });
 
@@ -125,9 +137,16 @@ namespace AUTH.Application.Features.Commands.LoginUser
                     await _unitOfWork.CommitTransactionAsync();
                 });
 
-                _coreCookieService.SetCookie(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, rawRefreshToken, Expiration.Day, _jwtOptions.Value.RefreshTokenDays, true);
+                var refreshCookieUsesMinutes = _jwtOptions.Value.RefreshTokenExpiryMinutes is > 0;
+                _coreCookieService.SetCookie(
+                    Constants.JSON_WEB_TOKEN.REFRESHTOKEN,
+                    rawRefreshToken,
+                    refreshCookieUsesMinutes ? Expiration.Minute : Expiration.Day,
+                    refreshCookieUsesMinutes
+                        ? _jwtOptions.Value.RefreshTokenExpiryMinutes!.Value
+                        : _jwtOptions.Value.RefreshTokenDays,
+                    true);
 
-                string audience = !string.IsNullOrWhiteSpace(request.Audience) ? request.Audience : _jwtOptions.Value.Audience;
                 var tokenResult = _jwtCoreService.GenerateToken(claims, audience);
 
                 return new BaseResponse<LoginUserResponse>

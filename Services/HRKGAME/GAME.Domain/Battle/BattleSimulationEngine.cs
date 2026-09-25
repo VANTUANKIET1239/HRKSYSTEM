@@ -1,5 +1,9 @@
 using GAME.Domain.Battle.Effects;
 using GAME.Domain.Battle.Targets;
+using GAME.Domain.Battle.Skills;
+using GAME.Domain.Battle.Skills.QaKyTinh;
+using GAME.Domain.Battle.Skills.HaiLastSmile;
+using GAME.Domain.Battle.Skills.ChuanMen;
 
 namespace GAME.Domain.Battle;
 
@@ -12,18 +16,44 @@ public interface IBattleSimulationEngine
 public sealed class BattleSimulationEngine : IBattleSimulationEngine
 {
     private readonly BattleEffectHandlerRegistry _effectHandlers;
-    private readonly BattleTargetSelectorRegistry _targetSelectors;
+    private readonly SkillHandlerRegistry _skillHandlers;
 
-    public BattleSimulationEngine() : this(
-        BattleEffectHandlerRegistry.CreateDefault(),
-        BattleTargetSelectorRegistry.CreateDefault()) { }
+    public BattleSimulationEngine()
+    {
+        _effectHandlers = BattleEffectHandlerRegistry.CreateDefault();
+        var targetSelectors = BattleTargetSelectorRegistry.CreateDefault();
+        var defaultHandler = new DefaultSkillHandler(_effectHandlers, targetSelectors);
+        _skillHandlers = new SkillHandlerRegistry(
+            [
+                new FatalAllInSkillHandler(defaultHandler),
+                new HaiLastSmileSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
+                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
+            ],
+            defaultHandler);
+    }
 
     public BattleSimulationEngine(
         BattleEffectHandlerRegistry effectHandlers,
         BattleTargetSelectorRegistry targetSelectors)
     {
         _effectHandlers = effectHandlers;
-        _targetSelectors = targetSelectors;
+        var defaultHandler = new DefaultSkillHandler(_effectHandlers, targetSelectors);
+        _skillHandlers = new SkillHandlerRegistry(
+            [
+                new FatalAllInSkillHandler(defaultHandler),
+                new HaiLastSmileSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
+                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
+            ],
+            defaultHandler);
+    }
+
+    public BattleSimulationEngine(
+        BattleEffectHandlerRegistry effectHandlers,
+        SkillHandlerRegistry skillHandlers,
+        BattleTargetSelectorRegistry targetSelectors)
+    {
+        _effectHandlers = effectHandlers;
+        _skillHandlers = skillHandlers;
     }
 
     public bool CanHandleEffect(string effectTypeCode) => _effectHandlers.CanHandle(effectTypeCode);
@@ -58,6 +88,12 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
 
                 turn++;
                 Add("TURN_START", round, turn, actor.Id);
+                TickTurnStartStatuses(actor, round, turn);
+                if (!actor.IsAlive || !HasBothTeamsAlive(heroes))
+                {
+                    Add("TURN_END", round, turn, actor.Id);
+                    continue;
+                }
                 if (HasStatus(actor, BattleCodes.Stun))
                 {
                     Add("TURN_SKIPPED", round, turn, actor.Id, actor.Id, effectCode: BattleCodes.Stun);
@@ -66,59 +102,49 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                     continue;
                 }
                 var skill = SelectSkill(actor);
-                var basicAttackHitTargets = new HashSet<long>();
-                var selectedTargetIdsByType = new Dictionary<string, IReadOnlyList<long>>(
-                    StringComparer.OrdinalIgnoreCase);
                 Add("SKILL_CAST", round, turn, actor.Id, skillId: skill.Id,
                     castSequence: turn, timelineOffsetMs: 0, phaseCode: "CAST");
 
-                foreach (var effect in skill.Effects)
+                // Pay an energy skill's cost before executing its handler. Conditional
+                // effects such as ENERGY_CHANGE can then restore energy without being
+                // lost to the MaxEnergy clamp before the skill cost is deducted.
+                if (skill.SkillTypeCode == BattleCodes.Energy)
                 {
-                    if ((decimal)random.NextDouble() * 100m > effect.ChancePercent) continue;
-                    if (!selectedTargetIdsByType.TryGetValue(effect.TargetTypeCode, out var selectedTargetIds))
-                    {
-                        selectedTargetIds = ResolveTargets(effect.TargetTypeCode, actor, heroes, random)
-                            .Select(x => x.Id)
-                            .ToList();
-                        selectedTargetIdsByType[effect.TargetTypeCode] = selectedTargetIds;
-                    }
-                    var targets = selectedTargetIds
-                        .Select(id => heroes.FirstOrDefault(x => x.Id == id))
-                        .Where(x => x != null)
-                        .Cast<BattleCombatant>()
-                        .ToList();
-                    var livingTargets = targets.Where(x => x.IsAlive).ToList();
-                    var handler = _effectHandlers.GetRequired(effect.EffectTypeCode);
-                    var targetsToApply = handler.ApplyOncePerEffect ? livingTargets.Take(1) : livingTargets;
-                    foreach (var target in targetsToApply)
-                    {
-                        var emittedEvents = handler.Apply(new BattleEffectContext
-                        {
-                            Effect = effect, Skill = skill, Actor = actor, Target = target,
-                            SelectedTargets = livingTargets, Combatants = heroes,
-                            Random = random, Round = round, Turn = turn
-                        });
-                        foreach (var emitted in emittedEvents)
-                        {
-                            if (skill.SkillTypeCode.Equals(BattleCodes.Normal, StringComparison.OrdinalIgnoreCase) &&
-                                effect.EffectTypeCode.Equals(BattleCodes.Damage, StringComparison.OrdinalIgnoreCase) &&
-                                emitted.EventType == "DAMAGE")
-                                basicAttackHitTargets.Add(target.Id);
-                            var timing = GetEventTiming(skill, emitted.EventType);
-                            Add(emitted.EventType, round, turn, emitted.ActorId, emitted.TargetId,
-                                emitted.SkillId, emitted.EffectTypeCode, emitted.DamageSchoolCode,
-                                emitted.Value, emitted.HpBefore, emitted.HpAfter,
-                                isCrit: emitted.IsCrit, remainingTurns: emitted.RemainingTurns,
-                                castSequence: turn, timelineOffsetMs: timing.OffsetMs, phaseCode: timing.PhaseCode);
-                        }
-                    }
-                    if (!actor.IsAlive) break;
+                    var energyBeforeCast = actor.Energy;
+                    actor.Energy = Math.Max(0, actor.Energy - skill.EnergyCost);
+                    Add(BattleCodes.EnergyChanged, round, turn, actor.Id, actor.Id, skill.Id,
+                        effectCode: BattleCodes.EnergyChange,
+                        value: actor.Energy - energyBeforeCast,
+                        energyBefore: energyBeforeCast, energyAfter: actor.Energy,
+                        castSequence: turn, timelineOffsetMs: 0, phaseCode: "CAST");
+                }
+
+                var actionId = $"turn_{turn}_actor_{actor.Id}";
+                var execution = _skillHandlers.Resolve(skill).Execute(new SkillExecutionContext
+                {
+                    Skill = skill, Actor = actor, Combatants = heroes, Random = random,
+                    Round = round, Turn = turn, ActionId = actionId
+                });
+                foreach (var emitted in execution.Events)
+                {
+                    var timing = GetEventTiming(skill, emitted.EventType);
+                    var offsetMs = emitted.TimelineOffsetMs ?? timing.OffsetMs;
+                    var phaseCode = emitted.PhaseCode ?? timing.PhaseCode;
+                    Add(emitted.EventType, round, turn, emitted.ActorId, emitted.TargetId,
+                        emitted.SkillId, emitted.EffectTypeCode, emitted.DamageSchoolCode,
+                        emitted.Value, emitted.HpBefore, emitted.HpAfter,
+                        energyBefore: emitted.EnergyBefore, energyAfter: emitted.EnergyAfter,
+                        isCrit: emitted.IsCrit, remainingTurns: emitted.RemainingTurns,
+                        previousStacks: emitted.PreviousStacks, currentStacks: emitted.CurrentStacks, maxStacks: emitted.MaxStacks,
+                        castSequence: turn, timelineOffsetMs: offsetMs, phaseCode: phaseCode,
+                        statModifiers: emitted.StatModifiers,
+                        executionGroup: emitted.ExecutionGroup, hitIndex: emitted.HitIndex);
                 }
 
                 if (request.BasicAttackHitEnergyGain > 0)
                 {
                     var impactTiming = GetEventTiming(skill, "DAMAGE");
-                    foreach (var hitTarget in heroes.Where(x => basicAttackHitTargets.Contains(x.Id) && x.IsAlive))
+                    foreach (var hitTarget in heroes.Where(x => execution.BasicAttackHitTargetIds.Contains(x.Id) && x.IsAlive))
                     {
                         var targetEnergyBefore = hitTarget.Energy;
                         hitTarget.Energy = Math.Min(hitTarget.MaxEnergy,
@@ -132,13 +158,17 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                     }
                 }
 
-                var energyBefore = actor.Energy;
-                actor.Energy = skill.SkillTypeCode == BattleCodes.Energy
-                    ? Math.Max(0, actor.Energy - skill.EnergyCost)
-                    : Math.Min(actor.MaxEnergy, actor.Energy + request.BasicAttackEnergyGain);
-                Add("ENERGY_CHANGED", round, turn, actor.Id, actor.Id, skill.Id,
-                    value: actor.Energy - energyBefore, energyBefore: energyBefore, energyAfter: actor.Energy,
-                    castSequence: turn, timelineOffsetMs: skill.Animation.TotalDurationMs, phaseCode: "RECOVERY");
+                if (skill.SkillTypeCode == BattleCodes.Normal)
+                {
+                    var energyBeforeGain = actor.Energy;
+                    actor.Energy = Math.Min(actor.MaxEnergy, actor.Energy + request.BasicAttackEnergyGain);
+                    Add(BattleCodes.EnergyChanged, round, turn, actor.Id, actor.Id, skill.Id,
+                        effectCode: BattleCodes.EnergyChange,
+                        value: actor.Energy - energyBeforeGain,
+                        energyBefore: energyBeforeGain, energyAfter: actor.Energy,
+                        castSequence: turn, timelineOffsetMs: skill.Animation.TotalDurationMs,
+                        phaseCode: "RECOVERY");
+                }
 
                 TickStatuses(actor, round, turn);
                 Add("SKILL_COMPLETED", round, turn, actor.Id, skillId: skill.Id,
@@ -152,16 +182,55 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
         Add("BATTLE_END", completedRounds, turn, value: winner == "LEFT" ? 0 : winner == "RIGHT" ? 1 : -1);
         return new BattleSimulationResult { Winner = winner, Rounds = completedRounds, Events = events, FinalCombatants = heroes };
 
+        void TickTurnStartStatuses(BattleCombatant actor, int round, int currentTurn)
+        {
+            foreach (var status in actor.StatusEffects.ToList())
+            {
+                if (status.AppliedTurn >= currentTurn) continue;
+                var turnStartHandler = _effectHandlers.GetTurnStartHandler(status.EffectTypeCode);
+                if (turnStartHandler != null)
+                {
+                    var turnEvents = turnStartHandler.OnTurnStart(status, actor, round, currentTurn, heroes);
+                    foreach (var te in turnEvents)
+                    {
+                        Add(te.EventType, round, currentTurn, te.ActorId, te.TargetId,
+                            te.SkillId, te.EffectTypeCode, te.DamageSchoolCode,
+                            te.Value, te.HpBefore, te.HpAfter, isCrit: te.IsCrit,
+                            remainingTurns: te.RemainingTurns, castSequence: currentTurn,
+                            timelineOffsetMs: 0, phaseCode: "IMPACT",
+                            statModifiers: te.StatModifiers);
+                    }
+
+                    status.RemainingTurns--;
+                    if (status.RemainingTurns > 0)
+                    {
+                        Add("STATUS_UPDATED", round, currentTurn, status.SourceHeroId, actor.Id,
+                            status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns);
+                    }
+                    else
+                    {
+                        actor.StatusEffects.Remove(status);
+                        Add("STATUS_EXPIRED", round, currentTurn, status.SourceHeroId, actor.Id,
+                            status.SourceSkillId, status.EffectTypeCode);
+                    }
+                }
+            }
+        }
+
         void TickStatuses(BattleCombatant actor, int round, int currentTurn)
         {
             foreach (var status in actor.StatusEffects.ToList())
             {
                 if (status.AppliedTurn >= currentTurn) continue;
+                if (_effectHandlers.GetTurnStartHandler(status.EffectTypeCode) != null) continue;
+                if (status.RemainingTurns < 0) continue; // Permanent status does not expire
+
                 status.RemainingTurns--;
                 if (status.RemainingTurns > 0)
                 {
                     Add("STATUS_UPDATED", round, currentTurn, status.SourceHeroId, actor.Id,
-                        status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns);
+                        status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns,
+                        currentStacks: status.Stacks, maxStacks: status.MaxStacks);
                     continue;
                 }
                 actor.StatusEffects.Remove(status);
@@ -173,15 +242,23 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
         void Add(string type, int round, int currentTurn, long? actorId = null, long? targetId = null,
             string? skillId = null, string? effectCode = null, string? school = null, int value = 0,
             int? hpBefore = null, int? hpAfter = null, int? energyBefore = null, int? energyAfter = null,
-            bool isCrit = false, int? remainingTurns = null, int? castSequence = null,
-            int timelineOffsetMs = 0, string? phaseCode = null) => events.Add(new BattleEvent
+            bool isCrit = false, int? remainingTurns = null,
+            int? previousStacks = null, int? currentStacks = null, int? maxStacks = null,
+            int? castSequence = null,
+            int timelineOffsetMs = 0, string? phaseCode = null,
+            IReadOnlyList<BattleStatModifier>? statModifiers = null,
+            string? executionGroup = null, int? hitIndex = null) => events.Add(new BattleEvent
             {
                 Sequence = ++sequence, Round = round, Turn = currentTurn, EventType = type,
                 ActorId = actorId, TargetId = targetId, SkillId = skillId, EffectTypeCode = effectCode,
                 DamageSchoolCode = school, Value = value, HpBefore = hpBefore, HpAfter = hpAfter,
                 EnergyBefore = energyBefore, EnergyAfter = energyAfter, IsCrit = isCrit,
-                RemainingTurns = remainingTurns, CastSequence = castSequence,
-                TimelineOffsetMs = timelineOffsetMs, PhaseCode = phaseCode
+                RemainingTurns = remainingTurns,
+                PreviousStacks = previousStacks, CurrentStacks = currentStacks, MaxStacks = maxStacks,
+                CastSequence = castSequence,
+                TimelineOffsetMs = timelineOffsetMs, PhaseCode = phaseCode,
+                ExecutionGroup = executionGroup, HitIndex = hitIndex,
+                StatModifiers = statModifiers ?? []
             });
     }
 
@@ -190,43 +267,9 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
             ? actor.EnergySkill
             : actor.BasicSkill;
 
-    private IReadOnlyList<BattleCombatant> ResolveTargets(string targetCode, BattleCombatant actor,
-        List<BattleCombatant> heroes, Random random)
-    {
-        if (IsTauntRedirectableTarget(targetCode))
-        {
-            var taunt = actor.StatusEffects
-                .Where(x => x.RemainingTurns > 0 &&
-                    x.EffectTypeCode.Equals(BattleCodes.Taunt, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(x => x.AppliedTurn)
-                .FirstOrDefault();
-            if (taunt != null)
-            {
-                var taunter = heroes.FirstOrDefault(x => x.Id == taunt.SourceHeroId &&
-                    x.Team != actor.Team && x.IsAlive);
-                if (taunter != null) return [taunter];
-            }
-        }
-        var context = new BattleTargetContext
-        {
-            Actor = actor,
-            Allies = heroes.Where(x => x.Team == actor.Team && x.IsAlive)
-                .OrderBy(x => x.Position).ThenBy(x => x.Id).ToList(),
-            Enemies = heroes.Where(x => x.Team != actor.Team && x.IsAlive)
-                .OrderBy(x => x.Position).ThenBy(x => x.Id).ToList(),
-            Random = random
-        };
-        return _targetSelectors.GetRequired(targetCode).Select(context);
-    }
-
     private static bool HasStatus(BattleCombatant hero, string effectCode) =>
         hero.StatusEffects.Any(x => x.RemainingTurns > 0 &&
             x.EffectTypeCode.Equals(effectCode, StringComparison.OrdinalIgnoreCase));
-
-    private static bool IsTauntRedirectableTarget(string targetCode) =>
-        targetCode.Equals(BattleCodes.EnemySingle, StringComparison.OrdinalIgnoreCase) ||
-        targetCode.Equals(BattleCodes.EnemyRandom, StringComparison.OrdinalIgnoreCase) ||
-        targetCode.Equals(BattleCodes.EnemySameLaneBackRow, StringComparison.OrdinalIgnoreCase);
 
     private static (int OffsetMs, string PhaseCode) GetEventTiming(BattleSkill skill, string eventType)
     {
@@ -237,8 +280,10 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
 
         var phaseCode = eventType switch
         {
-            "DAMAGE" or "HEAL" or "SHIELD_ABSORBED" or "POSITION_CHANGED" or "DEATH" => "IMPACT",
-            "STATUS_APPLIED" or "SHIELD_APPLIED" or "STATUS_EXPIRED" => "STATUS",
+            "DAMAGE" or "HEAL" or "SHIELD_ABSORBED" or "POSITION_CHANGED" or "DEATH"
+            or "BLEED_DAMAGE" or "BLEED_DETONATED" => "IMPACT",
+            "STATUS_APPLIED" or "SHIELD_APPLIED" or "STATUS_EXPIRED" or "STATUS_REFRESHED"
+            or "ACTION_BAR_CHANGED" => "STATUS",
             _ => "IMPACT"
         };
         var phase = skill.Animation.Phase(phaseCode);
@@ -284,12 +329,36 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
         }
     }
 
-    private static BattleCombatant Clone(BattleCombatant source) => new()
+    private static BattleCombatant Clone(BattleCombatant source)
     {
-        Id = source.Id, SourceHeroId = source.SourceHeroId, Team = source.Team, Position = source.Position,
-        Name = source.Name, MaxHp = source.MaxHp, Hp = source.Hp, Atk = source.Atk, Def = source.Def,
-        Spd = source.Spd, MagicDamage = source.MagicDamage, MagicResistance = source.MagicResistance,
-        CritChance = source.CritChance, CritDamage = source.CritDamage, Energy = source.Energy,
-        MaxEnergy = source.MaxEnergy, BasicSkill = source.BasicSkill, EnergySkill = source.EnergySkill
-    };
+        var clone = new BattleCombatant
+        {
+            Id = source.Id, SourceHeroId = source.SourceHeroId, Team = source.Team, Position = source.Position,
+            Name = source.Name, MaxHp = source.MaxHp, Hp = source.Hp, Atk = source.Atk, Def = source.Def,
+            Spd = source.Spd, MagicDamage = source.MagicDamage, MagicResistance = source.MagicResistance,
+            CritChance = source.CritChance, CritDamage = source.CritDamage, Energy = source.Energy,
+            MaxEnergy = source.MaxEnergy, BasicSkill = source.BasicSkill, EnergySkill = source.EnergySkill
+        };
+        foreach (var status in source.StatusEffects)
+        {
+            clone.StatusEffects.Add(new BattleStatusEffect
+            {
+                InstanceId = status.InstanceId,
+                EffectTypeCode = status.EffectTypeCode,
+                SourceSkillId = status.SourceSkillId,
+                SourceHeroId = status.SourceHeroId,
+                RemainingTurns = status.RemainingTurns,
+                AppliedTurn = status.AppliedTurn,
+                Stacks = status.Stacks,
+                MaxStacks = status.MaxStacks,
+                Value = status.Value,
+                ShieldRemaining = status.ShieldRemaining,
+                LastProcessedActionId = status.LastProcessedActionId,
+                DamageBonusPerStackPercent = status.DamageBonusPerStackPercent,
+                ScaleModifiersWithStacks = status.ScaleModifiersWithStacks,
+                StatModifiers = status.StatModifiers
+            });
+        }
+        return clone;
+    }
 }

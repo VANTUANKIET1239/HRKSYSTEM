@@ -120,4 +120,61 @@ namespace GAME.Application.DTOs
         public Dictionary<long, CalculatedStatsDto> HeroBaseStats { get; set; } = new();
         public Dictionary<long, CalculatedStatsDto> HeroFormationStats { get; set; } = new();
     }
+
+    public class FormationPositionRequestDto
+    {
+        public int Slot { get; set; }
+        public long? HeroId { get; set; }
+    }
+
+    public class FormationBattleSnapshot
+    {
+        public long FormationId { get; set; }
+        public string FormationCode { get; set; } = null!;
+        public string FormationName { get; set; } = null!;
+        public int FormationLevel { get; set; } = 1;
+        public FormationStatBonusDto FormationBonus { get; set; } = new();
+        public List<FormationSlotDto> Slots { get; set; } = new();
+        public List<PlayerHeroDto> Heroes { get; set; } = new();
+        public List<long> ParticipantHeroIds { get; set; } = new();
+        public Dictionary<long, CalculatedStatsDto> FinalStatsByHero { get; set; } = new();
+        public Dictionary<long, int> HeroPowers { get; set; } = new();
+        public int BaseHeroPower { get; set; }
+        public int FormationBonusPower { get; set; }
+        public int TotalPower { get; set; }
+    }
+
+    public class FormationPreviewRequestDto
+    {
+        public string FormationCode { get; set; } = null!;
+        public List<FormationPositionRequestDto> Positions { get; set; } = new();
+    }
+
+    public class FormationPreviewResponseDto
+    {
+        public string FormationCode { get; set; } = null!;
+        public string FormationName { get; set; } = null!;
+        public int FormationLevel { get; set; }
+        public FormationStatBonusDto CurrentBonus { get; set; } = new();
+        public List<FormationSlotDto> Slots { get; set; } = new();
+        public int BaseHeroPower { get; set; }
+        public int FormationBonusPower { get; set; }
+        public int TotalPower { get; set; }
+        public bool IsValid { get; set; } = true;
+        public List<string> ValidationErrors { get; set; } = new();
+    }
+
+    public class FormationPowerResultDto
+    {
+        public long FormationId { get; set; }
+        public string FormationCode { get; set; } = "";
+        public string FormationName { get; set; } = "";
+        public int FormationLevel { get; set; }
+        public int HeroCount { get; set; }
+        public int BaseHeroPower { get; set; }
+        public int FormationBonusPower { get; set; }
+        public int TotalPower { get; set; }
+        public List<long> PlacedHeroIds { get; set; } = new();
+        public Dictionary<long, int> HeroTotalPowers { get; set; } = new();
+    }
 }

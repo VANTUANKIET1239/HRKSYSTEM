@@ -39,11 +39,14 @@ namespace GAME.Infrastructure.Services
             if (player == null) return new List<InventoryItemDto>();
 
             var query = _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-                .Where(inv => inv.PlayerId == player.Id && !inv.IsEquipped && inv.IsActive)
+                .Where(inv => inv.PlayerId == player.Id && inv.IsActive)
+                .Include(inv => inv.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Category)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Attributes).ThenInclude(a => a.AttributeType)
+                .Include(inv => inv.EquippedHero).ThenInclude(hero => hero!.HeroTemplate)
                 .OrderByDescending(x => x.ItemTemplate.RarityId)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(categoryCode) && !categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase))
@@ -63,9 +66,12 @@ namespace GAME.Infrastructure.Services
 
             var query = _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
                 .Where(inv => inv.PlayerId == player.Id && inv.IsActive && inv.ItemTemplate.Category.IsEquipment)
+                .Include(inv => inv.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Category)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Attributes).ThenInclude(a => a.AttributeType)
+                .Include(inv => inv.EquippedHero).ThenInclude(hero => hero!.HeroTemplate)
+                .AsSplitQuery()
                 .AsQueryable();
 
             if (!includeEquipped)
@@ -98,18 +104,25 @@ namespace GAME.Infrastructure.Services
             }
 
             var eq = await _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
+                .Include(e => e.Weapon).ThenInclude(w => w!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Weapon).ThenInclude(w => w!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Weapon).ThenInclude(w => w!.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(e => e.Armor).ThenInclude(a => a!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Armor).ThenInclude(a => a!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Armor).ThenInclude(a => a!.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(e => e.Helmet).ThenInclude(h => h!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Helmet).ThenInclude(h => h!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Helmet).ThenInclude(h => h!.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(e => e.Boots).ThenInclude(b => b!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Boots).ThenInclude(b => b!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Boots).ThenInclude(b => b!.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(e => e.Ring).ThenInclude(r => r!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Ring).ThenInclude(r => r!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Ring).ThenInclude(r => r!.ItemTemplate).ThenInclude(it => it.Category)
+                .Include(e => e.Artifact).ThenInclude(ar => ar!.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(e => e.Artifact).ThenInclude(ar => ar!.ItemTemplate).ThenInclude(it => it.Rarity)
                 .Include(e => e.Artifact).ThenInclude(ar => ar!.ItemTemplate).ThenInclude(it => it.Category)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(e => e.PlayerId == player.Id && e.HeroId == heroId, cancellationToken);
 
             return GameDtoMapper.MapHeroEquipment(eq, heroId);

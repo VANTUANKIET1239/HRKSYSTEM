@@ -2,24 +2,16 @@ using FluentValidation;
 
 using CoreEngine.CQRS;
 using Core.Common.FluentValidation;
-using Microsoft.Extensions.Configuration;
 
 namespace AUTH.Application.Features.Commands.RefreshToken
 {
     public class RefreshTokenCommandValidation : HRKValidator<RefreshTokenCommand>
     {
 
-        private static List<string> allowedAudiences;
-
-        public RefreshTokenCommandValidation(IConfiguration configuration)
+        public RefreshTokenCommandValidation()
         {
-            allowedAudiences = configuration.GetSection("HrkAudiences")
-                         .Get<List<string>>() ?? new List<string>();
-
-
             NotEmpty(x => x.Audience)
-           .Must(aud => allowedAudiences.Contains(aud))
-           .WithMessage("Invalid audience.");
+                .MaximumLength(100);
 
         }
 

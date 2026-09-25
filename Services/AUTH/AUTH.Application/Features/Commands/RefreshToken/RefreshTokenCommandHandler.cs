@@ -19,13 +19,12 @@ namespace AUTH.Application.Features.Commands.RefreshToken
 {
     public class RefreshTokenCommandHandler : HRKBaseCommand, ICommandHandler<RefreshTokenCommand, BaseResponse<RefreshTokenResponse>>
     {
-        private const string AudienceKey = "HrkAudiences";
         private readonly IJwtCoreService _jwtCoreService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IOptions<JwtSettings> _jwtOptions;
         private readonly ICoreCookieService _coreCookieService;
         private readonly IRefreshTokenService _refreshTokenService;
-        private readonly IEnumerable<string> _audiences;
+        private readonly IApplicationRouteConfigService _applicationRouteConfigs;
 
         public RefreshTokenCommandHandler(
             IJwtCoreService jwtCoreService,
@@ -33,8 +32,8 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             IHttpContextAccessor httpContextAccessor,
             IOptions<JwtSettings> options,
             ICoreCookieService coreCookieService,
-            IConfiguration configuration,
-            IRefreshTokenService refreshTokenService
+            IRefreshTokenService refreshTokenService,
+            IApplicationRouteConfigService applicationRouteConfigs
         ) : base(httpContextAccessor)
         {
             _jwtCoreService = jwtCoreService;
@@ -42,17 +41,7 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             _jwtOptions = options;
             this._coreCookieService = coreCookieService;
             this._refreshTokenService = refreshTokenService;
-            _audiences = configuration.GetSection(AudienceKey).Get<IEnumerable<string>>() ?? new List<string>();
-        }
-
-        private bool OnCheckValidAudience(RefreshTokenCommand refreshTokenCommand)
-        {
-            if (_audiences.Any(x => x.Equals(refreshTokenCommand.Audience, StringComparison.OrdinalIgnoreCase)))
-            {
-                return true;
-            }
-
-            return false;
+            _applicationRouteConfigs = applicationRouteConfigs;
         }
 
         public async Task<BaseResponse<RefreshTokenResponse>> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
@@ -62,14 +51,7 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             if (httpContext == null || !httpContext.Request.Cookies.TryGetValue(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, out var presentedRaw))
                 return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid or expired refresh token.", statusCode: 401);
 
-            var currentJti = User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
-
-            if (currentJti is null)
-            {
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid token", statusCode: 401);
-            };
-
-            if (!OnCheckValidAudience(request))
+            if (!await _applicationRouteConfigs.IsAudienceAllowedAsync(request.Audience, cancellationToken))
             {
                 return BaseResponse<RefreshTokenResponse>.FailResponse("Unauthorized", statusCode: 401);
             };
@@ -85,7 +67,7 @@ namespace AUTH.Application.Features.Commands.RefreshToken
                     rotatedSession = await _refreshTokenService.RotateRefreshAsync(
                         presentedRaw,
                         IpAddress,
-                        TimeSpan.FromDays(_jwtOptions.Value.RefreshTokenDays),
+                        _jwtOptions.Value.GetRefreshTokenLifetime(),
                         cancellationToken);
 
                     await _unitOfWork.CommitTransactionAsync();
@@ -110,11 +92,14 @@ namespace AUTH.Application.Features.Commands.RefreshToken
                     return BaseResponse<RefreshTokenResponse>.FailResponse("Failed to generate new access token.");
                 }
 
+                var refreshCookieUsesMinutes = _jwtOptions.Value.RefreshTokenExpiryMinutes is > 0;
                 _coreCookieService.SetCookie(
                     Constants.JSON_WEB_TOKEN.REFRESHTOKEN,
                     rotatedSession.NewRefreshToken,
-                    Expiration.Day,
-                    _jwtOptions.Value.RefreshTokenDays,
+                    refreshCookieUsesMinutes ? Expiration.Minute : Expiration.Day,
+                    refreshCookieUsesMinutes
+                        ? _jwtOptions.Value.RefreshTokenExpiryMinutes!.Value
+                        : _jwtOptions.Value.RefreshTokenDays,
                     true);
 
                 return BaseResponse<RefreshTokenResponse>.SuccessResponse(new RefreshTokenResponse

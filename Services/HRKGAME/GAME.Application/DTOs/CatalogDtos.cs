@@ -41,6 +41,15 @@ namespace GAME.Application.DTOs
         public decimal Value { get; set; }
     }
 
+    public class SkillEffectParameterDto
+    {
+        public string ParameterCode { get; set; } = null!;
+        public decimal? DecimalValue { get; set; }
+        public int? IntValue { get; set; }
+        public bool? BoolValue { get; set; }
+        public string? StringValue { get; set; }
+    }
+
     public class SkillEffectDto
     {
         public long Id { get; set; }
@@ -61,8 +70,11 @@ namespace GAME.Application.DTOs
         public decimal ChancePercent { get; set; } = 100m;
         public int? MaxStacks { get; set; }
         public int DisplayOrder { get; set; }
+        public string? ExecutionGroup { get; set; }
+        public string? ConditionCode { get; set; }
         public List<SkillEffectScalingDto> Scalings { get; set; } = new();
         public List<SkillEffectStatModifierDto> StatModifiers { get; set; } = new();
+        public List<SkillEffectParameterDto> Parameters { get; set; } = new();
     }
 
     public class SkillTemplateDto
@@ -131,7 +143,14 @@ namespace GAME.Application.DTOs
         public string AttributeCode { get; set; } = null!;
         public string AttributeName { get; set; } = null!;
         public bool IsPercentage { get; set; }
+        public string ValueType => IsPercentage ? "PERCENT" : "FLAT";
         public decimal Value { get; set; }
+        public decimal? BaseRolledValue { get; set; }
+        public decimal? EnhancementValue { get; set; }
+        public decimal? CurrentValue { get; set; }
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+        public decimal? RollPercent { get; set; }
         public int DisplayOrder { get; set; }
     }
 

@@ -22,6 +22,8 @@ namespace HRK.GAME.Controllers
         [HttpPost("start")]
         public async Task<IActionResult> Start([FromBody] StartBattleRequestDto request)
         {
+            if (request.BattleType.Equals("CAMPAIGN", StringComparison.OrdinalIgnoreCase) || request.StageId.HasValue)
+                return ErrorResponse("Phó bản phải được bắt đầu qua API dungeon để kiểm tra mở khóa và thể lực.");
             var response = await _mediator.Send(new StartBattleCommand(request));
             return HrkOk(response);
         }

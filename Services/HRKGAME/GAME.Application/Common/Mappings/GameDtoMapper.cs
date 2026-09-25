@@ -15,6 +15,61 @@ namespace GAME.Application.Common.Mappings
         {
             if (inv == null || inv.ItemTemplate == null) return null;
             var it = inv.ItemTemplate;
+
+            List<ItemAttributeDto>? attributeDtos = null;
+            List<EquipmentRolledAttributeDto>? rolledAttributeDtos = null;
+            decimal? overallRollPercent = null;
+
+            if (inv.Attributes != null && inv.Attributes.Count > 0)
+            {
+                attributeDtos = new List<ItemAttributeDto>();
+                rolledAttributeDtos = new List<EquipmentRolledAttributeDto>();
+
+                foreach (var attr in inv.Attributes.OrderBy(a => a.AttributeType?.DisplayOrder ?? 0))
+                {
+                    var attrType = attr.AttributeType;
+                    bool isPercentage = attrType?.IsPercentage ?? false;
+                    decimal enhancementVal = Math.Max(0m, attr.CurrentValue - attr.BaseRolledValue);
+
+                    attributeDtos.Add(new ItemAttributeDto
+                    {
+                        AttributeTypeId = attr.AttributeTypeId,
+                        AttributeCode = attrType?.Code ?? "",
+                        AttributeName = attrType?.Name ?? "",
+                        IsPercentage = isPercentage,
+                        Value = attr.CurrentValue,
+                        BaseRolledValue = attr.BaseRolledValue,
+                        EnhancementValue = enhancementVal,
+                        CurrentValue = attr.CurrentValue,
+                        MinValue = attr.RollMinValue,
+                        MaxValue = attr.RollMaxValue,
+                        RollPercent = attr.RollQualityPercent,
+                        DisplayOrder = attrType?.DisplayOrder ?? 0
+                    });
+
+                    rolledAttributeDtos.Add(new EquipmentRolledAttributeDto
+                    {
+                        AttributeTypeId = attr.AttributeTypeId,
+                        AttributeCode = attrType?.Code ?? "",
+                        AttributeName = attrType?.Name ?? "",
+                        IsPercentage = isPercentage,
+                        BaseRolledValue = attr.BaseRolledValue,
+                        EnhancementValue = enhancementVal,
+                        CurrentValue = attr.CurrentValue,
+                        RollMinValue = attr.RollMinValue,
+                        RollMaxValue = attr.RollMaxValue,
+                        RollQualityPercent = attr.RollQualityPercent,
+                        DisplayOrder = attrType?.DisplayOrder ?? 0
+                    });
+                }
+
+                overallRollPercent = Math.Round(inv.Attributes.Average(a => a.RollQualityPercent), 1);
+            }
+            else if (it.Attributes != null && it.Attributes.Count > 0)
+            {
+                attributeDtos = it.Attributes.Select(MapItemAttribute).ToList();
+            }
+
             return new InventoryItemDto
             {
                 Id = inv.Id,
@@ -27,18 +82,27 @@ namespace GAME.Application.Common.Mappings
                 RarityCode = it.Rarity?.Code ?? "",
                 RarityName = it.Rarity?.Name ?? "",
                 RarityColorHex = it.Rarity?.ColorHex,
+                RarityDisplayOrder = it.Rarity?.DisplayOrder ?? 0,
                 CategoryId = it.CategoryId,
                 CategoryCode = it.Category?.Code ?? "",
                 CategoryName = it.Category?.Name ?? "",
+                CategoryDisplayOrder = it.Category?.DisplayOrder ?? 0,
                 IsEquipment = it.Category?.IsEquipment ?? false,
                 Count = inv.Count,
                 LevelReq = it.LevelReq,
                 Description = it.Description,
+                SellPrice = it.SellPrice,
                 Stats = MapItemStatsObject(inv.CurrentStats, it),
-                Attributes = it.Attributes?.Select(MapItemAttribute).ToList(),
+                Attributes = attributeDtos,
+                RolledAttributes = rolledAttributeDtos,
+                EnhancementGrowthPercent = inv.EnhancementGrowthPercent,
+                EnhancementGrowthMinPercent = inv.EnhancementGrowthMinPercent,
+                EnhancementGrowthMaxPercent = inv.EnhancementGrowthMaxPercent,
+                OverallRollPercent = overallRollPercent,
                 IsLocked = inv.IsLocked,
                 IsEquipped = inv.IsEquipped,
                 EquippedHeroId = inv.EquippedHeroId,
+                EquippedHeroName = inv.EquippedHero?.HeroTemplate?.Name,
                 Enhancement = inv.Enhancement,
                 Stars = inv.Stars,
                 SlotIndex = inv.SlotIndex
@@ -50,6 +114,12 @@ namespace GAME.Application.Common.Mappings
         /// </summary>
         public static ItemAttributeDto MapItemAttribute(HrkItemTemplateAttribute attr)
         {
+            decimal minVal = attr.MinValue ?? attr.Value;
+            decimal maxVal = attr.MaxValue ?? attr.Value;
+            decimal rollPercent = (maxVal > minVal)
+                ? Math.Clamp(Math.Round(((attr.Value - minVal) / (maxVal - minVal)) * 100m, 1), 0m, 100m)
+                : 100m;
+
             return new ItemAttributeDto
             {
                 AttributeTypeId = attr.AttributeTypeId,
@@ -57,6 +127,12 @@ namespace GAME.Application.Common.Mappings
                 AttributeName = attr.AttributeType?.Name ?? "",
                 IsPercentage = attr.AttributeType?.IsPercentage ?? false,
                 Value = attr.Value,
+                BaseRolledValue = attr.Value,
+                EnhancementValue = 0m,
+                CurrentValue = attr.Value,
+                MinValue = minVal,
+                MaxValue = maxVal,
+                RollPercent = rollPercent,
                 DisplayOrder = attr.AttributeType?.DisplayOrder ?? 0
             };
         }
@@ -202,8 +278,18 @@ namespace GAME.Application.Common.Mappings
                 ChancePercent = e.ChancePercent,
                 MaxStacks = e.MaxStacks,
                 DisplayOrder = e.DisplayOrder,
+                ExecutionGroup = e.ExecutionGroup,
+                ConditionCode = e.ConditionCode,
                 Scalings = e.Scalings?.Select(MapSkillEffectScaling).ToList() ?? new List<SkillEffectScalingDto>(),
-                StatModifiers = e.StatModifiers?.Select(MapSkillEffectStatModifier).ToList() ?? new List<SkillEffectStatModifierDto>()
+                StatModifiers = e.StatModifiers?.Select(MapSkillEffectStatModifier).ToList() ?? new List<SkillEffectStatModifierDto>(),
+                Parameters = e.Parameters?.Select(p => new SkillEffectParameterDto
+                {
+                    ParameterCode = p.ParameterCode,
+                    DecimalValue = p.DecimalValue,
+                    IntValue = p.IntValue,
+                    BoolValue = p.BoolValue,
+                    StringValue = p.StringValue
+                }).ToList() ?? new List<SkillEffectParameterDto>()
             };
         }
 

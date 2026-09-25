@@ -10,6 +10,7 @@ public abstract class StatModifierEffectHandlerBase : IBattleEffectHandler
         if (effect.DurationTurns <= 0 || effect.StatModifiers.Count == 0)
             return [];
 
+        var val = effect.BaseValue != 0 ? effect.BaseValue : (effect.StatModifiers.FirstOrDefault()?.Value ?? 0m);
         var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{effect.EffectTypeCode}:{context.Target.Id}";
         var existing = context.Target.StatusEffects.FirstOrDefault(x => x.InstanceId == instanceId);
         if (existing == null)
@@ -23,6 +24,7 @@ public abstract class StatModifierEffectHandlerBase : IBattleEffectHandler
                 RemainingTurns = effect.DurationTurns,
                 AppliedTurn = context.Turn,
                 MaxStacks = Math.Max(1, effect.MaxStacks),
+                Value = val,
                 StatModifiers = effect.StatModifiers
             });
         }
@@ -30,6 +32,7 @@ public abstract class StatModifierEffectHandlerBase : IBattleEffectHandler
         {
             existing.RemainingTurns = effect.DurationTurns;
             existing.Stacks = Math.Min(existing.MaxStacks, existing.Stacks + 1);
+            existing.Value = val;
         }
 
         return
@@ -38,7 +41,8 @@ public abstract class StatModifierEffectHandlerBase : IBattleEffectHandler
             {
                 EventType = "STATUS_APPLIED", ActorId = context.Actor.Id, TargetId = context.Target.Id,
                 SkillId = context.Skill.Id, EffectTypeCode = effect.EffectTypeCode,
-                RemainingTurns = effect.DurationTurns
+                Value = (int)Math.Round(val),
+                RemainingTurns = effect.DurationTurns, StatModifiers = effect.StatModifiers
             }
         ];
     }

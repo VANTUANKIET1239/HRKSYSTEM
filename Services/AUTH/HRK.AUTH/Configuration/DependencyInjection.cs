@@ -76,6 +76,7 @@ namespace HRK.AUTH.Configuration
 
             services.AddScoped<IIdentityService, IdentityService>();
             services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+            services.AddScoped<IApplicationRouteConfigService, ApplicationRouteConfigService>();
         }
 
         public static void AddOptions(IServiceCollection services, IConfiguration configuration)

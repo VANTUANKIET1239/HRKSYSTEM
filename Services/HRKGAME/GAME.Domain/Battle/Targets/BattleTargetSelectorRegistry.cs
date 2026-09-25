@@ -29,6 +29,7 @@ public sealed class BattleTargetSelectorRegistry
         new EnemyRandom4TargetSelector(),
         new EnemyFrontRowTargetSelector(),
         new EnemyBackRowTargetSelector(),
-        new EnemySameLaneBackRowTargetSelector()
+        new EnemySameLaneBackRowTargetSelector(),
+        new LowestHpPercentTargetSelector()
     });
 }

@@ -15,6 +15,8 @@ namespace GAME.Domain.Entities
         public decimal ChancePercent { get; set; } = 100.0m;
         public int? MaxStacks { get; set; }
         public int DisplayOrder { get; set; }
+        public string? ExecutionGroup { get; set; }
+        public string? ConditionCode { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
@@ -25,5 +27,6 @@ namespace GAME.Domain.Entities
 
         public virtual ICollection<HrkSkillEffectScaling> Scalings { get; set; } = new List<HrkSkillEffectScaling>();
         public virtual ICollection<HrkSkillEffectStatModifier> StatModifiers { get; set; } = new List<HrkSkillEffectStatModifier>();
+        public virtual ICollection<HrkSkillEffectParameter> Parameters { get; set; } = new List<HrkSkillEffectParameter>();
     }
 }

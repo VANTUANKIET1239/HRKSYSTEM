@@ -22,10 +22,17 @@ namespace AUTH.Infrastructure.Data
 
         public DbSet<HRK_RefreshToken> HrkRefreshTokens  { get; set; }
 
+        public DbSet<HRK_ApplicationRouteConfig> ApplicationRouteConfigs { get; set; }
+
        // public DbSet<AccessTokenRecord>  HrkAccessTokenRecords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
+            builder.Entity<HRK_ApplicationRouteConfig>(entity =>
+            {
+                entity.HasIndex(x => x.AppCode).IsUnique();
+                entity.HasIndex(x => x.Audience).IsUnique();
+            });
         }
 
     }

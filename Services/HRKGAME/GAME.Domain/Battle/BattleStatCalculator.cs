@@ -21,10 +21,11 @@ public static class BattleStatCalculator
         foreach (var modifier in status.StatModifiers.Where(x =>
                      x.AttributeCode.Equals(code, StringComparison.OrdinalIgnoreCase)))
         {
+            var multiplier = status.ScaleModifiersWithStacks ? status.Stacks : 1;
             if (modifier.ValueType.Equals("FLAT", StringComparison.OrdinalIgnoreCase))
-                flat += modifier.Value * status.Stacks;
+                flat += modifier.Value * multiplier;
             else
-                percent += modifier.Value * status.Stacks;
+                percent += modifier.Value * multiplier;
         }
 
         return Math.Max(0, baseValue + flat + baseValue * percent / 100m);

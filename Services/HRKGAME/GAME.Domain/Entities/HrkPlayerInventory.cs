@@ -25,15 +25,25 @@ namespace GAME.Domain.Entities
         /// <summary>
         /// JSON snapshot/cache chỉ số hiện tại đã tính toán (derived cache).
         /// KHÔNG phải là nguồn sự thật (Source of Truth).
-        /// Nguồn sự thật là HRK_ItemTemplateAttributes + Enhancement + Stars (+ modifiers tương lai).
+        /// Nguồn sự thật là HRK_PlayerInventoryAttributes (+ Enhancement + Stars).
         /// </summary>
         public string? CurrentStats { get; set; }
+
+        /// <summary>
+        /// Tỷ lệ tăng trưởng chỉ số mỗi cấp cường hóa của instance trang bị (% mỗi cấp).
+        /// Được roll 1 lần duy nhất khi tạo instance trang bị dựa trên khoảng phẩm chất (Rarity).
+        /// </summary>
+        public decimal? EnhancementGrowthPercent { get; set; }
+        public decimal? EnhancementGrowthMinPercent { get; set; }
+        public decimal? EnhancementGrowthMaxPercent { get; set; }
+
         public DateTime AcquiredOn { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 
         public virtual HrkPlayer Player { get; set; } = null!;
         public virtual HrkItemTemplate ItemTemplate { get; set; } = null!;
         public virtual HrkPlayerHero? EquippedHero { get; set; }
+        public virtual System.Collections.Generic.ICollection<HrkPlayerInventoryAttribute> Attributes { get; set; } = new System.Collections.Generic.List<HrkPlayerInventoryAttribute>();
 
         #region Domain Behaviors & Invariant Protection
 

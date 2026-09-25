@@ -17,6 +17,11 @@ public sealed class BattleEffectHandlerRegistry
     public bool CanHandle(string effectTypeCode) =>
         !string.IsNullOrWhiteSpace(effectTypeCode) && _handlers.ContainsKey(effectTypeCode);
 
+    public ITurnStartEffectHandler? GetTurnStartHandler(string effectTypeCode) =>
+        _handlers.TryGetValue(effectTypeCode, out var handler) && handler is ITurnStartEffectHandler turnStart
+            ? turnStart
+            : null;
+
     public static BattleEffectHandlerRegistry CreateDefault() => new IBattleEffectHandler[]
     {
         new DamageEffectHandler(),
@@ -24,7 +29,10 @@ public sealed class BattleEffectHandlerRegistry
         new StatBuffEffectHandler(),
         new StatDebuffEffectHandler(), new StunEffectHandler(), new ShieldEffectHandler(),
         new MarkEffectHandler(), new PositionSwapEffectHandler(), new SilenceEffectHandler(),
-        new DamageReductionEffectHandler(), new TauntEffectHandler(), new DamageReflectionEffectHandler()
+        new DamageReductionEffectHandler(), new TauntEffectHandler(), new DamageReflectionEffectHandler(),
+        new BleedEffectHandler(), new PanicEffectHandler(),
+        new BleedDetonateEffectHandler(), new EnergyChangeEffectHandler(),
+        new RicardoEffectHandler()
     }.ToRegistry();
 }
 

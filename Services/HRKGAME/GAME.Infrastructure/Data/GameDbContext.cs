@@ -28,6 +28,7 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkSkillEffect> SkillEffects { get; set; } = null!;
         public DbSet<HrkSkillEffectScaling> SkillEffectScalings { get; set; } = null!;
         public DbSet<HrkSkillEffectStatModifier> SkillEffectStatModifiers { get; set; } = null!;
+        public DbSet<HrkSkillEffectParameter> SkillEffectParameters { get; set; } = null!;
         public DbSet<HrkHeroSkill> HeroSkills { get; set; } = null!;
         public DbSet<HrkPlayer> Players { get; set; } = null!;
         public DbSet<HrkPlayerWallet> PlayerWallets { get; set; } = null!;
@@ -47,10 +48,115 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkCombatPowerConfig> CombatPowerConfigs { get; set; } = null!;
         public DbSet<HrkHeroRarityUpgradeConfig> HeroRarityUpgradeConfigs { get; set; } = null!;
         public DbSet<HrkHeroStarAuraConfig> HeroStarAuraConfigs { get; set; } = null!;
+        public DbSet<HrkAvatarTemplate> AvatarTemplates { get; set; } = null!;
+        public DbSet<HrkPlayerCustomAvatar> PlayerCustomAvatars { get; set; } = null!;
+        public DbSet<HrkDungeonMap> DungeonMaps { get; set; } = null!;
+        public DbSet<HrkDungeonStage> DungeonStages { get; set; } = null!;
+        public DbSet<HrkDungeonStageEnemy> DungeonStageEnemies { get; set; } = null!;
+        public DbSet<HrkPlayerDungeonStageProgress> PlayerDungeonStageProgress { get; set; } = null!;
+        public DbSet<HrkDungeonRun> DungeonRuns { get; set; } = null!;
+        public DbSet<HrkDungeonStageDropPool> DungeonStageDropPools { get; set; } = null!;
+        public DbSet<HrkDungeonMapStarChest> DungeonMapStarChests { get; set; } = null!;
+        public DbSet<HrkPlayerDungeonStarChestClaim> PlayerDungeonStarChestClaims { get; set; } = null!;
+        public DbSet<HrkDungeonStarRatingConfig> DungeonStarRatingConfigs { get; set; } = null!;
+        public DbSet<HrkEquipmentRarityRollConfig> EquipmentRarityRollConfigs { get; set; } = null!;
+        public DbSet<HrkPlayerInventoryAttribute> PlayerInventoryAttributes { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<HrkDungeonMap>(entity =>
+            {
+                entity.ToTable("HRK_DungeonMaps");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.Code).IsUnique();
+                entity.HasIndex(x => x.DisplayOrder).IsUnique();
+                entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.ImagePath).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.BackgroundPath).HasMaxLength(500).IsRequired();
+                entity.HasOne(x => x.PreviousMap).WithMany().HasForeignKey(x => x.PreviousMapId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.MaxEquipmentRarity).WithMany().HasForeignKey(x => x.MaxEquipmentRarityId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkDungeonStarRatingConfig>(entity =>
+            {
+                entity.ToTable("HRK_DungeonStarRatingConfigs");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.DungeonMapId, x.Stars }).IsUnique();
+                entity.Property(x => x.MinRemainingHpRate).HasPrecision(5, 4);
+                entity.HasOne(x => x.DungeonMap).WithMany(x => x.StarRatingConfigs)
+                    .HasForeignKey(x => x.DungeonMapId).OnDelete(DeleteBehavior.Cascade);
+            });
+            modelBuilder.Entity<HrkDungeonStage>(entity =>
+            {
+                entity.ToTable("HRK_DungeonStages");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.DungeonMapId, x.StageNumber }).IsUnique();
+                entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.StageType).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.BackgroundPath).HasMaxLength(500);
+                entity.HasOne(x => x.DungeonMap).WithMany(x => x.Stages).HasForeignKey(x => x.DungeonMapId);
+            });
+            modelBuilder.Entity<HrkDungeonStageEnemy>(entity =>
+            {
+                entity.ToTable("HRK_DungeonStageEnemies");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.StageId, x.Position }).IsUnique();
+                entity.Property(x => x.DisplayName).HasMaxLength(150);
+                entity.Property(x => x.ImagePath).HasMaxLength(500);
+                entity.Property(x => x.StatMultiplier).HasPrecision(8, 4);
+                entity.HasOne(x => x.Stage).WithMany(x => x.Enemies).HasForeignKey(x => x.StageId);
+                entity.HasOne(x => x.HeroTemplate).WithMany().HasForeignKey(x => x.HeroTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkPlayerDungeonStageProgress>(entity =>
+            {
+                entity.ToTable("HRK_PlayerDungeonStageProgress");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.StageId }).IsUnique();
+                entity.Property(x => x.BestRemainingHpRate).HasPrecision(5, 4);
+                entity.HasOne(x => x.Player).WithMany(x => x.DungeonProgress).HasForeignKey(x => x.PlayerId);
+                entity.HasOne(x => x.Stage).WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkDungeonRun>(entity =>
+            {
+                entity.ToTable("HRK_DungeonRuns");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.ClientRequestId }).IsUnique();
+                entity.HasIndex(x => x.BattleId);
+                entity.Property(x => x.BattleId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ClientRequestId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Result).HasMaxLength(20).IsRequired();
+                entity.Property(x => x.FormationCode).HasMaxLength(50);
+                entity.HasOne(x => x.Player).WithMany(x => x.DungeonRuns).HasForeignKey(x => x.PlayerId);
+                entity.HasOne(x => x.Stage).WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkDungeonStageDropPool>(entity =>
+            {
+                entity.ToTable("HRK_DungeonStageDropPools");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.StageId, x.IsActive });
+                entity.Property(x => x.DropRate).HasPrecision(5, 4);
+                entity.HasOne(x => x.Stage).WithMany(x => x.DropPools).HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.ItemTemplate).WithMany().HasForeignKey(x => x.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkDungeonMapStarChest>(entity =>
+            {
+                entity.ToTable("HRK_DungeonMapStarChests");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.DungeonMapId, x.RequiredStars }).IsUnique();
+                entity.Property(x => x.Description).HasMaxLength(500);
+                entity.HasOne(x => x.DungeonMap).WithMany(x => x.StarChests).HasForeignKey(x => x.DungeonMapId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.GuaranteedItemTemplate).WithMany().HasForeignKey(x => x.GuaranteedItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkPlayerDungeonStarChestClaim>(entity =>
+            {
+                entity.ToTable("HRK_PlayerDungeonStarChestClaims");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.StarChestId }).IsUnique();
+                entity.HasOne(x => x.Player).WithMany(x => x.StarChestClaims).HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.StarChest).WithMany(x => x.Claims).HasForeignKey(x => x.StarChestId).OnDelete(DeleteBehavior.Cascade);
+            });
 
             // 1. HRK_Users
             modelBuilder.Entity<HrkUser>(entity =>
@@ -184,6 +290,8 @@ namespace GAME.Infrastructure.Data
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => new { e.ItemTemplateId, e.AttributeTypeId }).IsUnique();
                 entity.Property(e => e.Value).HasPrecision(18, 4);
+                entity.Property(e => e.MinValue).HasPrecision(18, 4);
+                entity.Property(e => e.MaxValue).HasPrecision(18, 4);
 
                 entity.HasOne(d => d.ItemTemplate)
                     .WithMany(p => p.Attributes)
@@ -313,6 +421,8 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(e => new { e.SkillId, e.DisplayOrder }).IsUnique();
                 entity.Property(e => e.SkillId).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.DamageSchoolCode).HasMaxLength(20);
+                entity.Property(e => e.ExecutionGroup).HasMaxLength(50);
+                entity.Property(e => e.ConditionCode).HasMaxLength(50);
                 entity.Property(e => e.BaseValue).HasPrecision(18, 4).HasDefaultValue(0);
                 entity.Property(e => e.ChancePercent).HasPrecision(5, 2).HasDefaultValue(100.0m);
                 entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
@@ -379,6 +489,24 @@ namespace GAME.Infrastructure.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            // 12e. HRK_SkillEffectParameters
+            modelBuilder.Entity<HrkSkillEffectParameter>(entity =>
+            {
+                entity.ToTable("HRK_SkillEffectParameters");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.SkillEffectId, e.ParameterCode }).IsUnique();
+                entity.Property(e => e.ParameterCode).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.DecimalValue).HasPrecision(18, 4);
+                entity.Property(e => e.StringValue).HasMaxLength(255);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("SYSUTCDATETIME()");
+
+                entity.HasOne(d => d.SkillEffect)
+                    .WithMany(p => p.Parameters)
+                    .HasForeignKey(d => d.SkillEffectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
             // 13. HRK_HeroSkills
             modelBuilder.Entity<HrkHeroSkill>(entity =>
             {
@@ -407,6 +535,7 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(e => e.PlayerName).IsUnique();
                 entity.Property(e => e.UserId).HasMaxLength(450).IsRequired();
                 entity.Property(e => e.PlayerName).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.AvatarType).HasMaxLength(20).HasDefaultValue("TEMPLATE").IsRequired();
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
@@ -414,6 +543,35 @@ namespace GAME.Infrastructure.Data
                 entity.HasOne(d => d.User)
                     .WithOne(p => p.Player)
                     .HasForeignKey<HrkPlayer>(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.AvatarTemplate)
+                    .WithMany(p => p.Players)
+                    .HasForeignKey(d => d.AvatarTemplateId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<HrkAvatarTemplate>(entity =>
+            {
+                entity.ToTable("HRK_AvatarTemplates");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.Code).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(80).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(120).IsRequired();
+                entity.Property(e => e.ImagePath).HasMaxLength(500).IsRequired();
+                entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+            });
+
+            modelBuilder.Entity<HrkPlayerCustomAvatar>(entity =>
+            {
+                entity.ToTable("HRK_PlayerCustomAvatars");
+                entity.HasKey(e => e.PlayerId);
+                entity.Property(e => e.ImageData).HasColumnType("varbinary(max)").IsRequired();
+                entity.Property(e => e.ContentType).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.FileName).HasMaxLength(255);
+                entity.Property(e => e.ContentHash).HasMaxLength(64).IsRequired();
+                entity.HasOne(e => e.Player).WithOne(p => p.CustomAvatar)
+                    .HasForeignKey<HrkPlayerCustomAvatar>(e => e.PlayerId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -458,6 +616,9 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.AcquiredOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
+                entity.Property(e => e.EnhancementGrowthPercent).HasPrecision(8, 4);
+                entity.Property(e => e.EnhancementGrowthMinPercent).HasPrecision(8, 4);
+                entity.Property(e => e.EnhancementGrowthMaxPercent).HasPrecision(8, 4);
 
                 entity.HasOne(d => d.Player)
                     .WithMany(p => p.Inventories)
@@ -473,6 +634,54 @@ namespace GAME.Infrastructure.Data
                     .WithMany(p => p.EquippedItems)
                     .HasForeignKey(d => d.EquippedHeroId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasMany(d => d.Attributes)
+                    .WithOne(p => p.PlayerInventory)
+                    .HasForeignKey(p => p.PlayerInventoryId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // 17.1 HRK_EquipmentRarityRollConfigs
+            modelBuilder.Entity<HrkEquipmentRarityRollConfig>(entity =>
+            {
+                entity.ToTable("HRK_EquipmentRarityRollConfigs");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.RarityId).IsUnique();
+                entity.Property(e => e.EnhancementGrowthMinPercent).HasPrecision(8, 4);
+                entity.Property(e => e.EnhancementGrowthMaxPercent).HasPrecision(8, 4);
+                entity.Property(e => e.IsActive).HasDefaultValue(true);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
+
+                entity.HasOne(d => d.Rarity)
+                    .WithMany()
+                    .HasForeignKey(d => d.RarityId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // 17.2 HRK_PlayerInventoryAttributes
+            modelBuilder.Entity<HrkPlayerInventoryAttribute>(entity =>
+            {
+                entity.ToTable("HRK_PlayerInventoryAttributes");
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.PlayerInventoryId, e.AttributeTypeId }).IsUnique();
+                entity.Property(e => e.BaseRolledValue).HasPrecision(18, 4);
+                entity.Property(e => e.CurrentValue).HasPrecision(18, 4);
+                entity.Property(e => e.RollMinValue).HasPrecision(18, 4);
+                entity.Property(e => e.RollMaxValue).HasPrecision(18, 4);
+                entity.Property(e => e.RollQualityPercent).HasPrecision(5, 2);
+                entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
+                entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
+
+                entity.HasOne(d => d.PlayerInventory)
+                    .WithMany(p => p.Attributes)
+                    .HasForeignKey(d => d.PlayerInventoryId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.AttributeType)
+                    .WithMany()
+                    .HasForeignKey(d => d.AttributeTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // 18. HRK_PlayerEquipment

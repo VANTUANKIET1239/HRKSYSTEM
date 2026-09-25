@@ -19,19 +19,22 @@ namespace GAME.Infrastructure.Services
         private readonly IFormationStatService _formationStatService;
         private readonly ICombatPowerService _combatPowerService;
         private readonly IHeroStatCalculationService _heroStatCalculationService;
+        private readonly IFormationPowerQueryService _formationPowerQueryService;
 
         public FormationService(
             IUnitOfWork unitOfWork,
             IGamePlayerService gamePlayerService,
             IFormationStatService formationStatService,
             ICombatPowerService combatPowerService,
-            IHeroStatCalculationService heroStatCalculationService)
+            IHeroStatCalculationService heroStatCalculationService,
+            IFormationPowerQueryService formationPowerQueryService)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
             _formationStatService = formationStatService;
             _combatPowerService = combatPowerService;
             _heroStatCalculationService = heroStatCalculationService;
+            _formationPowerQueryService = formationPowerQueryService;
         }
 
         public async Task<List<PlayerFormationSummaryDto>> GetPlayerFormationsAsync(string userId, CancellationToken cancellationToken = default)
@@ -50,7 +53,6 @@ namespace GAME.Infrastructure.Services
                 .ToListAsync(cancellationToken);
 
             var pfByTemplateId = playerFormations.ToDictionary(f => f.FormationTemplateId);
-            var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
 
             var result = new List<PlayerFormationSummaryDto>();
 
@@ -63,31 +65,7 @@ namespace GAME.Infrastructure.Services
                 var currentLevelCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == level);
                 var currentBonus = _formationStatService.ParseBonus(currentLevelCfg?.StatBonusJson);
 
-                // Tính lực chiến của formation này
-                int basePower = 0;
-                int totalPower = 0;
-                int bonusPower = 0;
-                int heroCount = 0;
-
-                if (pf != null)
-                {
-                    var placedHeroIds = GetPlacedHeroIds(pf);
-                    heroCount = placedHeroIds.Count;
-
-                    if (heroCount > 0)
-                    {
-                        var (heroes, equipments) = await LoadHeroesAndEquipmentsAsync(player.Id, placedHeroIds, cancellationToken);
-                        var heroEquipmentList = placedHeroIds
-                            .Where(id => heroes.ContainsKey(id))
-                            .Select(id => (heroes[id], equipments.GetValueOrDefault(id)))
-                            .ToList();
-
-                        var powerResult = _formationStatService.CalculateFormationPower(heroEquipmentList, currentBonus, powerConfigs);
-                        basePower = powerResult.BaseHeroPower;
-                        totalPower = powerResult.TotalPower;
-                        bonusPower = powerResult.FormationBonusPower;
-                    }
-                }
+                var powerResult = await _formationPowerQueryService.CalculateFormationPowerAsync(player.Id, tmpl.Code, null, cancellationToken);
 
                 result.Add(new PlayerFormationSummaryDto
                 {
@@ -100,10 +78,10 @@ namespace GAME.Infrastructure.Services
                     MaxLevel = tmpl.MaxLevel,
                     IsUnlocked = true,
                     IsSelected = isSelected,
-                    BaseHeroPower = basePower,
-                    FormationBonusPower = bonusPower,
-                    TotalPower = totalPower,
-                    HeroCount = heroCount,
+                    BaseHeroPower = powerResult.BaseHeroPower,
+                    FormationBonusPower = powerResult.FormationBonusPower,
+                    TotalPower = powerResult.TotalPower,
+                    HeroCount = powerResult.HeroCount,
                     CurrentBonus = currentBonus,
                     DisplayOrder = tmpl.DisplayOrder
                 });
@@ -556,31 +534,45 @@ namespace GAME.Infrastructure.Services
                 .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Rarity)
                 .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
                 .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
                 .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
             var equipments = await _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
                 .Where(e => e.PlayerId == playerId && heroIds.Contains(e.HeroId))
+                .Include(e => e.Weapon).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+
+                .Include(e => e.Armor).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+
+                .Include(e => e.Helmet).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+
+                .Include(e => e.Boots).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+
+                .Include(e => e.Ring).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+
+                .Include(e => e.Artifact).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
                 .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
                 .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
                 .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 

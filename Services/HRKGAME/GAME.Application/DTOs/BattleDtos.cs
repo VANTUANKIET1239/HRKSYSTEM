@@ -8,6 +8,7 @@ namespace GAME.Application.DTOs
         public string BattleType { get; set; } = "PVE";
         public int? StageId { get; set; }
         public string? FormationCode { get; set; }
+        public List<FormationPositionRequestDto>? Positions { get; set; }
         public int? RandomSeed { get; set; }
     }
 
@@ -39,9 +40,23 @@ namespace GAME.Application.DTOs
         public int? EnergyAfter { get; set; }
         public bool IsCrit { get; set; }
         public int? RemainingTurns { get; set; }
+        public int? PreviousStacks { get; set; }
+        public int? CurrentStacks { get; set; }
+        public int? MaxStacks { get; set; }
         public int? CastSequence { get; set; }
         public int TimelineOffsetMs { get; set; }
         public string? PhaseCode { get; set; }
+        public string? ExecutionGroup { get; set; }
+        public int? HitIndex { get; set; }
+        public List<BattleStatModifierDto> StatModifiers { get; set; } = new();
+    }
+
+    public class BattleStatModifierDto
+    {
+        public string AttributeCode { get; set; } = null!;
+        public string? AttributeName { get; set; }
+        public string ValueType { get; set; } = null!;
+        public decimal Value { get; set; }
     }
 
     public class BattleInitialStateDto

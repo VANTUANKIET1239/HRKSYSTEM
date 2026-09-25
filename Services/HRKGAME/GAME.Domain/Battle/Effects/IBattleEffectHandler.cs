@@ -7,6 +7,11 @@ public interface IBattleEffectHandler
     IReadOnlyList<PendingBattleEvent> Apply(BattleEffectContext context);
 }
 
+public interface ITurnStartEffectHandler
+{
+    IReadOnlyList<PendingBattleEvent> OnTurnStart(BattleStatusEffect status, BattleCombatant actor, int round, int turn, IReadOnlyList<BattleCombatant> combatants);
+}
+
 public sealed class BattleEffectContext
 {
     public required BattleSkillEffect Effect { get; init; }
@@ -18,6 +23,7 @@ public sealed class BattleEffectContext
     public required Random Random { get; init; }
     public int Round { get; init; }
     public int Turn { get; init; }
+    public string? ActionId { get; init; }
 }
 
 public sealed class PendingBattleEvent
@@ -31,6 +37,16 @@ public sealed class PendingBattleEvent
     public int Value { get; init; }
     public int? HpBefore { get; init; }
     public int? HpAfter { get; init; }
+    public int? EnergyBefore { get; init; }
+    public int? EnergyAfter { get; init; }
     public bool IsCrit { get; init; }
     public int? RemainingTurns { get; init; }
+    public int? PreviousStacks { get; init; }
+    public int? CurrentStacks { get; init; }
+    public int? MaxStacks { get; init; }
+    public IReadOnlyList<BattleStatModifier> StatModifiers { get; init; } = [];
+    public string? ExecutionGroup { get; init; }
+    public int? HitIndex { get; init; }
+    public int? TimelineOffsetMs { get; init; }
+    public string? PhaseCode { get; init; }
 }

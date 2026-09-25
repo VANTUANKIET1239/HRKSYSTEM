@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
 
 namespace GAME.Infrastructure.Services
 {
@@ -17,15 +18,18 @@ namespace GAME.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHeroStatCalculationService _heroStatCalculationService;
         private readonly ICombatPowerService _combatPowerService;
+        private readonly IFormationPowerQueryService _formationPowerQueryService;
 
         public GamePlayerService(
             IUnitOfWork unitOfWork,
             IHeroStatCalculationService heroStatCalculationService,
-            ICombatPowerService combatPowerService)
+            ICombatPowerService combatPowerService,
+            IFormationPowerQueryService formationPowerQueryService)
         {
             _unitOfWork = unitOfWork;
             _heroStatCalculationService = heroStatCalculationService;
             _combatPowerService = combatPowerService;
+            _formationPowerQueryService = formationPowerQueryService;
         }
 
         public async Task<HrkPlayer?> GetPlayerByUserIdAsync(string userId, CancellationToken cancellationToken = default)
@@ -45,15 +49,7 @@ namespace GAME.Infrastructure.Services
             var player = await GetPlayerByUserIdAsync(userId, cancellationToken);
             if (player == null) return null;
 
-            return new PlayerProfileDto
-            {
-                Id = player.Id,
-                UserId = player.UserId,
-                PlayerName = player.PlayerName,
-                Level = player.Level,
-                CreatedOn = player.CreatedOn,
-                UpdatedOn = player.UpdatedOn
-            };
+            return await BuildProfileAsync(player, cancellationToken);
         }
 
         public async Task<PlayerWalletDto?> GetPlayerWalletAsync(string userId, CancellationToken cancellationToken = default)
@@ -87,10 +83,18 @@ namespace GAME.Infrastructure.Services
             var player = await GetPlayerByUserIdAsync(userId, cancellationToken);
             if (player == null) return null;
             var wallet = await GetWalletByPlayerIdAsync(player.Id, cancellationToken);
+            var formationPower = await _formationPowerQueryService.GetDefaultFormationPowerAsync(player.Id, cancellationToken);
+            var profile = await BuildProfileAsync(player, cancellationToken);
+            profile.Power = formationPower.TotalPower;
+
             return new PlayerGameInfoDto
             {
-                Profile = new PlayerProfileDto { Id = player.Id, UserId = player.UserId, PlayerName = player.PlayerName, Level = player.Level, CreatedOn = player.CreatedOn, UpdatedOn = player.UpdatedOn },
-                Wallet = wallet == null ? null : new PlayerWalletDto { PlayerId = wallet.PlayerId, Gold = wallet.Gold, Diamonds = wallet.Diamonds, UpgradeMaterials = wallet.UpgradeMaterials, MaxCapacity = wallet.MaxCapacity, UpdatedOn = wallet.UpdatedOn }
+                Profile = profile,
+                Wallet = wallet == null ? null : new PlayerWalletDto { PlayerId = wallet.PlayerId, Gold = wallet.Gold, Diamonds = wallet.Diamonds, UpgradeMaterials = wallet.UpgradeMaterials, MaxCapacity = wallet.MaxCapacity, UpdatedOn = wallet.UpdatedOn },
+                SelectedFormationId = formationPower.FormationId,
+                SelectedFormationCode = formationPower.FormationCode,
+                SelectedFormationName = formationPower.FormationName,
+                FormationPower = formationPower.TotalPower
             };
         }
 
@@ -106,6 +110,7 @@ namespace GAME.Infrastructure.Services
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Rarity)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .AsNoTracking()
@@ -157,6 +162,7 @@ namespace GAME.Infrastructure.Services
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.Rarity)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
+                .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .FirstOrDefaultAsync(cancellationToken);
@@ -222,6 +228,116 @@ namespace GAME.Infrastructure.Services
             _unitOfWork.Repository<HrkPlayerHero>().Update(hero);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return hero.IsFavorite;
+        }
+
+        public async Task<List<PlayerAvatarTemplateDto>> GetAvatarTemplatesAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            var player = await GetRequiredPlayerAsync(userId, cancellationToken);
+            return await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+                .Where(x => x.IsEnabled)
+                .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id)
+                .Select(x => new PlayerAvatarTemplateDto
+                {
+                    Id = x.Id, Code = x.Code, Name = x.Name, ImagePath = x.ImagePath,
+                    IsSelected = player.AvatarType == "TEMPLATE" && player.AvatarTemplateId == x.Id
+                }).ToListAsync(cancellationToken);
+        }
+
+        public async Task<PlayerProfileDto> SelectAvatarTemplateAsync(string userId, int avatarTemplateId, CancellationToken cancellationToken = default)
+        {
+            var player = await GetRequiredPlayerAsync(userId, cancellationToken, tracked: true);
+            var templateExists = await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+                .AnyAsync(x => x.Id == avatarTemplateId && x.IsEnabled, cancellationToken);
+            if (!templateExists) throw new KeyNotFoundException("Avatar không tồn tại hoặc đã bị vô hiệu hóa.");
+            player.AvatarType = "TEMPLATE";
+            player.AvatarTemplateId = avatarTemplateId;
+            player.UpdatedOn = DateTime.UtcNow;
+            _unitOfWork.Repository<HrkPlayer>().Update(player);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return await BuildProfileAsync(player, cancellationToken);
+        }
+
+        public async Task<PlayerProfileDto> SaveCustomAvatarAsync(string userId, CustomAvatarUploadDto upload, CancellationToken cancellationToken = default)
+        {
+            var player = await GetRequiredPlayerAsync(userId, cancellationToken, tracked: true);
+            var repository = _unitOfWork.Repository<HrkPlayerCustomAvatar>();
+            var avatar = await repository.Query().FirstOrDefaultAsync(x => x.PlayerId == player.Id, cancellationToken);
+            var now = DateTime.UtcNow;
+            var isNew = avatar == null;
+            if (avatar == null)
+            {
+                avatar = new HrkPlayerCustomAvatar { PlayerId = player.Id, CreatedOn = now };
+                await repository.AddAsync(avatar);
+            }
+            avatar.ImageData = upload.ImageData;
+            avatar.ContentType = upload.ContentType;
+            avatar.FileName = upload.FileName;
+            avatar.FileSize = upload.ImageData.Length;
+            avatar.Width = upload.Width;
+            avatar.Height = upload.Height;
+            avatar.ContentHash = Convert.ToHexString(SHA256.HashData(upload.ImageData)).ToLowerInvariant();
+            avatar.UpdatedOn = now;
+            if (!isNew) repository.Update(avatar);
+            player.AvatarType = "CUSTOM";
+            player.UpdatedOn = now;
+            _unitOfWork.Repository<HrkPlayer>().Update(player);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return await BuildProfileAsync(player, cancellationToken);
+        }
+
+        public async Task<PlayerCustomAvatarDto?> GetCustomAvatarAsync(long playerId, CancellationToken cancellationToken = default)
+        {
+            return await _unitOfWork.ReadOnlyRepository<HrkPlayerCustomAvatar>().Query()
+                .Where(x => x.PlayerId == playerId)
+                .Select(x => new PlayerCustomAvatarDto { ImageData = x.ImageData, ContentType = x.ContentType, ContentHash = x.ContentHash })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<PlayerProfileDto> DeleteCustomAvatarAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            var player = await GetRequiredPlayerAsync(userId, cancellationToken, tracked: true);
+            var repository = _unitOfWork.Repository<HrkPlayerCustomAvatar>();
+            var avatar = await repository.Query().FirstOrDefaultAsync(x => x.PlayerId == player.Id, cancellationToken);
+            if (avatar != null) repository.Remove(avatar);
+            var defaultTemplateId = await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+                .Where(x => x.IsEnabled).OrderByDescending(x => x.IsDefault).ThenBy(x => x.DisplayOrder)
+                .Select(x => (int?)x.Id).FirstOrDefaultAsync(cancellationToken);
+            player.AvatarType = "TEMPLATE";
+            player.AvatarTemplateId = defaultTemplateId;
+            player.UpdatedOn = DateTime.UtcNow;
+            _unitOfWork.Repository<HrkPlayer>().Update(player);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return await BuildProfileAsync(player, cancellationToken);
+        }
+
+        private async Task<PlayerProfileDto> BuildProfileAsync(HrkPlayer player, CancellationToken cancellationToken)
+        {
+            string? avatarUrl = null;
+            if (player.AvatarType == "TEMPLATE")
+            {
+                avatarUrl = await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+                    .Where(x => x.IsEnabled && (x.Id == player.AvatarTemplateId || (player.AvatarTemplateId == null && x.IsDefault)))
+                    .OrderByDescending(x => x.Id == player.AvatarTemplateId).ThenByDescending(x => x.IsDefault)
+                    .Select(x => x.ImagePath).FirstOrDefaultAsync(cancellationToken);
+            }
+
+            var formationPower = await _formationPowerQueryService.GetDefaultFormationPowerAsync(player.Id, cancellationToken);
+
+            return new PlayerProfileDto
+            {
+                Id = player.Id, UserId = player.UserId, PlayerName = player.PlayerName, Level = player.Level,
+                Exp = player.Exp, MaxExp = player.MaxExp, Power = formationPower.TotalPower,
+                AvatarType = player.AvatarType, AvatarTemplateId = player.AvatarTemplateId, AvatarUrl = avatarUrl,
+                AvatarVersion = new DateTimeOffset(player.UpdatedOn).ToUnixTimeSeconds(),
+                CreatedOn = player.CreatedOn, UpdatedOn = player.UpdatedOn
+            };
+        }
+
+        private async Task<HrkPlayer> GetRequiredPlayerAsync(string userId, CancellationToken cancellationToken, bool tracked = false)
+        {
+            var query = tracked ? _unitOfWork.Repository<HrkPlayer>().Query() : _unitOfWork.ReadOnlyRepository<HrkPlayer>().Query();
+            return await query.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive, cancellationToken)
+                ?? throw new KeyNotFoundException("Không tìm thấy thông tin người chơi.");
         }
 
         private async Task<HrkPlayerHero> GetOwnedActiveHeroAsync(string userId, long heroId, CancellationToken cancellationToken)

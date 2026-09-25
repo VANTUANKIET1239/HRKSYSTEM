@@ -9,7 +9,8 @@ public abstract class TimedStatusEffectHandlerBase : IBattleEffectHandler
     {
         var duration = Math.Max(1, context.Effect.DurationTurns);
         var calculated = BattleStatCalculator.CalculateEffectValue(context.Effect, context.Actor);
-        var value = calculated == 0 ? DefaultValue : calculated;
+        var value = calculated == 0 ? (context.Effect.BaseValue != 0 ? context.Effect.BaseValue : DefaultValue) : calculated;
+        var consumeOnHit = context.Effect.GetBool("CONSUME_ON_HIT", false);
         var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{EffectTypeCode}:{context.Target.Id}";
         var existing = context.Target.StatusEffects.FirstOrDefault(x => x.InstanceId == instanceId);
 
@@ -26,6 +27,7 @@ public abstract class TimedStatusEffectHandlerBase : IBattleEffectHandler
                 Stacks = 1,
                 MaxStacks = Math.Max(1, context.Effect.MaxStacks),
                 Value = value,
+                ConsumeOnHit = consumeOnHit,
                 StatModifiers = context.Effect.StatModifiers
             });
         }
@@ -35,6 +37,7 @@ public abstract class TimedStatusEffectHandlerBase : IBattleEffectHandler
             existing.AppliedTurn = context.Turn;
             existing.Stacks = Math.Min(existing.MaxStacks, existing.Stacks + 1);
             existing.Value = value;
+            existing.ConsumeOnHit = consumeOnHit;
         }
 
         return [StatusApplied(context, duration, (int)Math.Round(value))];
@@ -48,6 +51,7 @@ public abstract class TimedStatusEffectHandlerBase : IBattleEffectHandler
         SkillId = context.Skill.Id,
         EffectTypeCode = context.Effect.EffectTypeCode,
         Value = value,
-        RemainingTurns = duration
+        RemainingTurns = duration,
+        StatModifiers = context.Effect.StatModifiers
     };
 }

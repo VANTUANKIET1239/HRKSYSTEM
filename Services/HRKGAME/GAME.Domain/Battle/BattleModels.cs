@@ -30,6 +30,25 @@ public static class BattleCodes
     public const string EnemyFrontRow = "ENEMY_FRONT_ROW";
     public const string EnemyBackRow = "ENEMY_BACK_ROW";
     public const string EnemySameLaneBackRow = "ENEMY_SAME_LANE_BACK_ROW";
+    public const string LowestHpPercent = "LOWEST_HP_PERCENT";
+    public const string Bleed = "BLEED";
+    public const string Panic = "PANIC";
+    public const string ShieldBlock = "SHIELD_BLOCK";
+    public const string BleedDamage = "BLEED_DAMAGE";
+    public const string BleedDetonate = "BLEED_DETONATE";
+    public const string BleedDetonated = "BLEED_DETONATED";
+    public const string EnergyChange = "ENERGY_CHANGE";
+    public const string EnergyChanged = "ENERGY_CHANGED";
+    public const string ActionBarChanged = "ACTION_BAR_CHANGED";
+    public const string StatusRefreshed = "STATUS_REFRESHED";
+    public const string StatusStackChanged = "STATUS_STACK_CHANGED";
+    public const string StatusRemoved = "STATUS_REMOVED";
+    public const string Ricardo = "RICARDO";
+    public const string RicardoRageReady = "RICARDO_RAGE_READY";
+    public const string RicardoApplied = "RICARDO_APPLIED";
+    public const string RicardoConsumed = "RICARDO_CONSUMED";
+    public const string ChuanMenBasic = "CHUAN_MEN_BASIC";
+    public const string RicardoMilos = "RICARDO_MILOS";
 }
 
 public sealed class BattleSimulationRequest
@@ -105,12 +124,66 @@ public sealed class BattleSkillEffect
     public int DurationTurns { get; init; }
     public decimal ChancePercent { get; init; } = 100m;
     public int MaxStacks { get; init; } = 1;
+    public int DisplayOrder { get; init; }
+    public string? ExecutionGroup { get; init; }
+    public string? ConditionCode { get; init; }
     public IReadOnlyList<BattleEffectScaling> Scalings { get; init; } = [];
     public IReadOnlyList<BattleStatModifier> StatModifiers { get; init; } = [];
+    public IReadOnlyDictionary<string, BattleSkillEffectParameter> Parameters { get; init; } =
+        new Dictionary<string, BattleSkillEffectParameter>(StringComparer.OrdinalIgnoreCase);
+
+    public decimal GetRequiredDecimal(string paramCode, string skillId)
+    {
+        if (Parameters.TryGetValue(paramCode, out var p) && p.DecimalValue.HasValue)
+            return p.DecimalValue.Value;
+        throw new InvalidOperationException($"Skill '{skillId}', effect '{EffectTypeCode}' is missing parameter '{paramCode}'.");
+    }
+
+    public decimal GetDecimal(string paramCode, decimal fallback)
+    {
+        return Parameters.TryGetValue(paramCode, out var p) && p.DecimalValue.HasValue
+            ? p.DecimalValue.Value
+            : fallback;
+    }
+
+    public int GetRequiredInt(string paramCode, string skillId)
+    {
+        if (Parameters.TryGetValue(paramCode, out var p) && p.IntValue.HasValue)
+            return p.IntValue.Value;
+        throw new InvalidOperationException($"Skill '{skillId}', effect '{EffectTypeCode}' is missing parameter '{paramCode}'.");
+    }
+
+    public int GetInt(string paramCode, int fallback)
+    {
+        return Parameters.TryGetValue(paramCode, out var p) && p.IntValue.HasValue
+            ? p.IntValue.Value
+            : fallback;
+    }
+
+    public bool GetBool(string paramCode, bool fallback)
+    {
+        return Parameters.TryGetValue(paramCode, out var p) && p.BoolValue.HasValue
+            ? p.BoolValue.Value
+            : fallback;
+    }
+
+    public string? GetString(string paramCode, string? fallback = null)
+    {
+        return Parameters.TryGetValue(paramCode, out var p) && !string.IsNullOrEmpty(p.StringValue)
+            ? p.StringValue
+            : fallback;
+    }
 }
 
+public sealed record BattleSkillEffectParameter(
+    string ParameterCode,
+    decimal? DecimalValue,
+    int? IntValue,
+    bool? BoolValue,
+    string? StringValue);
+
 public sealed record BattleEffectScaling(string AttributeCode, decimal Coefficient, decimal FlatValue = 0m);
-public sealed record BattleStatModifier(string AttributeCode, string ValueType, decimal Value);
+public sealed record BattleStatModifier(string AttributeCode, string ValueType, decimal Value, string? AttributeName = null);
 
 public sealed class BattleStatusEffect
 {
@@ -124,6 +197,16 @@ public sealed class BattleStatusEffect
     public decimal Value { get; set; }
     public int ShieldRemaining { get; set; }
     public int AppliedTurn { get; set; }
+    public string? DamageSchoolCode { get; init; }
+    public decimal ArmorIgnorePercent { get; init; }
+    public bool CanCrit { get; init; }
+    public bool CanKill { get; init; }
+    public bool ConsumeOnHit { get; set; }
+    public string? LastProcessedActionId { get; set; }
+    public decimal DamageBonusPerStackPercent { get; set; }
+    public bool ScaleModifiersWithStacks { get; set; } = true;
+    public bool IsPermanent => RemainingTurns == -1;
+    public bool IsActive => RemainingTurns > 0 || RemainingTurns == -1;
     public required IReadOnlyList<BattleStatModifier> StatModifiers { get; init; }
 }
 
@@ -145,9 +228,15 @@ public sealed class BattleEvent
     public int? EnergyAfter { get; init; }
     public bool IsCrit { get; init; }
     public int? RemainingTurns { get; init; }
+    public int? PreviousStacks { get; init; }
+    public int? CurrentStacks { get; init; }
+    public int? MaxStacks { get; init; }
     public int? CastSequence { get; init; }
     public int TimelineOffsetMs { get; init; }
     public string? PhaseCode { get; init; }
+    public string? ExecutionGroup { get; init; }
+    public int? HitIndex { get; init; }
+    public IReadOnlyList<BattleStatModifier> StatModifiers { get; init; } = [];
 }
 
 public sealed class BattleSimulationResult
