@@ -29,6 +29,8 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
         var canCrit = context.Effect.GetBool("CAN_CRIT", false);
         var canKill = context.Effect.GetBool("CAN_KILL", false);
         var refreshOnReapply = context.Effect.GetBool("REFRESH_ON_REAPPLY", true);
+        var stackOnReapply = context.Effect.GetBool("STACK_ON_REAPPLY", false);
+        var scaleArmorIgnoreWithStacks = context.Effect.GetBool("SCALE_ARMOR_IGNORE_WITH_STACKS", false);
         var school = context.Effect.DamageSchoolCode ?? BattleCodes.Physical;
 
         var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{EffectTypeCode}:{context.Target.Id}";
@@ -50,6 +52,7 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
                 Value = bleedTickDamage,
                 DamageSchoolCode = school,
                 ArmorIgnorePercent = armorIgnore,
+                ScaleArmorIgnoreWithStacks = scaleArmorIgnoreWithStacks,
                 CanCrit = canCrit,
                 CanKill = canKill,
                 StatModifiers = []
@@ -66,9 +69,18 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
                     EffectTypeCode = EffectTypeCode,
                     DamageSchoolCode = school,
                     Value = (int)Math.Round(bleedTickDamage),
-                    RemainingTurns = duration
+                    RemainingTurns = duration,
+                    PreviousStacks = 0,
+                    CurrentStacks = 1,
+                    MaxStacks = Math.Max(1, context.Effect.MaxStacks)
                 }
             ];
+        }
+
+        var previousStacks = existing.Stacks;
+        if (stackOnReapply)
+        {
+            existing.Stacks = Math.Min(existing.MaxStacks, existing.Stacks + 1);
         }
 
         if (refreshOnReapply)
@@ -82,14 +94,17 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
         [
             new PendingBattleEvent
             {
-                EventType = BattleCodes.StatusRefreshed,
+                EventType = existing.Stacks > previousStacks ? BattleCodes.StatusStackChanged : BattleCodes.StatusRefreshed,
                 ActorId = context.Actor.Id,
                 TargetId = context.Target.Id,
                 SkillId = context.Skill.Id,
                 EffectTypeCode = EffectTypeCode,
                 DamageSchoolCode = school,
                 Value = (int)Math.Round(bleedTickDamage),
-                RemainingTurns = existing.RemainingTurns
+                RemainingTurns = existing.RemainingTurns,
+                PreviousStacks = previousStacks,
+                CurrentStacks = existing.Stacks,
+                MaxStacks = existing.MaxStacks
             }
         ];
     }
@@ -110,11 +125,15 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
         }
 
         var targetDef = BattleStatCalculator.GetEffectiveStat(actor, "DEF");
-        var effectiveDef = status.ArmorIgnorePercent > 0m
-            ? Math.Max(0m, targetDef * (100m - status.ArmorIgnorePercent) / 100m)
+        var armorIgnorePercent = status.ScaleArmorIgnoreWithStacks
+            ? status.ArmorIgnorePercent * status.Stacks
+            : status.ArmorIgnorePercent;
+        armorIgnorePercent = Math.Clamp(armorIgnorePercent, 0m, 100m);
+        var effectiveDef = armorIgnorePercent > 0m
+            ? Math.Max(0m, targetDef * (100m - armorIgnorePercent) / 100m)
             : targetDef;
 
-        var damage = Math.Max(1, (int)Math.Round(status.Value * 100m / (100m + effectiveDef)));
+        var damage = Math.Max(1, (int)Math.Round(status.Value * status.Stacks * 100m / (100m + effectiveDef)));
 
         var isCrit = false;
         if (status.CanCrit)
@@ -144,7 +163,7 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
                 SkillId = status.SourceSkillId,
                 EffectTypeCode = BattleCodes.Bleed,
                 DamageSchoolCode = status.DamageSchoolCode ?? BattleCodes.Physical,
-                Value = actualDamage > 0 ? actualDamage : damage,
+                Value = actualDamage,
                 HpBefore = hpBefore,
                 HpAfter = hpAfter,
                 IsCrit = isCrit,

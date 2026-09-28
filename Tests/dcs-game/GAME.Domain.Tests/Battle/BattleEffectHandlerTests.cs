@@ -32,6 +32,21 @@ public sealed class BattleEffectHandlerTests
     }
 
     [Fact]
+    public void Damage_event_reports_actual_hp_loss_when_hit_overkills_target()
+    {
+        var actor = Hero(1, 0, 1000, 1000);
+        var target = Hero(2, 1, 200, 10);
+
+        var events = Apply(new DamageEffectHandler(), Effect(BattleCodes.Damage,
+            school: BattleCodes.True, baseValue: 1000), actor, target);
+
+        var damageEvent = events.Single(x => x.EventType == "DAMAGE");
+        Assert.Equal(200, damageEvent.Value);
+        Assert.Equal(200, damageEvent.HpBefore);
+        Assert.Equal(0, damageEvent.HpAfter);
+    }
+
+    [Fact]
     public void Mark_reduction_and_reflection_are_applied_in_damage_pipeline()
     {
         var actor = Hero(1, 0, 1000, 100);
@@ -46,6 +61,44 @@ public sealed class BattleEffectHandlerTests
         Assert.Equal(940, target.Hp); // 100 * 120% * 50%
         Assert.Equal(985, actor.Hp);  // reflect 25% of 60
         Assert.Contains(events, x => x.EffectTypeCode == BattleCodes.DamageReflection && x.Value == 15);
+    }
+
+    [Fact]
+    public void Generic_outgoing_and_source_restricted_incoming_modifiers_are_applied()
+    {
+        var actor = Hero(1, 0, 1000, 100);
+        var target = Hero(2, 1, 1000, 10);
+        actor.StatusEffects.Add(new BattleStatusEffect
+        {
+            InstanceId = "outgoing",
+            EffectTypeCode = "ANY_OUTGOING_BUFF",
+            SourceSkillId = "BUFF",
+            SourceHeroId = actor.Id,
+            RemainingTurns = 2,
+            Stacks = 2,
+            MaxStacks = 3,
+            OutgoingDamageBonusPerStackPercent = 10m,
+            StatModifiers = []
+        });
+        target.StatusEffects.Add(new BattleStatusEffect
+        {
+            InstanceId = "incoming",
+            EffectTypeCode = "ANY_SOURCE_MARK",
+            SourceSkillId = "MARK",
+            SourceHeroId = actor.Id,
+            RemainingTurns = 2,
+            Stacks = 1,
+            MaxStacks = 3,
+            IncomingDamageBonusPerStackPercent = 25m,
+            IncomingDamageBonusRestrictedToSource = true,
+            StatModifiers = []
+        });
+
+        var events = Apply(new DamageEffectHandler(), Effect(BattleCodes.Damage,
+            school: BattleCodes.True, baseValue: 100), actor, target);
+
+        // 100 * 1.25 incoming vulnerability * 1.20 outgoing bonus = 150.
+        Assert.Equal(150, events.Single(x => x.EventType == "DAMAGE").Value);
     }
 
     [Fact]

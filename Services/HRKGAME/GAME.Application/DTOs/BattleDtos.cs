@@ -48,7 +48,20 @@ namespace GAME.Application.DTOs
         public string? PhaseCode { get; set; }
         public string? ExecutionGroup { get; set; }
         public int? HitIndex { get; set; }
+        public string? ResourceCode { get; set; }
+        public int? PreviousValue { get; set; }
+        public int? CurrentValue { get; set; }
+        public string? ReasonCode { get; set; }
+        public string? ActionId { get; set; }
+        public string? StatusInstanceId { get; set; }
         public List<BattleStatModifierDto> StatModifiers { get; set; } = new();
+        public long? SourceHeroId { get; set; }
+        public int? OriginalDamage { get; set; }
+        public int? RedirectRequested { get; set; }
+        public int? RedirectActual { get; set; }
+        public int? AllyDamageAfterRedirect { get; set; }
+        public int? GuardianHpBefore { get; set; }
+        public int? GuardianHpAfter { get; set; }
     }
 
     public class BattleStatModifierDto

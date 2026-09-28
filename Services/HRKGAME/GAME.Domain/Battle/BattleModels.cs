@@ -27,6 +27,7 @@ public static class BattleCodes
     public const string EnemyAll = "ENEMY_ALL";
     public const string EnemyRandom = "ENEMY_RANDOM";
     public const string EnemyRandom4 = "ENEMY_RANDOM_4";
+    public const string EnemyStraightFrontRow = "ENEMY_STRAIGHT_FRONT_ROW";
     public const string EnemyFrontRow = "ENEMY_FRONT_ROW";
     public const string EnemyBackRow = "ENEMY_BACK_ROW";
     public const string EnemySameLaneBackRow = "ENEMY_SAME_LANE_BACK_ROW";
@@ -39,7 +40,10 @@ public static class BattleCodes
     public const string BleedDetonated = "BLEED_DETONATED";
     public const string EnergyChange = "ENERGY_CHANGE";
     public const string EnergyChanged = "ENERGY_CHANGED";
+    public const string ActionBarChange = "ACTION_BAR_CHANGE";
     public const string ActionBarChanged = "ACTION_BAR_CHANGED";
+    public const string EnemyRandomDistinctN = "ENEMY_RANDOM_DISTINCT_N";
+    public const string AllyLowestEnergy = "ALLY_LOWEST_ENERGY";
     public const string StatusRefreshed = "STATUS_REFRESHED";
     public const string StatusStackChanged = "STATUS_STACK_CHANGED";
     public const string StatusRemoved = "STATUS_REMOVED";
@@ -49,6 +53,39 @@ public static class BattleCodes
     public const string RicardoConsumed = "RICARDO_CONSUMED";
     public const string ChuanMenBasic = "CHUAN_MEN_BASIC";
     public const string RicardoMilos = "RICARDO_MILOS";
+    public const string ThanhThaiAura = "THANH_THAI_AURA";
+    public const string ThanhThaiSweep = "THANH_THAI_DISRESPECTFUL_SWEEP";
+    public const string ThanhThaiLightning = "THANH_THAI_CRIMSON_BROOM_LIGHTNING";
+    public const string Aura = "AURA";
+    public const string FullAuraFarming = "FULL_AURA_FARMING";
+    public const string LossOfConfidence = "LOSS_OF_CONFIDENCE";
+    public const string LossOfConfidenceDetonated = "LOSS_OF_CONFIDENCE_DETONATED";
+    public const string ResourceChanged = "RESOURCE_CHANGED";
+    public const string AuraGained = "AURA_GAINED";
+    public const string AuraConsumed = "AURA_CONSUMED";
+    public const string FullAuraActivated = "FULL_AURA_ACTIVATED";
+    public const string FullAuraRemoved = "FULL_AURA_REMOVED";
+    public const string ThanhThaiEmpoweredCast = "THANH_THAI_EMPOWERED_CAST";
+    public const string NghiaPhucPrime = "NGHIA_PHUC_PRIME";
+    public const string PrimeShieldWarranty = "PRIME_SHIELD_WARRANTY";
+    public const string PrimeFortressCharge = "PRIME_FORTRESS_CHARGE";
+    public const string PrimeFortitude = "PRIME_FORTITUDE";
+    public const string PrimeGuardian = "PRIME_GUARDIAN";
+    public const string PrimePressure = "PRIME_PRESSURE";
+    public const string PrimeStagger = "PRIME_STAGGER";
+    public const string PrimeBrokenMorale = "PRIME_BROKEN_MORALE";
+
+    // Siba Thiên Thần (Mythic)
+    public const string SibaHero = "SIBA_THIEN_THAN";
+    public const string SibaAngelGentleWing = "SIBA_ANGEL_GENTLE_WING";
+    public const string SibaCelestialProtection = "SIBA_CELESTIAL_PROTECTION";
+    public const string SibaEmpoweredCast = "SIBA_EMPOWERED_CAST";
+    public const string AllyLowestHpPreferWithoutStatus = "ALLY_LOWEST_HP_PREFER_WITHOUT_STATUS";
+    public const string DispelDebuff = "DISPEL_DEBUFF";
+    public const string EncouragementOffense = "ENCOURAGEMENT_OFFENSE";
+    public const string EncouragementDefense = "ENCOURAGEMENT_DEFENSE";
+    public const string CelestialProtection = "CELESTIAL_PROTECTION";
+    public const string AngelBlessing = "ANGEL_BLESSING";
 }
 
 public sealed class BattleSimulationRequest
@@ -81,6 +118,13 @@ public sealed class BattleCombatant
     public required BattleSkill BasicSkill { get; init; }
     public BattleSkill? EnergySkill { get; init; }
     public List<BattleStatusEffect> StatusEffects { get; } = [];
+    public Dictionary<string, int> Resources { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> ProcessedActionIds { get; init; } = new(StringComparer.Ordinal);
+    public HashSet<long> ProcessedDefeatedCombatantIds { get; init; } = [];
+    public int GetResource(string code, int defaultValue = 0) =>
+        Resources.TryGetValue(code, out var val) ? val : defaultValue;
+    public void SetResource(string code, int value) =>
+        Resources[code] = value;
     public bool IsAlive => Hp > 0;
 }
 
@@ -199,15 +243,21 @@ public sealed class BattleStatusEffect
     public int AppliedTurn { get; set; }
     public string? DamageSchoolCode { get; init; }
     public decimal ArmorIgnorePercent { get; init; }
+    public bool ScaleArmorIgnoreWithStacks { get; init; }
     public bool CanCrit { get; init; }
     public bool CanKill { get; init; }
     public bool ConsumeOnHit { get; set; }
     public string? LastProcessedActionId { get; set; }
     public decimal DamageBonusPerStackPercent { get; set; }
+    public decimal OutgoingDamageBonusPerStackPercent { get; set; }
+    public decimal IncomingDamageBonusPerStackPercent { get; set; }
+    public bool IncomingDamageBonusRestrictedToSource { get; set; }
     public bool ScaleModifiersWithStacks { get; set; } = true;
+    public string? StatusGroup { get; init; }
+    public bool Dispellable { get; set; } = true;
     public bool IsPermanent => RemainingTurns == -1;
     public bool IsActive => RemainingTurns > 0 || RemainingTurns == -1;
-    public required IReadOnlyList<BattleStatModifier> StatModifiers { get; init; }
+    public IReadOnlyList<BattleStatModifier> StatModifiers { get; init; } = [];
 }
 
 public sealed class BattleEvent
@@ -236,6 +286,19 @@ public sealed class BattleEvent
     public string? PhaseCode { get; init; }
     public string? ExecutionGroup { get; init; }
     public int? HitIndex { get; init; }
+    public string? ResourceCode { get; init; }
+    public int? PreviousValue { get; init; }
+    public int? CurrentValue { get; init; }
+    public string? ReasonCode { get; init; }
+    public string? ActionId { get; init; }
+    public string? StatusInstanceId { get; init; }
+    public long? SourceHeroId { get; init; }
+    public int? OriginalDamage { get; init; }
+    public int? RedirectRequested { get; init; }
+    public int? RedirectActual { get; init; }
+    public int? AllyDamageAfterRedirect { get; init; }
+    public int? GuardianHpBefore { get; init; }
+    public int? GuardianHpAfter { get; init; }
     public IReadOnlyList<BattleStatModifier> StatModifiers { get; init; } = [];
 }
 

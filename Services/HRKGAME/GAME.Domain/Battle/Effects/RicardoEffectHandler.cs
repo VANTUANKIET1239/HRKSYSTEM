@@ -31,6 +31,7 @@ public sealed class RicardoEffectHandler : IBattleEffectHandler
                 MaxStacks = maxStacks,
                 Value = damageBonusPerStack,
                 DamageBonusPerStackPercent = damageBonusPerStack,
+                OutgoingDamageBonusPerStackPercent = damageBonusPerStack,
                 ScaleModifiersWithStacks = false, // DEF +30% & MAGIC_RESISTANCE +30% do not scale with stacks
                 StatModifiers = effect.StatModifiers
             };

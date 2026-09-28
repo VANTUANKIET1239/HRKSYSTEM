@@ -11,12 +11,17 @@ namespace GAME.Infrastructure.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
+        private readonly ILevelExperienceService _levelExperienceService;
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-        public HeroUpgradeService(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService)
+        public HeroUpgradeService(
+            IUnitOfWork unitOfWork,
+            IGamePlayerService gamePlayerService,
+            ILevelExperienceService levelExperienceService)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
+            _levelExperienceService = levelExperienceService;
         }
 
         public async Task<HeroUpgradePreviewDto> GetPreviewAsync(string userId, long heroId, CancellationToken cancellationToken = default)
@@ -54,7 +59,8 @@ namespace GAME.Infrastructure.Services
             wallet.UpdatedOn = DateTime.UtcNow;
             hero.Level += actualLevels;
             hero.Exp = 0;
-            hero.MaxExp = GetMaxExp(hero.Level);
+            var expRequirement = await _levelExperienceService.GetHeroRequirementAsync(hero.Level, cancellationToken);
+            hero.MaxExp = expRequirement.IsMaxLevel ? 0 : expRequirement.RequiredExp;
             hero.CurrentStats = JsonSerializer.Serialize(nextStats, JsonOptions);
             hero.UpdatedOn = DateTime.UtcNow;
 
@@ -96,8 +102,6 @@ namespace GAME.Infrastructure.Services
 
         private static long GetGoldCost(int currentLevel, HrkHeroRarityUpgradeConfig c) => c.BaseGoldCost + (long)Math.Max(0, currentLevel - 1) * c.GoldCostPerLevel;
         private static int GetMaterialCost(int currentLevel, HrkHeroRarityUpgradeConfig c) => c.BaseMaterialCost + Math.Max(0, currentLevel - 1) * c.MaterialCostPerLevel;
-        private static int GetMaxExp(int level) => level * 100 + 400;
-
         private static CalculatedStatsDto GetHeroOnlyStats(HrkPlayerHero hero, HrkHeroRarityUpgradeConfig c, int level)
         {
             var t = hero.HeroTemplate;

@@ -15,10 +15,14 @@ public sealed class DamageEffectExecutionResult
 public sealed class DamageEffectHandler : IBattleEffectHandler
 {
     private readonly BattleStatusReactionHandlerRegistry _reactionHandlers;
+    private readonly DamageRedirectHandlerRegistry _redirectHandlers;
 
-    public DamageEffectHandler(BattleStatusReactionHandlerRegistry? reactionHandlers = null)
+    public DamageEffectHandler(
+        BattleStatusReactionHandlerRegistry? reactionHandlers = null,
+        DamageRedirectHandlerRegistry? redirectHandlers = null)
     {
         _reactionHandlers = reactionHandlers ?? BattleStatusReactionHandlerRegistry.CreateDefault();
+        _redirectHandlers = redirectHandlers ?? DamageRedirectHandlerRegistry.CreateDefault();
     }
 
     public string EffectTypeCode => BattleCodes.Damage;
@@ -56,28 +60,68 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
             if (isCrit) damage = Math.Max(1, (int)Math.Round(damage * actor.CritDamage / 100m));
         }
 
+        // bonus dame calculation
         if (damage > 0)
         {
             var markPercent = SumStatusPercent(target, BattleCodes.Mark);
             var reductionPercent = Math.Clamp(SumStatusPercent(target, BattleCodes.DamageReduction), 0m, 90m);
 
-            var attackerDamageBonusPercent = 0m;
-            var ignoreRicardoBonus = effect.GetBool("IGNORE_RICARDO_DAMAGE_BONUS", false);
-            if (!ignoreRicardoBonus)
+            var attackerDamageBonusPercent = effect.GetDecimal("DAMAGE_BONUS_PERCENT", 0m);
+            if (!effect.GetBool("IGNORE_OUTGOING_STATUS_DAMAGE_BONUS", false))
             {
-                var ricardo = actor.StatusEffects.FirstOrDefault(x =>
-                    x.EffectTypeCode.Equals(BattleCodes.Ricardo, StringComparison.OrdinalIgnoreCase) &&
-                    (x.RemainingTurns > 0 || x.RemainingTurns == -1));
-                if (ricardo != null)
-                {
-                    attackerDamageBonusPercent += ricardo.DamageBonusPerStackPercent * ricardo.Stacks;
-                }
+                attackerDamageBonusPercent += actor.StatusEffects
+                    .Where(status => status.IsActive)
+                    .Sum(status => (status.OutgoingDamageBonusPerStackPercent != 0m
+                        ? status.OutgoingDamageBonusPerStackPercent
+                        : status.DamageBonusPerStackPercent) * status.Stacks);
             }
 
-            damage = Math.Max(1, (int)Math.Round(damage * (100m + markPercent) / 100m * (100m - reductionPercent) / 100m * (100m + attackerDamageBonusPercent) / 100m));
+            var targetVulnerabilityPercent = target.StatusEffects
+                .Where(status => status.IsActive &&
+                    (!status.IncomingDamageBonusRestrictedToSource || status.SourceHeroId == actor.Id))
+                .Sum(status => status.IncomingDamageBonusPerStackPercent * status.Stacks);
+
+            damage = Math.Max(1, (int)Math.Round(damage * (100m + markPercent + targetVulnerabilityPercent) / 100m * (100m - reductionPercent) / 100m * (100m + attackerDamageBonusPercent) / 100m));
         }
 
         var events = new List<PendingBattleEvent>();
+
+        // Check damage redirection (e.g. Guardian) before target shields & HP absorption
+        var actionId = context.ActionId ?? $"turn_{context.Turn}_actor_{actor.Id}";
+        var isRedirect = effect.GetBool("IS_REDIRECT", false);
+        var ignoreGuardian = effect.GetBool("IGNORE_GUARDIAN_REDIRECT", false);
+
+        if (!isRedirect && !ignoreGuardian && actor.Id != target.Id && damage > 0)
+        {
+            var redirectContext = new DamageRedirectContext
+            {
+                Actor = actor,
+                Target = target,
+                Skill = context.Skill,
+                Effect = effect,
+                IncomingDamage = damage,
+                DamageSchoolCode = school,
+                ActionId = actionId,
+                Round = context.Round,
+                Turn = context.Turn,
+                Combatants = context.Combatants,
+                Random = context.Random,
+                TimelineOffsetMs = context.TimelineOffsetMs,
+                PhaseCode = context.PhaseCode,
+                IsRedirect = false
+            };
+
+            foreach (var handler in _redirectHandlers.Handlers)
+            {
+                var redirectResult = handler.HandleRedirect(redirectContext);
+                if (redirectResult != null)
+                {
+                    damage = redirectResult.TargetDamage;
+                    events.AddRange(redirectResult.EmittedEvents);
+                    break;
+                }
+            }
+        }
 
         // Consume one-hit / consume-on-hit buffs on target
         var consumeOnHitStatuses = target.StatusEffects
@@ -113,7 +157,8 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
                 TargetId = target.Id,
                 SkillId = context.Skill.Id,
                 EffectTypeCode = BattleCodes.Shield,
-                Value = absorbed
+                Value = absorbed,
+                StatusInstanceId = shield.InstanceId
             });
             if (shield.ShieldRemaining == 0)
             {
@@ -124,7 +169,8 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
                     ActorId = shield.SourceHeroId,
                     TargetId = target.Id,
                     SkillId = shield.SourceSkillId,
-                    EffectTypeCode = BattleCodes.Shield
+                    EffectTypeCode = BattleCodes.Shield,
+                    StatusInstanceId = shield.InstanceId
                 });
             }
             if (remainingDamage == 0) break;
@@ -144,7 +190,8 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
             SkillId = context.Skill.Id,
             EffectTypeCode = effect.EffectTypeCode,
             DamageSchoolCode = school,
-            Value = remainingDamage,
+            // Report HP actually removed, not pre-overkill damage.
+            Value = actualHpDamage,
             HpBefore = hpBefore,
             HpAfter = target.Hp,
             IsCrit = isCrit
@@ -170,6 +217,7 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
                 var reflected = Math.Max(1, (int)Math.Round(remainingDamage * reflectionPercent / 100m));
                 var actorHpBefore = actor.Hp;
                 actor.Hp = Math.Max(0, actor.Hp - reflected);
+                var actualReflectedDamage = actorHpBefore - actor.Hp;
                 events.Add(new PendingBattleEvent
                 {
                     EventType = "DAMAGE",
@@ -178,7 +226,7 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
                     SkillId = context.Skill.Id,
                     EffectTypeCode = BattleCodes.DamageReflection,
                     DamageSchoolCode = BattleCodes.True,
-                    Value = reflected,
+                    Value = actualReflectedDamage,
                     HpBefore = actorHpBefore,
                     HpAfter = actor.Hp
                 });
@@ -201,7 +249,6 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
 
         if (target.IsAlive && actualHpDamage > 0 && wasHit)
         {
-            var actionId = context.ActionId ?? $"turn_{context.Turn}_actor_{actor.Id}";
             var damagedContext = new BattleDamagedContext
             {
                 Actor = actor,

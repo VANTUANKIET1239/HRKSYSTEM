@@ -141,25 +141,8 @@ namespace GAME.Infrastructure.Services
 
             var heroDict = heroes.ToDictionary(h => h.Id);
 
-            var equipments = await _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
-                .Where(e => e.PlayerId == playerId && placedHeroIds.Contains(e.HeroId))
-                .Include(e => e.Weapon).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Armor).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Helmet).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Boots).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Ring).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Artifact).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .AsSplitQuery()
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            var eqDict = equipments.ToDictionary(e => e.HeroId);
+            var eqDict = await EquipmentBatchLoader.LoadForHeroesAsync(
+                _unitOfWork, playerId, placedHeroIds, cancellationToken);
 
             var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
 

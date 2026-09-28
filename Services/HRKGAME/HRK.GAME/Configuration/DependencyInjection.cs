@@ -15,6 +15,9 @@ using GAME.Domain.Battle.Skills;
 using GAME.Domain.Battle.Skills.QaKyTinh;
 using GAME.Domain.Battle.Skills.HaiLastSmile;
 using GAME.Domain.Battle.Skills.ChuanMen;
+using GAME.Domain.Battle.Skills.ThanhThaiAura;
+using GAME.Domain.Battle.Skills.NghiaPhucPrime;
+using GAME.Domain.Battle.Skills.SibaThienThan;
 using GAME.Domain.Battle.Reactions;
 using GAME.Domain.Battle.Targets;
 using Microsoft.Data.SqlClient;
@@ -83,6 +86,25 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IDungeonEquipmentRewardPolicy, DungeonEquipmentRewardPolicy>();
             services.AddScoped<IDungeonChestService, DungeonChestService>();
             services.AddScoped<IDungeonService, DungeonService>();
+            services.AddScoped<ILevelExperienceService, LevelExperienceService>();
+            AddBattleEffectHandlers(services);
+            AddBattleTargetSelectors(services);
+            AddBattleSkillHandlers(services);
+            AddBattleReactionHandlers(services);
+            services.AddSingleton<IBattleSimulationEngine, BattleSimulationEngine>();
+            services.AddScoped<IHeroStatCalculationService, HeroStatCalculationService>();
+            services.AddScoped<IHeroEquipmentService, HeroEquipmentService>();
+            services.AddScoped<IGameFeatureConfigService, GameFeatureConfigService>();
+            services.AddScoped<ICombatPowerService, CombatPowerService>();
+            services.AddScoped<IHeroUpgradeService, HeroUpgradeService>();
+
+            // Domain Services & Infrastructure abstractions (DDD)
+            services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
+            services.AddScoped<IEquipmentEnhancementDomainService, EquipmentEnhancementDomainService>();
+        }
+
+        private static void AddBattleEffectHandlers(IServiceCollection services)
+        {
             services.AddSingleton<IBattleEffectHandler, DamageEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, HealEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, StatBuffEffectHandler>();
@@ -99,38 +121,56 @@ namespace HRK.GAME.Configuration
             services.AddSingleton<IBattleEffectHandler, PanicEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, BleedDetonateEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, EnergyChangeEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, ActionBarChangeEffectHandler>();
+            services.AddSingleton<IBattleEffectHandler, DispelDebuffEffectHandler>();
             services.AddSingleton<IBattleEffectHandler, RicardoEffectHandler>();
-            services.AddSingleton<IBattleStatusReactionHandler, RicardoStatusReactionHandler>();
-            services.AddSingleton<BattleStatusReactionHandlerRegistry>();
             services.AddSingleton<BattleEffectHandlerRegistry>();
+        }
+
+        private static void AddBattleTargetSelectors(IServiceCollection services)
+        {
             services.AddSingleton<IBattleTargetSelector, SelfTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, AllyAllTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, AllyRandomTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, AllyRandom2TargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, AllyLowestEnergyTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemySingleTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemyAllTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemyRandomTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemyRandom4TargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, EnemyRandomDistinctNTargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, EnemyRandom3TargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, EnemyFrontStraightRowTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemyFrontRowTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemyBackRowTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, EnemySameLaneBackRowTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, LowestHpPercentTargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, AllyLowestHpPreferWithoutStatusTargetSelector>();
             services.AddSingleton<BattleTargetSelectorRegistry>();
+        }
+
+        private static void AddBattleSkillHandlers(IServiceCollection services)
+        {
             services.AddSingleton<DefaultSkillHandler>();
             services.AddSingleton<ISkillHandler, FatalAllInSkillHandler>();
             services.AddSingleton<ISkillHandler, HaiLastSmileSkillHandler>();
             services.AddSingleton<ISkillHandler, ChuanMenSkillHandler>();
+            services.AddSingleton<ISkillHandler, ThanhThaiAuraSkillHandler>();
+            services.AddSingleton<ISkillHandler, NghiaPhucPrimeSkillHandler>();
+            services.AddSingleton<ISkillHandler, SibaThienThanSkillHandler>();
             services.AddSingleton<SkillHandlerRegistry>();
-            services.AddSingleton<IBattleSimulationEngine, BattleSimulationEngine>();
-            services.AddScoped<IHeroStatCalculationService, HeroStatCalculationService>();
-            services.AddScoped<IHeroEquipmentService, HeroEquipmentService>();
-            services.AddScoped<IGameFeatureConfigService, GameFeatureConfigService>();
-            services.AddScoped<ICombatPowerService, CombatPowerService>();
-            services.AddScoped<IHeroUpgradeService, HeroUpgradeService>();
+        }
 
-            // Domain Services & Infrastructure abstractions (DDD)
-            services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
-            services.AddScoped<IEquipmentEnhancementDomainService, EquipmentEnhancementDomainService>();
+        private static void AddBattleReactionHandlers(IServiceCollection services)
+        {
+            services.AddSingleton<IBattleStatusReactionHandler, RicardoStatusReactionHandler>();
+            services.AddSingleton<BattleStatusReactionHandlerRegistry>();
+            services.AddSingleton<IBattleCombatantReactionHandler, ThanhThaiAuraReactionHandler>();
+            services.AddSingleton<BattleCombatantReactionRegistry>();
+            services.AddSingleton<IBattleSkillSelectionStrategy, ThanhThaiAuraSkillSelectionStrategy>();
+            services.AddSingleton<BattleSkillSelectionStrategyRegistry>();
+            services.AddSingleton<IDamageRedirectHandler, NghiaPhucPrimeReactionHandler>();
+            services.AddSingleton<DamageRedirectHandlerRegistry>();
         }
 
         public static void AddOptions(IServiceCollection services, IConfiguration configuration)

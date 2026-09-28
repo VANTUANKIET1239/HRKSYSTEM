@@ -103,27 +103,9 @@ namespace GAME.Infrastructure.Services
                 return new HeroEquipmentDto { HeroId = heroId };
             }
 
-            var eq = await _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
-                .Include(e => e.Weapon).ThenInclude(w => w!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Weapon).ThenInclude(w => w!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Weapon).ThenInclude(w => w!.ItemTemplate).ThenInclude(it => it.Category)
-                .Include(e => e.Armor).ThenInclude(a => a!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Armor).ThenInclude(a => a!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Armor).ThenInclude(a => a!.ItemTemplate).ThenInclude(it => it.Category)
-                .Include(e => e.Helmet).ThenInclude(h => h!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Helmet).ThenInclude(h => h!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Helmet).ThenInclude(h => h!.ItemTemplate).ThenInclude(it => it.Category)
-                .Include(e => e.Boots).ThenInclude(b => b!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Boots).ThenInclude(b => b!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Boots).ThenInclude(b => b!.ItemTemplate).ThenInclude(it => it.Category)
-                .Include(e => e.Ring).ThenInclude(r => r!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Ring).ThenInclude(r => r!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Ring).ThenInclude(r => r!.ItemTemplate).ThenInclude(it => it.Category)
-                .Include(e => e.Artifact).ThenInclude(ar => ar!.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(e => e.Artifact).ThenInclude(ar => ar!.ItemTemplate).ThenInclude(it => it.Rarity)
-                .Include(e => e.Artifact).ThenInclude(ar => ar!.ItemTemplate).ThenInclude(it => it.Category)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(e => e.PlayerId == player.Id && e.HeroId == heroId, cancellationToken);
+            var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(
+                _unitOfWork, player.Id, new[] { heroId }, cancellationToken);
+            equipments.TryGetValue(heroId, out var eq);
 
             return GameDtoMapper.MapHeroEquipment(eq, heroId);
         }

@@ -121,22 +121,18 @@ public sealed class HaiLastSmileSkillHandler : ISkillHandler
         var detonateEffect = context.Skill.Effects.FirstOrDefault(x =>
             x.EffectTypeCode.Equals(BattleCodes.BleedDetonate, StringComparison.OrdinalIgnoreCase));
         var requiredStatus = detonateEffect?.GetString("REQUIRED_STATUS_CODE", BattleCodes.Bleed) ?? BattleCodes.Bleed;
-        var hasPreexistingStatus = target.StatusEffects.Any(x =>
-            x.EffectTypeCode.Equals(requiredStatus, StringComparison.OrdinalIgnoreCase) && x.RemainingTurns > 0);
 
-        // 1. Setup Effects (e.g. PANIC, BLEED_DETONATE)
+        // 1. Setup effects. Bleed detonation is intentionally excluded: it now
+        // happens only when an ultimate hit raises Bleed from stack 1 to stack 2.ENEMY_RANDOM_4
         var setupEffects = context.Skill.Effects
-            .Where(x => string.IsNullOrEmpty(x.ExecutionGroup) && string.IsNullOrEmpty(x.ConditionCode))
+            .Where(x => string.IsNullOrEmpty(x.ExecutionGroup) &&
+                        string.IsNullOrEmpty(x.ConditionCode) &&
+                        !x.EffectTypeCode.Equals(BattleCodes.BleedDetonate, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.DisplayOrder);
 
         foreach (var effect in setupEffects)
         {
             if (!target.IsAlive) break;
-
-            if (effect.EffectTypeCode.Equals(BattleCodes.BleedDetonate, StringComparison.OrdinalIgnoreCase) && !hasPreexistingStatus)
-            {
-                continue;
-            }
 
             var isPanic = effect.EffectTypeCode.Equals(BattleCodes.Panic, StringComparison.OrdinalIgnoreCase);
             var setupOffset = isPanic ? 400 : 700;
@@ -223,6 +219,10 @@ public sealed class HaiLastSmileSkillHandler : ISkillHandler
                         var roll = (decimal)context.Random.NextDouble() * 100m;
                         if (roll <= rider.ChancePercent)
                         {
+                            var existingStatus = target.StatusEffects.FirstOrDefault(x =>
+                                x.EffectTypeCode.Equals(requiredStatus, StringComparison.OrdinalIgnoreCase) && x.IsActive);
+                            var previousStacks = existingStatus?.Stacks ?? 0;
+
                             var handler = _effectHandlers.GetRequired(rider.EffectTypeCode);
                             var riderEvents = handler.Apply(new BattleEffectContext
                             {
@@ -239,6 +239,38 @@ public sealed class HaiLastSmileSkillHandler : ISkillHandler
                             foreach (var evt in riderEvents)
                             {
                                 result.Events.Add(Stamp(evt, group.Key, hitCounter, riderOffset, phase));
+                            }
+
+                            var stackedStatus = target.StatusEffects.FirstOrDefault(x =>
+                                x.EffectTypeCode.Equals(requiredStatus, StringComparison.OrdinalIgnoreCase) && x.IsActive);
+                            var reachedSecondStack = rider.EffectTypeCode.Equals(BattleCodes.Bleed, StringComparison.OrdinalIgnoreCase)
+                                && previousStacks == 1
+                                && stackedStatus?.Stacks == 2;
+
+                            if (reachedSecondStack && detonateEffect != null)
+                            {
+                                var detonateHandler = _effectHandlers.GetRequired(BattleCodes.BleedDetonate);
+                                var detonateEvents = detonateHandler.Apply(new BattleEffectContext
+                                {
+                                    Effect = detonateEffect,
+                                    Skill = context.Skill,
+                                    Actor = context.Actor,
+                                    Target = target,
+                                    SelectedTargets = [target],
+                                    Combatants = context.Combatants,
+                                    Random = context.Random,
+                                    Round = context.Round,
+                                    Turn = context.Turn
+                                });
+                                foreach (var evt in detonateEvents)
+                                {
+                                    result.Events.Add(Stamp(evt, group.Key, hitCounter, riderOffset + 40, "DETONATE"));
+                                }
+
+                                if (!target.IsAlive && !result.DefeatedTargetIds.Contains(target.Id))
+                                {
+                                    result.DefeatedTargetIds.Add(target.Id);
+                                }
                             }
                         }
                     }
@@ -304,6 +336,9 @@ public sealed class HaiLastSmileSkillHandler : ISkillHandler
             EnergyAfter = evt.EnergyAfter,
             IsCrit = evt.IsCrit,
             RemainingTurns = evt.RemainingTurns,
+            PreviousStacks = evt.PreviousStacks,
+            CurrentStacks = evt.CurrentStacks,
+            MaxStacks = evt.MaxStacks,
             StatModifiers = evt.StatModifiers,
             ExecutionGroup = executionGroup,
             HitIndex = hitIndex,

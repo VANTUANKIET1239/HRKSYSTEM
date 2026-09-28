@@ -12,6 +12,7 @@ public sealed class BattleTargetContext
     public required IReadOnlyList<BattleCombatant> Allies { get; init; }
     public required IReadOnlyList<BattleCombatant> Enemies { get; init; }
     public required Random Random { get; init; }
+    public BattleSkillEffect? Effect { get; init; }
 }
 
 public abstract class BattleTargetSelectorBase : IBattleTargetSelector
@@ -21,5 +22,5 @@ public abstract class BattleTargetSelectorBase : IBattleTargetSelector
 
     protected static IReadOnlyList<BattleCombatant> RandomTargets(
         IReadOnlyList<BattleCombatant> source, int count, Random random) =>
-        source.OrderBy(_ => random.Next()).Take(count).ToList();
+        source.OrderBy(x => x.Position).ThenBy(x => x.Id).OrderBy(_ => random.Next()).Take(count).ToList();
 }

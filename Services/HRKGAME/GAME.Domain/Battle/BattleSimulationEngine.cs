@@ -4,6 +4,10 @@ using GAME.Domain.Battle.Skills;
 using GAME.Domain.Battle.Skills.QaKyTinh;
 using GAME.Domain.Battle.Skills.HaiLastSmile;
 using GAME.Domain.Battle.Skills.ChuanMen;
+using GAME.Domain.Battle.Skills.ThanhThaiAura;
+using GAME.Domain.Battle.Skills.NghiaPhucPrime;
+using GAME.Domain.Battle.Skills.SibaThienThan;
+using GAME.Domain.Battle.Reactions;
 
 namespace GAME.Domain.Battle;
 
@@ -17,6 +21,8 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
 {
     private readonly BattleEffectHandlerRegistry _effectHandlers;
     private readonly SkillHandlerRegistry _skillHandlers;
+    private readonly BattleCombatantReactionRegistry _combatantReactions;
+    private readonly BattleSkillSelectionStrategyRegistry _skillSelectionStrategies;
 
     public BattleSimulationEngine()
     {
@@ -27,9 +33,14 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
             [
                 new FatalAllInSkillHandler(defaultHandler),
                 new HaiLastSmileSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
-                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
+                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors),
+                ThanhThaiAuraSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors),
+                new NghiaPhucPrimeSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
+                SibaThienThanSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
             ],
             defaultHandler);
+        _combatantReactions = BattleCombatantReactionRegistry.CreateDefault();
+        _skillSelectionStrategies = BattleSkillSelectionStrategyRegistry.CreateDefault();
     }
 
     public BattleSimulationEngine(
@@ -42,18 +53,35 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
             [
                 new FatalAllInSkillHandler(defaultHandler),
                 new HaiLastSmileSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
-                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
+                ChuanMenSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors),
+                ThanhThaiAuraSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors),
+                new NghiaPhucPrimeSkillHandler(defaultHandler, _effectHandlers, targetSelectors),
+                SibaThienThanSkillHandler.Create(defaultHandler, _effectHandlers, targetSelectors)
             ],
             defaultHandler);
+        _combatantReactions = BattleCombatantReactionRegistry.CreateDefault();
+        _skillSelectionStrategies = BattleSkillSelectionStrategyRegistry.CreateDefault();
     }
 
     public BattleSimulationEngine(
         BattleEffectHandlerRegistry effectHandlers,
         SkillHandlerRegistry skillHandlers,
         BattleTargetSelectorRegistry targetSelectors)
+        : this(effectHandlers, skillHandlers, targetSelectors, null, null)
+    {
+    }
+
+    public BattleSimulationEngine(
+        BattleEffectHandlerRegistry effectHandlers,
+        SkillHandlerRegistry skillHandlers,
+        BattleTargetSelectorRegistry targetSelectors,
+        BattleCombatantReactionRegistry? combatantReactions,
+        BattleSkillSelectionStrategyRegistry? skillSelectionStrategies)
     {
         _effectHandlers = effectHandlers;
         _skillHandlers = skillHandlers;
+        _combatantReactions = combatantReactions ?? BattleCombatantReactionRegistry.CreateDefault();
+        _skillSelectionStrategies = skillSelectionStrategies ?? BattleSkillSelectionStrategyRegistry.CreateDefault();
     }
 
     public bool CanHandleEffect(string effectTypeCode) => _effectHandlers.CanHandle(effectTypeCode);
@@ -101,7 +129,7 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                     Add("TURN_END", round, turn, actor.Id);
                     continue;
                 }
-                var skill = SelectSkill(actor);
+                var skill = _skillSelectionStrategies.SelectSkill(actor, heroes);
                 Add("SKILL_CAST", round, turn, actor.Id, skillId: skill.Id,
                     castSequence: turn, timelineOffsetMs: 0, phaseCode: "CAST");
 
@@ -125,6 +153,46 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                     Skill = skill, Actor = actor, Combatants = heroes, Random = random,
                     Round = round, Turn = turn, ActionId = actionId
                 });
+
+                // Coordinate targeted reactions generically when action targets are determined
+                foreach (var targetId in execution.TargetedCombatantIds.Distinct())
+                {
+                    var targetedHero = heroes.FirstOrDefault(x => x.Id == targetId && x.IsAlive && x.Team != actor.Team);
+                    if (targetedHero != null)
+                    {
+                        var targetCtx = new BattleTargetedReactionContext
+                        {
+                            Actor = actor,
+                            Target = targetedHero,
+                            Skill = skill,
+                            ActionId = actionId,
+                            Round = round,
+                            Turn = turn,
+                            Combatants = heroes,
+                            Random = random,
+                            TimelineOffsetMs = 0,
+                            PhaseCode = "CAST"
+                        };
+                        foreach (var reactionHandler in _combatantReactions.Handlers)
+                        {
+                            var revts = reactionHandler.OnTargeted(targetedHero, targetCtx);
+                            foreach (var revt in revts)
+                            {
+                                Add(revt.EventType, round, turn, revt.ActorId, revt.TargetId, revt.SkillId,
+                                    revt.EffectTypeCode, revt.DamageSchoolCode, revt.Value, revt.HpBefore, revt.HpAfter,
+                                    energyBefore: revt.EnergyBefore, energyAfter: revt.EnergyAfter,
+                                    isCrit: revt.IsCrit, remainingTurns: revt.RemainingTurns,
+                                    previousStacks: revt.PreviousStacks, currentStacks: revt.CurrentStacks, maxStacks: revt.MaxStacks,
+                                    castSequence: turn, timelineOffsetMs: revt.TimelineOffsetMs ?? 0, phaseCode: revt.PhaseCode ?? "CAST",
+                                    statModifiers: revt.StatModifiers, executionGroup: revt.ExecutionGroup, hitIndex: revt.HitIndex,
+                                    resourceCode: revt.ResourceCode, previousValue: revt.PreviousValue, currentValue: revt.CurrentValue,
+                                    reasonCode: revt.ReasonCode, actionId: revt.ActionId ?? actionId,
+                                    statusInstanceId: revt.StatusInstanceId);
+                            }
+                        }
+                    }
+                }
+
                 foreach (var emitted in execution.Events)
                 {
                     var timing = GetEventTiming(skill, emitted.EventType);
@@ -138,7 +206,57 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                         previousStacks: emitted.PreviousStacks, currentStacks: emitted.CurrentStacks, maxStacks: emitted.MaxStacks,
                         castSequence: turn, timelineOffsetMs: offsetMs, phaseCode: phaseCode,
                         statModifiers: emitted.StatModifiers,
-                        executionGroup: emitted.ExecutionGroup, hitIndex: emitted.HitIndex);
+                        executionGroup: emitted.ExecutionGroup, hitIndex: emitted.HitIndex,
+                        resourceCode: emitted.ResourceCode, previousValue: emitted.PreviousValue, currentValue: emitted.CurrentValue,
+                        reasonCode: emitted.ReasonCode, actionId: emitted.ActionId ?? actionId,
+                        sourceHeroId: emitted.SourceHeroId, originalDamage: emitted.OriginalDamage,
+                        redirectRequested: emitted.RedirectRequested, redirectActual: emitted.RedirectActual,
+                        allyDamageAfterRedirect: emitted.AllyDamageAfterRedirect,
+                        guardianHpBefore: emitted.GuardianHpBefore, guardianHpAfter: emitted.GuardianHpAfter,
+                        statusInstanceId: emitted.StatusInstanceId);
+                }
+
+                // Coordinate defeated combatant reactions generically after damage and death resolution
+                foreach (var defId in execution.DefeatedTargetIds.Distinct())
+                {
+                    var defHero = heroes.FirstOrDefault(x => x.Id == defId);
+                    if (defHero != null)
+                    {
+                        foreach (var observer in heroes.Where(x => x.IsAlive && x.Id != defId))
+                        {
+                            var defCtx = new BattleCombatantDefeatedReactionContext
+                            {
+                                DefeatedCombatant = defHero,
+                                Killer = actor,
+                                Skill = skill,
+                                ActionId = actionId,
+                                Round = round,
+                                Turn = turn,
+                                Combatants = heroes,
+                                Random = random,
+                                TimelineOffsetMs = skill.Animation.TotalDurationMs,
+                                PhaseCode = "RECOVERY"
+                            };
+                            foreach (var reactionHandler in _combatantReactions.Handlers)
+                            {
+                                var devts = reactionHandler.OnCombatantDefeated(observer, defCtx);
+                                foreach (var devt in devts)
+                                {
+                                    Add(devt.EventType, round, turn, devt.ActorId, devt.TargetId, devt.SkillId,
+                                        devt.EffectTypeCode, devt.DamageSchoolCode, devt.Value, devt.HpBefore, devt.HpAfter,
+                                        energyBefore: devt.EnergyBefore, energyAfter: devt.EnergyAfter,
+                                        isCrit: devt.IsCrit, remainingTurns: devt.RemainingTurns,
+                                        previousStacks: devt.PreviousStacks, currentStacks: devt.CurrentStacks, maxStacks: devt.MaxStacks,
+                                        castSequence: turn, timelineOffsetMs: devt.TimelineOffsetMs ?? skill.Animation.TotalDurationMs,
+                                        phaseCode: devt.PhaseCode ?? "RECOVERY",
+                                        statModifiers: devt.StatModifiers, executionGroup: devt.ExecutionGroup, hitIndex: devt.HitIndex,
+                                        resourceCode: devt.ResourceCode, previousValue: devt.PreviousValue, currentValue: devt.CurrentValue,
+                                        reasonCode: devt.ReasonCode, actionId: devt.ActionId ?? actionId,
+                                        statusInstanceId: devt.StatusInstanceId);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (request.BasicAttackHitEnergyGain > 0)
@@ -198,20 +316,22 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                             te.Value, te.HpBefore, te.HpAfter, isCrit: te.IsCrit,
                             remainingTurns: te.RemainingTurns, castSequence: currentTurn,
                             timelineOffsetMs: 0, phaseCode: "IMPACT",
-                            statModifiers: te.StatModifiers);
+                            statModifiers: te.StatModifiers,
+                            statusInstanceId: te.StatusInstanceId);
                     }
 
                     status.RemainingTurns--;
                     if (status.RemainingTurns > 0)
                     {
                         Add("STATUS_UPDATED", round, currentTurn, status.SourceHeroId, actor.Id,
-                            status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns);
+                            status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns,
+                            statusInstanceId: status.InstanceId);
                     }
                     else
                     {
                         actor.StatusEffects.Remove(status);
                         Add("STATUS_EXPIRED", round, currentTurn, status.SourceHeroId, actor.Id,
-                            status.SourceSkillId, status.EffectTypeCode);
+                            status.SourceSkillId, status.EffectTypeCode, statusInstanceId: status.InstanceId);
                     }
                 }
             }
@@ -230,12 +350,38 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                 {
                     Add("STATUS_UPDATED", round, currentTurn, status.SourceHeroId, actor.Id,
                         status.SourceSkillId, status.EffectTypeCode, remainingTurns: status.RemainingTurns,
-                        currentStacks: status.Stacks, maxStacks: status.MaxStacks);
+                        currentStacks: status.Stacks, maxStacks: status.MaxStacks,
+                        statusInstanceId: status.InstanceId);
                     continue;
                 }
+
+                var turnEndHandler = _effectHandlers.GetTurnEndHandler(status.EffectTypeCode);
+                if (turnEndHandler != null)
+                {
+                    var turnEndEvents = turnEndHandler.OnTurnEnd(status, actor, round, currentTurn, heroes);
+                    foreach (var te in turnEndEvents)
+                    {
+                        Add(te.EventType, round, currentTurn, te.ActorId, te.TargetId,
+                            te.SkillId, te.EffectTypeCode, te.DamageSchoolCode,
+                            te.Value, te.HpBefore, te.HpAfter,
+                            energyBefore: te.EnergyBefore, energyAfter: te.EnergyAfter,
+                            isCrit: te.IsCrit, remainingTurns: te.RemainingTurns,
+                            previousStacks: te.PreviousStacks, currentStacks: te.CurrentStacks, maxStacks: te.MaxStacks,
+                            castSequence: currentTurn, timelineOffsetMs: te.TimelineOffsetMs ?? 0, phaseCode: te.PhaseCode ?? "RECOVERY",
+                            statModifiers: te.StatModifiers, executionGroup: te.ExecutionGroup, hitIndex: te.HitIndex,
+                            resourceCode: te.ResourceCode, previousValue: te.PreviousValue, currentValue: te.CurrentValue,
+                            reasonCode: te.ReasonCode, actionId: te.ActionId ?? $"turn_{currentTurn}_expire",
+                            sourceHeroId: te.SourceHeroId, originalDamage: te.OriginalDamage,
+                            redirectRequested: te.RedirectRequested, redirectActual: te.RedirectActual,
+                            allyDamageAfterRedirect: te.AllyDamageAfterRedirect,
+                            guardianHpBefore: te.GuardianHpBefore, guardianHpAfter: te.GuardianHpAfter,
+                            statusInstanceId: te.StatusInstanceId);
+                    }
+                }
+
                 actor.StatusEffects.Remove(status);
                 Add("STATUS_EXPIRED", round, currentTurn, status.SourceHeroId, actor.Id,
-                    status.SourceSkillId, status.EffectTypeCode);
+                    status.SourceSkillId, status.EffectTypeCode, statusInstanceId: status.InstanceId);
             }
         }
 
@@ -247,7 +393,14 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
             int? castSequence = null,
             int timelineOffsetMs = 0, string? phaseCode = null,
             IReadOnlyList<BattleStatModifier>? statModifiers = null,
-            string? executionGroup = null, int? hitIndex = null) => events.Add(new BattleEvent
+            string? executionGroup = null, int? hitIndex = null,
+            string? resourceCode = null, int? previousValue = null, int? currentValue = null,
+            string? reasonCode = null, string? actionId = null,
+            long? sourceHeroId = null, int? originalDamage = null,
+            int? redirectRequested = null, int? redirectActual = null,
+            int? allyDamageAfterRedirect = null,
+            int? guardianHpBefore = null, int? guardianHpAfter = null,
+            string? statusInstanceId = null) => events.Add(new BattleEvent
             {
                 Sequence = ++sequence, Round = round, Turn = currentTurn, EventType = type,
                 ActorId = actorId, TargetId = targetId, SkillId = skillId, EffectTypeCode = effectCode,
@@ -258,14 +411,22 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                 CastSequence = castSequence,
                 TimelineOffsetMs = timelineOffsetMs, PhaseCode = phaseCode,
                 ExecutionGroup = executionGroup, HitIndex = hitIndex,
-                StatModifiers = statModifiers ?? []
+                StatModifiers = statModifiers ?? [],
+                ResourceCode = resourceCode,
+                PreviousValue = previousValue,
+                CurrentValue = currentValue,
+                ReasonCode = reasonCode,
+                ActionId = actionId,
+                StatusInstanceId = statusInstanceId,
+                SourceHeroId = sourceHeroId,
+                OriginalDamage = originalDamage,
+                RedirectRequested = redirectRequested,
+                RedirectActual = redirectActual,
+                AllyDamageAfterRedirect = allyDamageAfterRedirect,
+                GuardianHpBefore = guardianHpBefore,
+                GuardianHpAfter = guardianHpAfter
             });
     }
-
-    private static BattleSkill SelectSkill(BattleCombatant actor) =>
-        !HasStatus(actor, BattleCodes.Silence) && actor.EnergySkill != null && actor.Energy >= actor.EnergySkill.EnergyCost
-            ? actor.EnergySkill
-            : actor.BasicSkill;
 
     private static bool HasStatus(BattleCombatant hero, string effectCode) =>
         hero.StatusEffects.Any(x => x.RemainingTurns > 0 &&
@@ -337,7 +498,10 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
             Name = source.Name, MaxHp = source.MaxHp, Hp = source.Hp, Atk = source.Atk, Def = source.Def,
             Spd = source.Spd, MagicDamage = source.MagicDamage, MagicResistance = source.MagicResistance,
             CritChance = source.CritChance, CritDamage = source.CritDamage, Energy = source.Energy,
-            MaxEnergy = source.MaxEnergy, BasicSkill = source.BasicSkill, EnergySkill = source.EnergySkill
+            MaxEnergy = source.MaxEnergy, BasicSkill = source.BasicSkill, EnergySkill = source.EnergySkill,
+            Resources = new Dictionary<string, int>(source.Resources, StringComparer.OrdinalIgnoreCase),
+            ProcessedActionIds = new HashSet<string>(source.ProcessedActionIds, StringComparer.OrdinalIgnoreCase),
+            ProcessedDefeatedCombatantIds = new HashSet<long>(source.ProcessedDefeatedCombatantIds)
         };
         foreach (var status in source.StatusEffects)
         {
@@ -355,6 +519,9 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                 ShieldRemaining = status.ShieldRemaining,
                 LastProcessedActionId = status.LastProcessedActionId,
                 DamageBonusPerStackPercent = status.DamageBonusPerStackPercent,
+                OutgoingDamageBonusPerStackPercent = status.OutgoingDamageBonusPerStackPercent,
+                IncomingDamageBonusPerStackPercent = status.IncomingDamageBonusPerStackPercent,
+                IncomingDamageBonusRestrictedToSource = status.IncomingDamageBonusRestrictedToSource,
                 ScaleModifiersWithStacks = status.ScaleModifiersWithStacks,
                 StatModifiers = status.StatModifiers
             });

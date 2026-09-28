@@ -84,8 +84,7 @@ namespace GAME.Infrastructure.Services
             if (player == null) return null;
             var wallet = await GetWalletByPlayerIdAsync(player.Id, cancellationToken);
             var formationPower = await _formationPowerQueryService.GetDefaultFormationPowerAsync(player.Id, cancellationToken);
-            var profile = await BuildProfileAsync(player, cancellationToken);
-            profile.Power = formationPower.TotalPower;
+            var profile = await BuildProfileAsync(player, cancellationToken, formationPower.TotalPower);
 
             return new PlayerGameInfoDto
             {
@@ -108,21 +107,19 @@ namespace GAME.Infrastructure.Services
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Faction)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Class)
                 .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
-                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-                .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                // List/card endpoint intentionally excludes the skill-effect graph.
+                // Hero management loads that graph from the detail endpoint only
+                // after a hero is selected. Formation/campaign consumers need stats
+                // and power, not effect parameters for every owned hero.
+                .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
             // Batch load every equipped item once. Calling GetPlayerHeroDetailAsync for
             // every card used to cause 2+ SQL queries per hero (the N+1 bottleneck).
-            var equipments = await GetEquipmentQuery()
-                .Where(e => e.PlayerId == player.Id && playerHeroes.Select(h => h.Id).Contains(e.HeroId))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var equipmentByHeroId = equipments.ToDictionary(e => e.HeroId);
+            var heroIds = playerHeroes.Select(h => h.Id).ToList();
+            var equipmentByHeroId = await EquipmentBatchLoader.LoadForHeroesAsync(
+                _unitOfWork, player.Id, heroIds, cancellationToken);
             var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
 
             // Batch load star auras for player heroes (no N+1 query)
@@ -138,7 +135,7 @@ namespace GAME.Infrastructure.Services
             {
                 var clampedStars = (byte)Math.Clamp(hero.Stars, 0, 5);
                 auraLookup.TryGetValue((hero.HeroTemplateId, clampedStars), out var auraCfg);
-                var dto = GameDtoMapper.MapPlayerHero(hero, auraCfg);
+                var dto = GameDtoMapper.MapPlayerHero(hero, auraCfg, includeSkills: false);
                 if (dto == null) continue;
                 equipmentByHeroId.TryGetValue(hero.Id, out var equipment);
                 var stats = _heroStatCalculationService.CalculateStats(hero, equipment).FinalStats;
@@ -165,12 +162,15 @@ namespace GAME.Infrastructure.Services
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
                 .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
+                .AsSplitQuery()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (ph == null) return null;
 
-            var eq = await GetEquipmentQuery()
-                .FirstOrDefaultAsync(e => e.PlayerId == player.Id && e.HeroId == ph.Id, cancellationToken);
+            var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(
+                _unitOfWork, player.Id, new[] { ph.Id }, cancellationToken);
+            equipments.TryGetValue(ph.Id, out var eq);
 
             var detailClampedStars = (byte)Math.Clamp(ph.Stars, 0, 5);
             var starAura = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
@@ -310,7 +310,10 @@ namespace GAME.Infrastructure.Services
             return await BuildProfileAsync(player, cancellationToken);
         }
 
-        private async Task<PlayerProfileDto> BuildProfileAsync(HrkPlayer player, CancellationToken cancellationToken)
+        private async Task<PlayerProfileDto> BuildProfileAsync(
+            HrkPlayer player,
+            CancellationToken cancellationToken,
+            int? knownFormationPower = null)
         {
             string? avatarUrl = null;
             if (player.AvatarType == "TEMPLATE")
@@ -321,12 +324,17 @@ namespace GAME.Infrastructure.Services
                     .Select(x => x.ImagePath).FirstOrDefaultAsync(cancellationToken);
             }
 
-            var formationPower = await _formationPowerQueryService.GetDefaultFormationPowerAsync(player.Id, cancellationToken);
+            var power = knownFormationPower;
+            if (!power.HasValue)
+            {
+                var formationPower = await _formationPowerQueryService.GetDefaultFormationPowerAsync(player.Id, cancellationToken);
+                power = formationPower.TotalPower;
+            }
 
             return new PlayerProfileDto
             {
                 Id = player.Id, UserId = player.UserId, PlayerName = player.PlayerName, Level = player.Level,
-                Exp = player.Exp, MaxExp = player.MaxExp, Power = formationPower.TotalPower,
+                Exp = player.Exp, MaxExp = player.MaxExp, Power = power.Value,
                 AvatarType = player.AvatarType, AvatarTemplateId = player.AvatarTemplateId, AvatarUrl = avatarUrl,
                 AvatarVersion = new DateTimeOffset(player.UpdatedOn).ToUnixTimeSeconds(),
                 CreatedOn = player.CreatedOn, UpdatedOn = player.UpdatedOn
@@ -350,24 +358,5 @@ namespace GAME.Infrastructure.Services
                 ?? throw new KeyNotFoundException("Khong tim thay vo tuong thuoc tai khoan nay.");
         }
 
-        private IQueryable<HrkPlayerEquipment> GetEquipmentQuery() => _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
-            .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-            .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType);
     }
 }

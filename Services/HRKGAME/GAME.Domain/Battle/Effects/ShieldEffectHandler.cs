@@ -41,7 +41,7 @@ public sealed class ShieldEffectHandler : IBattleEffectHandler
         {
             EventType = "SHIELD_APPLIED", ActorId = context.Actor.Id, TargetId = context.Target.Id,
             SkillId = context.Skill.Id, EffectTypeCode = EffectTypeCode,
-            Value = shield, RemainingTurns = duration
+            Value = shield, RemainingTurns = duration, StatusInstanceId = instanceId
         }];
     }
 }

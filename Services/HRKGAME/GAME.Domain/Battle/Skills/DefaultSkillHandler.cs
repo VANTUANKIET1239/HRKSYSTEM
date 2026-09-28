@@ -25,12 +25,15 @@ public sealed class DefaultSkillHandler : ISkillHandler
 
         foreach (var effect in context.Skill.Effects.Where(effectFilter))
         {
-            if ((decimal)context.Random.NextDouble() * 100m > effect.ChancePercent) continue;
             if (!selectedTargetIdsByType.TryGetValue(effect.TargetTypeCode, out var selectedTargetIds))
             {
-                selectedTargetIds = ResolveTargets(effect.TargetTypeCode, context)
+                selectedTargetIds = ResolveTargets(effect.TargetTypeCode, context, effect)
                     .Select(x => x.Id).ToList();
                 selectedTargetIdsByType[effect.TargetTypeCode] = selectedTargetIds;
+                foreach (var tid in selectedTargetIds)
+                {
+                    result.TargetedCombatantIds.Add(tid);
+                }
             }
 
             var livingTargets = selectedTargetIds
@@ -38,8 +41,20 @@ public sealed class DefaultSkillHandler : ISkillHandler
                 .Where(x => x?.IsAlive == true).Cast<BattleCombatant>().ToList();
             var handler = _effectHandlers.GetRequired(effect.EffectTypeCode);
             var targetsToApply = handler.ApplyOncePerEffect ? livingTargets.Take(1) : livingTargets;
+
+            var rollOnce = effect.GetBool("ROLL_ONCE_PER_EFFECT", false);
+            if (rollOnce && effect.ChancePercent < 100m && (decimal)context.Random.NextDouble() * 100m > effect.ChancePercent)
+            {
+                continue;
+            }
+
             foreach (var target in targetsToApply)
             {
+                if (!rollOnce && effect.ChancePercent < 100m && (decimal)context.Random.NextDouble() * 100m > effect.ChancePercent)
+                {
+                    continue;
+                }
+
                 var wasAlive = target.IsAlive;
                 var emittedEvents = handler.Apply(new BattleEffectContext
                 {
@@ -72,9 +87,10 @@ public sealed class DefaultSkillHandler : ISkillHandler
         });
     }
 
-    public IReadOnlyList<BattleCombatant> ResolveTargets(string targetCode, SkillExecutionContext context)
+    public IReadOnlyList<BattleCombatant> ResolveTargets(
+        string targetCode, SkillExecutionContext context, BattleSkillEffect? effect = null)
     {
-        if (IsTauntRedirectableTarget(targetCode))
+        if (IsTauntRedirectableTarget(targetCode, effect))
         {
             var taunt = context.Actor.StatusEffects
                 .Where(x => x.RemainingTurns > 0 && x.EffectTypeCode.Equals(BattleCodes.Taunt, StringComparison.OrdinalIgnoreCase))
@@ -90,13 +106,24 @@ public sealed class DefaultSkillHandler : ISkillHandler
             Actor = context.Actor,
             Allies = context.Combatants.Where(x => x.Team == context.Actor.Team && x.IsAlive).OrderBy(x => x.Position).ThenBy(x => x.Id).ToList(),
             Enemies = context.Combatants.Where(x => x.Team != context.Actor.Team && x.IsAlive).OrderBy(x => x.Position).ThenBy(x => x.Id).ToList(),
-            Random = context.Random
+            Random = context.Random,
+            Effect = effect
         });
     }
 
-    private static bool IsTauntRedirectableTarget(string targetCode) =>
-        targetCode.Equals(BattleCodes.EnemySingle, StringComparison.OrdinalIgnoreCase) ||
-        targetCode.Equals(BattleCodes.EnemyRandom, StringComparison.OrdinalIgnoreCase) ||
-        targetCode.Equals(BattleCodes.EnemySameLaneBackRow, StringComparison.OrdinalIgnoreCase) ||
-        targetCode.Equals(BattleCodes.LowestHpPercent, StringComparison.OrdinalIgnoreCase);
+    private static bool IsTauntRedirectableTarget(string targetCode, BattleSkillEffect? effect = null)
+    {
+        if (effect != null && (
+            effect.EffectTypeCode.Equals(BattleCodes.Heal, StringComparison.OrdinalIgnoreCase) ||
+            effect.EffectTypeCode.Equals(BattleCodes.Shield, StringComparison.OrdinalIgnoreCase) ||
+            effect.EffectTypeCode.Equals(BattleCodes.StatBuff, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return targetCode.Equals(BattleCodes.EnemySingle, StringComparison.OrdinalIgnoreCase) ||
+               targetCode.Equals(BattleCodes.EnemyRandom, StringComparison.OrdinalIgnoreCase) ||
+               targetCode.Equals(BattleCodes.EnemySameLaneBackRow, StringComparison.OrdinalIgnoreCase) ||
+               targetCode.Equals(BattleCodes.LowestHpPercent, StringComparison.OrdinalIgnoreCase);
+    }
 }

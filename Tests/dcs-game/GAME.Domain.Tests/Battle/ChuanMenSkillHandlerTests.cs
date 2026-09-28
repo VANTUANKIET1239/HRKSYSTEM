@@ -107,7 +107,7 @@ public sealed class ChuanMenSkillHandlerTests
                 Scalings = [new BattleEffectScaling("ATK", 1.75m)],
                 Parameters = Params(
                     BoolParam("CAN_CRIT", true),
-                    BoolParam("IGNORE_RICARDO_DAMAGE_BONUS", true),
+                    BoolParam("IGNORE_OUTGOING_STATUS_DAMAGE_BONUS", true),
                     IntParam("REQUIRED_RICARDO_STACKS", 6),
                     BoolParam("CONSUME_RICARDO_AFTER_EXECUTION", true),
                     DecimalParam("EMPOWERED_DAMAGE_COEFFICIENT", 1.75m)

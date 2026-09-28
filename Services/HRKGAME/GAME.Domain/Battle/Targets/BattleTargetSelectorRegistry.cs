@@ -23,13 +23,18 @@ public sealed class BattleTargetSelectorRegistry
         new AllyAllTargetSelector(),
         new AllyRandomTargetSelector(),
         new AllyRandom2TargetSelector(),
+        new AllyLowestEnergyTargetSelector(),
         new EnemySingleTargetSelector(),
         new EnemyAllTargetSelector(),
         new EnemyRandomTargetSelector(),
         new EnemyRandom4TargetSelector(),
+        new EnemyRandomDistinctNTargetSelector(),
+        new EnemyRandom3TargetSelector(),
+        new EnemyFrontStraightRowTargetSelector(),
         new EnemyFrontRowTargetSelector(),
         new EnemyBackRowTargetSelector(),
         new EnemySameLaneBackRowTargetSelector(),
-        new LowestHpPercentTargetSelector()
+        new LowestHpPercentTargetSelector(),
+        new AllyLowestHpPreferWithoutStatusTargetSelector()
     });
 }

@@ -12,19 +12,13 @@ public sealed class PanicEffectHandler : IBattleEffectHandler
                 $"Skill '{context.Skill.Id}', effect '{EffectTypeCode}' has invalid DurationTurns ({context.Effect.DurationTurns}).");
         }
 
-        if (context.Effect.StatModifiers.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Skill '{context.Skill.Id}', effect '{EffectTypeCode}' has no StatModifiers configured.");
-        }
-
         var duration = context.Effect.DurationTurns;
         var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{EffectTypeCode}:{context.Target.Id}";
         var existing = context.Target.StatusEffects.FirstOrDefault(x =>
             x.EffectTypeCode.Equals(EffectTypeCode, StringComparison.OrdinalIgnoreCase));
 
-        var modifiers = context.Effect.StatModifiers.ToList();
-        var primaryModValue = modifiers.FirstOrDefault()?.Value ?? 0m;
+        var modifiers = context.Effect.StatModifiers?.ToList() ?? [];
+        var primaryModValue = modifiers.FirstOrDefault()?.Value ?? context.Effect.BaseValue;
 
         if (existing == null)
         {

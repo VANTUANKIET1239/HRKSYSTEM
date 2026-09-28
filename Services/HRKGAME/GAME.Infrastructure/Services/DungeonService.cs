@@ -15,6 +15,8 @@ public sealed class DungeonService : IDungeonService
     private readonly IDungeonRewardService _rewardService;
     private readonly IDungeonChestService _chestService;
     private readonly IFormationSnapshotService _formationSnapshotService;
+    private readonly IFormationPowerQueryService _formationPowerQueryService;
+    private readonly ILevelExperienceService _levelExperienceService;
 
     public DungeonService(
         IUnitOfWork unitOfWork,
@@ -22,7 +24,9 @@ public sealed class DungeonService : IDungeonService
         IDungeonStarService starService,
         IDungeonRewardService rewardService,
         IDungeonChestService chestService,
-        IFormationSnapshotService formationSnapshotService)
+        IFormationSnapshotService formationSnapshotService,
+        IFormationPowerQueryService formationPowerQueryService,
+        ILevelExperienceService levelExperienceService)
     {
         _unitOfWork = unitOfWork;
         _battleService = battleService;
@@ -30,6 +34,8 @@ public sealed class DungeonService : IDungeonService
         _rewardService = rewardService;
         _chestService = chestService;
         _formationSnapshotService = formationSnapshotService;
+        _formationPowerQueryService = formationPowerQueryService;
+        _levelExperienceService = levelExperienceService;
     }
 
     public async Task<List<DungeonMapDto>> GetMapsAsync(string userId, CancellationToken cancellationToken = default)
@@ -48,11 +54,27 @@ public sealed class DungeonService : IDungeonService
     public async Task<DungeonMapDetailDto> GetMapAsync(string userId, int mapId, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerAsync(userId, cancellationToken);
+        // Load lightweight map progression data separately from the selected map.
+        // The previous implementation loaded enemies for every map before filtering by mapId.
         var maps = await _unitOfWork.ReadOnlyRepository<HrkDungeonMap>().Query()
-            .Where(x => x.IsActive).Include(x => x.Stages.Where(s => s.IsActive)).ThenInclude(s => s.Enemies)
-            .ThenInclude(e => e.HeroTemplate).OrderBy(x => x.DisplayOrder).AsSplitQuery().AsNoTracking()
+            .Where(x => x.IsActive)
+            .Include(x => x.Stages.Where(s => s.IsActive))
+            .OrderBy(x => x.DisplayOrder)
+            .AsSplitQuery()
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
-        var map = maps.SingleOrDefault(x => x.Id == mapId) ?? throw new KeyNotFoundException("Không tìm thấy bản đồ phó bản.");
+
+        if (!maps.Any(x => x.Id == mapId))
+            throw new KeyNotFoundException("Không tìm thấy bản đồ phó bản.");
+
+        var map = await _unitOfWork.ReadOnlyRepository<HrkDungeonMap>().Query()
+            .Where(x => x.Id == mapId && x.IsActive)
+            .Include(x => x.Stages.Where(s => s.IsActive))
+                .ThenInclude(s => s.Enemies)
+                .ThenInclude(e => e.HeroTemplate)
+            .AsSplitQuery()
+            .AsNoTracking()
+            .SingleAsync(cancellationToken);
         var cleared = await ClearedStageIds(player.Id, cancellationToken);
         var playerPower = await GetSelectedFormationPower(player.Id, cancellationToken);
         var baseDto = ToMapDto(map, player, cleared, maps);
@@ -61,11 +83,8 @@ public sealed class DungeonService : IDungeonService
         var starChests = await _chestService.GetMapChestsAsync(player.Id, map.Id, totalStars, cancellationToken);
         var stageBestStars = await _starService.GetStageBestStarsAsync(player.Id, map.Stages.Select(s => s.Id), cancellationToken);
 
-        var stagePossibleDrops = new Dictionary<int, List<DungeonPossibleDropDto>>();
-        foreach (var s in map.Stages)
-        {
-            stagePossibleDrops[s.Id] = await _rewardService.GetPossibleDropsForStageAsync(s.Id, cancellationToken);
-        }
+        var stageIds = map.Stages.Select(s => s.Id).ToList();
+        var stagePossibleDrops = await _rewardService.GetPossibleDropsForStagesAsync(stageIds, cancellationToken);
 
         return new DungeonMapDetailDto
         {
@@ -199,7 +218,7 @@ public sealed class DungeonService : IDungeonService
                     wallet.Gold += result.GoldGained;
                     wallet.UpdatedOn = DateTime.UtcNow;
                     result.PlayerExpGained = stage.PlayerExpReward;
-                    AddPlayerExp(player, stage.PlayerExpReward);
+                    await AddPlayerExpAsync(player, stage.PlayerExpReward, cancellationToken);
                     result.NewPlayerLevel = player.Level;
                     result.NewPlayerExp = player.Exp;
                     result.Heroes = await AddParticipantHeroExp(player.Id, snapshot.ParticipantHeroIds, stage.HeroExpReward, cancellationToken);
@@ -346,8 +365,8 @@ public sealed class DungeonService : IDungeonService
 
     private async Task<int> GetSelectedFormationPower(long playerId, CancellationToken ct)
     {
-        var snapshot = await _formationSnapshotService.BuildAsync(playerId, null, null, ct);
-        return snapshot.TotalPower;
+        var result = await _formationPowerQueryService.GetDefaultFormationPowerAsync(playerId, ct);
+        return result.TotalPower;
     }
 
     private async Task ValidateStageAccess(HrkDungeonStage stage, HrkPlayer player, HashSet<int> cleared, CancellationToken ct)
@@ -380,32 +399,52 @@ public sealed class DungeonService : IDungeonService
         var results = new List<HeroExpResultDto>();
         foreach (var hero in heroes)
         {
+            var oldMaxExp = hero.MaxExp;
             var item = new HeroExpResultDto
             {
                 PlayerHeroId = hero.Id,
                 HeroName = hero.HeroTemplate.Name,
+                Avatar = hero.HeroTemplate.Avatar ?? string.Empty,
                 ExpGained = exp,
                 OldLevel = hero.Level,
-                OldExp = hero.Exp
+                OldExp = hero.Exp,
+                OldMaxExp = oldMaxExp
             };
-            hero.Exp += exp;
-            while (hero.Exp >= hero.MaxExp)
+            var requirement = await _levelExperienceService.GetHeroRequirementAsync(hero.Level, ct);
+            hero.MaxExp = requirement.IsMaxLevel ? 0 : requirement.RequiredExp;
+            if (!requirement.IsMaxLevel) hero.Exp += exp;
+
+            while (!requirement.IsMaxLevel && hero.MaxExp > 0 && hero.Exp >= hero.MaxExp)
             {
                 hero.Exp -= hero.MaxExp;
                 hero.Level++;
-                hero.MaxExp = (int)Math.Round(hero.MaxExp * 1.2);
+                requirement = await _levelExperienceService.GetHeroRequirementAsync(hero.Level, ct);
+                hero.MaxExp = requirement.IsMaxLevel ? 0 : requirement.RequiredExp;
+                if (requirement.IsMaxLevel) hero.Exp = 0;
             }
             item.NewLevel = hero.Level;
             item.NewExp = hero.Exp;
+            item.NewMaxExp = hero.MaxExp;
+            hero.UpdatedOn = DateTime.UtcNow;
             results.Add(item);
         }
         return results;
     }
 
-    private static void AddPlayerExp(HrkPlayer player, int exp)
+    private async Task AddPlayerExpAsync(HrkPlayer player, int exp, CancellationToken ct)
     {
-        player.Exp += exp;
-        while (player.Exp >= player.MaxExp) { player.Exp -= player.MaxExp; player.Level++; player.MaxExp = (int)Math.Round(player.MaxExp * 1.2); }
+        var requirement = await _levelExperienceService.GetPlayerRequirementAsync(player.Level, ct);
+        player.MaxExp = requirement.IsMaxLevel ? 0 : requirement.RequiredExp;
+        if (!requirement.IsMaxLevel) player.Exp += exp;
+
+        while (!requirement.IsMaxLevel && player.MaxExp > 0 && player.Exp >= player.MaxExp)
+        {
+            player.Exp -= player.MaxExp;
+            player.Level++;
+            requirement = await _levelExperienceService.GetPlayerRequirementAsync(player.Level, ct);
+            player.MaxExp = requirement.IsMaxLevel ? 0 : requirement.RequiredExp;
+            if (requirement.IsMaxLevel) player.Exp = 0;
+        }
         player.UpdatedOn = DateTime.UtcNow;
     }
 

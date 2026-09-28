@@ -280,42 +280,10 @@ namespace GAME.Infrastructure.Services
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
-            var equipments = await _unitOfWork.ReadOnlyRepository<HrkPlayerEquipment>().Query()
-                .Where(e => e.PlayerId == playerId && heroIds.Contains(e.HeroId))
-                .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Weapon).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Weapon).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
+            var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(
+                _unitOfWork, playerId, heroIds, cancellationToken);
 
-                .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Armor).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Armor).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-
-                .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Helmet).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Helmet).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-
-                .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Boots).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Boots).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-
-                .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Ring).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Ring).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-
-                .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Rarity)
-                .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Category)
-                .Include(e => e.Artifact).ThenInclude(x => x!.Attributes).ThenInclude(x => x.AttributeType)
-                .Include(e => e.Artifact).ThenInclude(x => x!.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-                .AsSplitQuery()
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            return (heroes.ToDictionary(h => h.Id), equipments.ToDictionary(e => e.HeroId));
+            return (heroes.ToDictionary(h => h.Id), equipments);
         }
     }
 }

@@ -39,26 +39,44 @@ public sealed class DungeonRewardService : IDungeonRewardService
 
     public async Task<List<DungeonPossibleDropDto>> GetPossibleDropsForStageAsync(int stageId, CancellationToken cancellationToken = default)
     {
+        var result = await GetPossibleDropsForStagesAsync(new[] { stageId }, cancellationToken);
+        return result.GetValueOrDefault(stageId, new List<DungeonPossibleDropDto>());
+    }
+
+    public async Task<Dictionary<int, List<DungeonPossibleDropDto>>> GetPossibleDropsForStagesAsync(
+        IReadOnlyCollection<int> stageIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = stageIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<int, List<DungeonPossibleDropDto>>();
+        }
+
         var pools = await _unitOfWork.ReadOnlyRepository<HrkDungeonStageDropPool>().Query()
-            .Where(x => x.StageId == stageId && x.IsActive)
+            .Where(x => ids.Contains(x.StageId) && x.IsActive)
             .Include(x => x.ItemTemplate).ThenInclude(t => t.Category)
             .Include(x => x.ItemTemplate).ThenInclude(t => t.Rarity)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        return pools.Select(p => new DungeonPossibleDropDto
-        {
-            ItemTemplateId = p.ItemTemplateId,
-            Code = p.ItemTemplate.Code,
-            Name = p.ItemTemplate.Name,
-            ImagePath = p.ItemTemplate.ImagePath,
-            RarityCode = p.ItemTemplate.Rarity.Code,
-            RarityName = p.ItemTemplate.Rarity.Name,
-            RarityColorHex = p.ItemTemplate.Rarity.ColorHex,
-            CategoryCode = p.ItemTemplate.Category.Code,
-            CategoryName = p.ItemTemplate.Category.Name,
-            DropRatePercent = Math.Round(p.DropRate * 100m, 1)
-        }).ToList();
+        return pools
+            .GroupBy(p => p.StageId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(p => new DungeonPossibleDropDto
+                {
+                    ItemTemplateId = p.ItemTemplateId,
+                    Code = p.ItemTemplate.Code,
+                    Name = p.ItemTemplate.Name,
+                    ImagePath = p.ItemTemplate.ImagePath,
+                    RarityCode = p.ItemTemplate.Rarity.Code,
+                    RarityName = p.ItemTemplate.Rarity.Name,
+                    RarityColorHex = p.ItemTemplate.Rarity.ColorHex,
+                    CategoryCode = p.ItemTemplate.Category.Code,
+                    CategoryName = p.ItemTemplate.Category.Name,
+                    DropRatePercent = Math.Round(p.DropRate * 100m, 1)
+                }).ToList());
     }
 
     public async Task<bool> IsBagFullAsync(long playerId, CancellationToken cancellationToken = default)

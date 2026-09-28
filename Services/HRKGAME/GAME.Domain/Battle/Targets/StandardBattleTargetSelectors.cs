@@ -26,6 +26,24 @@ public sealed class AllyRandom2TargetSelector : BattleTargetSelectorBase
         RandomTargets(context.Allies, 2, context.Random);
 }
 
+public sealed class AllyLowestEnergyTargetSelector : BattleTargetSelectorBase
+{
+    public override string TargetTypeCode => BattleCodes.AllyLowestEnergy;
+
+    public override IReadOnlyList<BattleCombatant> Select(BattleTargetContext context)
+    {
+        var target = context.Allies
+            .Where(x => x.IsAlive)
+            .OrderBy(x => x.Energy)
+            .ThenBy(x => x.MaxHp > 0 ? (decimal)x.Hp / x.MaxHp : 0m)
+            .ThenBy(x => x.Position)
+            .ThenBy(x => x.Id)
+            .FirstOrDefault();
+
+        return target == null ? [] : [target];
+    }
+}
+
 public sealed class EnemySingleTargetSelector : BattleTargetSelectorBase
 {
     private static readonly IReadOnlyDictionary<int, int[]> TargetPriorityByActorPosition =
@@ -80,6 +98,61 @@ public sealed class EnemyRandom4TargetSelector : BattleTargetSelectorBase
     public override IReadOnlyList<BattleCombatant> Select(BattleTargetContext context) =>
         RandomTargets(context.Enemies, 4, context.Random);
 }
+
+public sealed class EnemyRandomDistinctNTargetSelector : BattleTargetSelectorBase
+{
+    public override string TargetTypeCode => BattleCodes.EnemyRandomDistinctN;
+
+    public override IReadOnlyList<BattleCombatant> Select(BattleTargetContext context)
+    {
+        var count = context.Effect?.GetInt("TARGET_COUNT", 0) ?? 0;
+        if (count <= 0)
+        {
+            count = context.Effect?.GetInt("N", 3) ?? 3;
+        }
+
+        var livingEnemies = context.Enemies.Where(x => x.IsAlive).ToList();
+        if (livingEnemies.Count <= count)
+        {
+            return livingEnemies;
+        }
+
+        return RandomTargets(livingEnemies, count, context.Random);
+    }
+}
+
+public sealed class EnemyRandom3TargetSelector : BattleTargetSelectorBase
+{
+    public override string TargetTypeCode => "ENEMY_RANDOM_3";
+
+    public override IReadOnlyList<BattleCombatant> Select(BattleTargetContext context)
+    {
+        var livingEnemies = context.Enemies.Where(x => x.IsAlive).ToList();
+        if (livingEnemies.Count <= 3)
+        {
+            return livingEnemies;
+        }
+
+        return RandomTargets(livingEnemies, 3, context.Random);
+    }
+}
+
+
+public sealed class EnemyFrontStraightRowTargetSelector : BattleTargetSelectorBase
+{
+    public override string TargetTypeCode => BattleCodes.EnemyStraightFrontRow;
+    public override IReadOnlyList<BattleCombatant> Select(BattleTargetContext context)
+    {
+        var frontRow = context.Enemies.Where(x => x.Position is 1 or 2).ToList();
+        if (frontRow.Count == 0)
+        {
+            frontRow = context.Enemies.Where(x => x.Position is 3).ToList();
+            return frontRow.Count > 0 ? frontRow : context.Enemies.Where(x => x.Position is 4 or 5).ToList();
+        }
+        return frontRow;
+    }
+}
+
 
 public sealed class EnemyFrontRowTargetSelector : BattleTargetSelectorBase
 {

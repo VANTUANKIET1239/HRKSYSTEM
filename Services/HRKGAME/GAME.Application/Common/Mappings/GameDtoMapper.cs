@@ -365,7 +365,10 @@ namespace GAME.Application.Common.Mappings
         /// <summary>
         /// Map HrkPlayerHero entity sang PlayerHeroDto.
         /// </summary>
-        public static PlayerHeroDto? MapPlayerHero(HrkPlayerHero? ph, HrkHeroStarAuraConfig? explicitAura = null)
+        public static PlayerHeroDto? MapPlayerHero(
+            HrkPlayerHero? ph,
+            HrkHeroStarAuraConfig? explicitAura = null,
+            bool includeSkills = true)
         {
             if (ph == null) return null;
             var ht = ph.HeroTemplate;
@@ -400,10 +403,12 @@ namespace GAME.Application.Common.Mappings
                 IsLocked = ph.IsLocked,
                 IsFavorite = ph.IsFavorite,
                 Stats = HeroStatsHelper.CalculateStats(ph),
-                Skills = ht?.HeroSkills?.OrderBy(hs => hs.SkillOrder)
-                    .Select(hs => MapSkillTemplate(hs.Skill)!)
-                    .Where(s => s != null)
-                    .ToList() ?? new List<SkillTemplateDto>(),
+                Skills = includeSkills
+                    ? ht?.HeroSkills?.OrderBy(hs => hs.SkillOrder)
+                        .Select(hs => MapSkillTemplate(hs.Skill)!)
+                        .Where(s => s != null)
+                        .ToList() ?? new List<SkillTemplateDto>()
+                    : new List<SkillTemplateDto>(),
                 StarAura = MapStarAura(starAuraConfig)
             };
         }

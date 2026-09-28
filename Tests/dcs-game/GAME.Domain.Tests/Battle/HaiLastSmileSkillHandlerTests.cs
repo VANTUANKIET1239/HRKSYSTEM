@@ -515,7 +515,7 @@ public sealed class HaiLastSmileSkillHandlerTests
 
     // 11. BLEED có sẵn được kích nổ với hệ số 130%
     [Fact]
-    public void Preexisting_bleed_is_detonated_for_130_percent_remaining_damage()
+    public void Preexisting_bleed_is_not_detonated_during_ultimate_setup()
     {
         var handler = HaiLastSmileSkillHandler.Create(new DefaultSkillHandler(
             BattleEffectHandlerRegistry.CreateDefault(), BattleTargetSelectorRegistry.CreateDefault()));
@@ -546,11 +546,8 @@ public sealed class HaiLastSmileSkillHandlerTests
 
         var result = handler.Execute(context);
 
-        var detonateEvent = result.Events.FirstOrDefault(x => x.EventType == BattleCodes.BleedDetonated);
-        Assert.NotNull(detonateEvent);
-        // (2 turns * 100) * 1.30 = 260
-        Assert.Equal(260, detonateEvent.Value);
-        Assert.DoesNotContain(target.StatusEffects, x => x.InstanceId == "1:BLEED:2");
+        Assert.DoesNotContain(result.Events, x => x.EventType == BattleCodes.BleedDetonated);
+        Assert.Contains(target.StatusEffects, x => x.InstanceId == "1:BLEED:2");
     }
 
     // 12. BLEED tạo trong chính ultimate không bị kích nổ ngay
@@ -770,16 +767,56 @@ public sealed class HaiLastSmileSkillHandlerTests
             ]
         };
 
-        var exDetonate = Assert.Throws<InvalidOperationException>(() =>
-            handler.Execute(new SkillExecutionContext
-            {
-                Skill = invalidDetonateSkill,
-                Actor = actor,
-                Combatants = [actor, target],
-                Random = new Random(1),
-                Round = 1,
-                Turn = 1
-            }));
-        Assert.Contains("DETONATION_MULTIPLIER", exDetonate.Message);
+        // Detonation is no longer a setup effect. Its required configuration is
+        // evaluated only when an ultimate hit raises Bleed from stack 1 to 2.
+        var detonateResult = handler.Execute(new SkillExecutionContext
+        {
+            Skill = invalidDetonateSkill,
+            Actor = actor,
+            Combatants = [actor, target],
+            Random = new Random(1),
+            Round = 1,
+            Turn = 1
+        });
+        Assert.DoesNotContain(detonateResult.Events, x => x.EventType == BattleCodes.BleedDetonated);
+    }
+
+    [Fact]
+    public void Stackable_bleed_increases_to_two_stacks_and_refreshes_duration()
+    {
+        var handler = new BleedEffectHandler();
+        var actor = CreateHero(1, 0, attack: 200);
+        var target = CreateHero(2, 1, hp: 1000);
+        var skill = CreateBugSlashSkill();
+        var effect = new BattleSkillEffect
+        {
+            EffectTypeCode = BattleCodes.Bleed,
+            TargetTypeCode = BattleCodes.LowestHpPercent,
+            DurationTurns = 2,
+            MaxStacks = 2,
+            Scalings = [new BattleEffectScaling("ATK", 0.18m)],
+            Parameters = Params(
+                BoolParam("STACK_ON_REAPPLY", true),
+                BoolParam("REFRESH_ON_REAPPLY", true),
+                BoolParam("SCALE_ARMOR_IGNORE_WITH_STACKS", true),
+                DecimalParam("ARMOR_IGNORE_PERCENT", 15m))
+        };
+
+        var context = new BattleEffectContext
+        {
+            Effect = effect, Skill = skill, Actor = actor, Target = target,
+            SelectedTargets = [target], Combatants = [actor, target],
+            Random = new Random(1), Round = 1, Turn = 1
+        };
+
+        handler.Apply(context);
+        target.StatusEffects[0].RemainingTurns = 1;
+        var events = handler.Apply(context);
+
+        Assert.Equal(2, target.StatusEffects[0].Stacks);
+        Assert.Equal(2, target.StatusEffects[0].RemainingTurns);
+        Assert.Equal("STATUS_STACK_CHANGED", events[0].EventType);
+        Assert.Equal(1, events[0].PreviousStacks);
+        Assert.Equal(2, events[0].CurrentStacks);
     }
 }

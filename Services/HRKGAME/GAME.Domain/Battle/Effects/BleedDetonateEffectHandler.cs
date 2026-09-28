@@ -25,7 +25,7 @@ public sealed class BleedDetonateEffectHandler : IBattleEffectHandler
         {
             var remainingTicks = status.RemainingTurns;
             var tickDmg = status.Value;
-            var totalRemaining = remainingTicks * tickDmg;
+            var totalRemaining = remainingTicks * tickDmg * status.Stacks;
             var rawDetonate = totalRemaining * multiplier;
 
             var targetDef = BattleStatCalculator.GetEffectiveStat(context.Target, "DEF");
@@ -49,6 +49,7 @@ public sealed class BleedDetonateEffectHandler : IBattleEffectHandler
 
             var hpBefore = context.Target.Hp;
             context.Target.Hp = Math.Max(0, hpBefore - detonateDmg);
+            var actualDamage = hpBefore - context.Target.Hp;
 
             events.Add(new PendingBattleEvent
             {
@@ -58,7 +59,7 @@ public sealed class BleedDetonateEffectHandler : IBattleEffectHandler
                 SkillId = context.Skill.Id,
                 EffectTypeCode = requiredStatus,
                 DamageSchoolCode = school,
-                Value = detonateDmg,
+                Value = actualDamage,
                 HpBefore = hpBefore,
                 HpAfter = context.Target.Hp,
                 IsCrit = isCrit

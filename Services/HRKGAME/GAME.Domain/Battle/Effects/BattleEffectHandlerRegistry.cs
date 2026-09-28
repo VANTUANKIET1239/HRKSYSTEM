@@ -22,6 +22,11 @@ public sealed class BattleEffectHandlerRegistry
             ? turnStart
             : null;
 
+    public ITurnEndEffectHandler? GetTurnEndHandler(string effectTypeCode) =>
+        _handlers.TryGetValue(effectTypeCode, out var handler) && handler is ITurnEndEffectHandler turnEnd
+            ? turnEnd
+            : null;
+
     public static BattleEffectHandlerRegistry CreateDefault() => new IBattleEffectHandler[]
     {
         new DamageEffectHandler(),
@@ -32,7 +37,10 @@ public sealed class BattleEffectHandlerRegistry
         new DamageReductionEffectHandler(), new TauntEffectHandler(), new DamageReflectionEffectHandler(),
         new BleedEffectHandler(), new PanicEffectHandler(),
         new BleedDetonateEffectHandler(), new EnergyChangeEffectHandler(),
-        new RicardoEffectHandler()
+        new ActionBarChangeEffectHandler(),
+        new DispelDebuffEffectHandler(),
+        new RicardoEffectHandler(),
+        new Skills.NghiaPhucPrime.NghiaPhucPrimeReactionHandler()
     }.ToRegistry();
 }
 

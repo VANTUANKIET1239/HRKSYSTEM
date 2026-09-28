@@ -166,10 +166,15 @@ namespace GAME.Infrastructure.Services
 
             foreach (var item in safeItems)
             {
-                Dictionary<string, decimal>? itemStats = null;
+                // Instance attributes are the source of truth for rolled equipment. CurrentStats is
+                // only a denormalized/legacy cache and can be stale after rolling or enhancement.
+                // Always calculate from the loaded instance first so formation/battle stats match
+                // inventory and reward results.
+                Dictionary<string, decimal>? itemStats = _itemStatCalculationService.CalculateCurrentStats(item);
 
-                // Snapshot cache quy tac hien co: neu CurrentStats hop le thi dung, fallback sang calculation service
-                if (!string.IsNullOrWhiteSpace(item.CurrentStats))
+                // Legacy fallback for old inventory rows that have neither instance nor template
+                // attributes available, but still contain a valid CurrentStats snapshot.
+                if ((itemStats == null || itemStats.Count == 0) && !string.IsNullOrWhiteSpace(item.CurrentStats))
                 {
                     try
                     {
@@ -180,11 +185,6 @@ namespace GAME.Infrastructure.Services
                         }
                     }
                     catch { }
-                }
-
-                if ((itemStats == null || itemStats.Count == 0) && item.ItemTemplate != null)
-                {
-                    itemStats = _itemStatCalculationService.CalculateCurrentStats(item.ItemTemplate, item.Enhancement, item.Stars);
                 }
 
                 if (itemStats == null) continue;

@@ -61,10 +61,24 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkDungeonStarRatingConfig> DungeonStarRatingConfigs { get; set; } = null!;
         public DbSet<HrkEquipmentRarityRollConfig> EquipmentRarityRollConfigs { get; set; } = null!;
         public DbSet<HrkPlayerInventoryAttribute> PlayerInventoryAttributes { get; set; } = null!;
+        public DbSet<HrkHeroLevelConfig> HeroLevelConfigs { get; set; } = null!;
+        public DbSet<HrkPlayerLevelConfig> PlayerLevelConfigs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<HrkHeroLevelConfig>(entity =>
+            {
+                entity.ToTable("HRK_HeroLevelConfigs");
+                entity.HasKey(x => x.Level);
+            });
+
+            modelBuilder.Entity<HrkPlayerLevelConfig>(entity =>
+            {
+                entity.ToTable("HRK_PlayerLevelConfigs");
+                entity.HasKey(x => x.Level);
+            });
 
             modelBuilder.Entity<HrkDungeonMap>(entity =>
             {
@@ -593,6 +607,8 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_PlayerHeroes");
                 entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.PlayerId, e.IsActive });
+                entity.HasIndex(e => new { e.PlayerId, e.HeroTemplateId });
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
@@ -613,6 +629,8 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_PlayerInventory");
                 entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.PlayerId, e.IsActive, e.IsEquipped });
+                entity.HasIndex(e => e.EquippedHeroId);
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.AcquiredOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
@@ -737,6 +755,7 @@ namespace GAME.Infrastructure.Data
                 entity.ToTable("HRK_PlayerFormations");
                 entity.HasKey(e => e.Id);
                 entity.HasIndex(e => new { e.PlayerId, e.FormationTemplateId }).IsUnique();
+                entity.HasIndex(e => new { e.PlayerId, e.IsActive, e.IsSelected });
                 entity.Property(e => e.Level).HasDefaultValue(1);
                 entity.Property(e => e.IsSelected).HasDefaultValue(false);
                 entity.Property(e => e.FormationName).HasMaxLength(50);

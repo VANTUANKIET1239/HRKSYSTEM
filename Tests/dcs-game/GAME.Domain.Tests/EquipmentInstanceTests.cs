@@ -118,5 +118,66 @@ namespace GAME.Domain.Tests
             // 100 * (1 + 3 * 0.10) = 130
             Assert.Equal(130m, statsAt3["ATK"]);
         }
+
+        [Fact]
+        public void HeroBattleStats_UseRolledInstanceAttributes_InsteadOfStaleJsonCache()
+        {
+            var itemCalculator = new ItemStatCalculationService();
+            var heroCalculator = new HeroStatCalculationService(itemCalculator);
+            var hero = new HrkPlayerHero
+            {
+                Id = 7,
+                PlayerId = 1,
+                Level = 1,
+                Stars = 1,
+                HeroTemplate = new HrkHeroTemplate
+                {
+                    Id = 70,
+                    Name = "Thanh Thai Aura",
+                    Avatar = "/hero.png",
+                    BaseHp = 750,
+                    BaseAtk = 180,
+                    BaseDef = 52,
+                    BaseSpd = 115,
+                    BaseMagicDamage = 175,
+                    BaseMagicResistance = 58
+                }
+            };
+            var weapon = new HrkPlayerInventory
+            {
+                Id = 99,
+                PlayerId = 1,
+                IsActive = true,
+                IsEquipped = true,
+                EquippedHeroId = hero.Id,
+                CurrentStats = "{\"PHYSICAL_ATK\":1}", // deliberately stale cache
+                Attributes = new List<HrkPlayerInventoryAttribute>
+                {
+                    new()
+                    {
+                        AttributeTypeId = 2,
+                        BaseRolledValue = 300m,
+                        AttributeType = new HrkAttributeType
+                        {
+                            Id = 2,
+                            Code = "PHYSICAL_ATK",
+                            Name = "Physical attack",
+                            IsPercentage = false
+                        }
+                    }
+                }
+            };
+            var equipment = new HrkPlayerEquipment
+            {
+                PlayerId = hero.PlayerId,
+                HeroId = hero.Id,
+                WeaponId = weapon.Id,
+                Weapon = weapon
+            };
+
+            var result = heroCalculator.CalculateStats(hero, equipment);
+
+            Assert.Equal(480, result.FinalStats.Atk);
+        }
     }
 }
