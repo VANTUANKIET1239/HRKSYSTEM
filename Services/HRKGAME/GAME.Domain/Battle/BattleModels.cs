@@ -86,6 +86,32 @@ public static class BattleCodes
     public const string EncouragementDefense = "ENCOURAGEMENT_DEFENSE";
     public const string CelestialProtection = "CELESTIAL_PROTECTION";
     public const string AngelBlessing = "ANGEL_BLESSING";
+
+    // 5 Legendary Heroes Statuses
+    public const string PhongAn = "PHONG_AN";
+    public const string TinChiDanhDu = "TIN_CHI_DANH_DU";
+    public const string LuanDiem = "LUAN_DIEM";
+    public const string CatScratch = "CAT_SCRATCH";
+    public const string DeepCatScratch = "DEEP_CAT_SCRATCH";
+    public const string CatCompanion = "CAT_COMPANION";
+    public const string ChayNgayDi = "CHAY_NGAY_DI";
+
+    // Target Selectors for Legendary Heroes
+    public const string EnemySameVerticalLane = "ENEMY_SAME_VERTICAL_LANE";
+    public const string EnemyFrontRowWithBackRowFallback = "ENEMY_FRONT_ROW_WITH_BACK_ROW_FALLBACK";
+    public const string RandomEligibleAlliesN = "RANDOM_ELIGIBLE_ALLIES_N";
+
+    // 5 Legendary Heroes Skills
+    public const string KietMaiXeoBasic = "KIET_MAI_XEO_BASIC";
+    public const string KietMaiXeoEnergy = "KIET_MAI_XEO_ENERGY";
+    public const string TruongKietGraduationBasic = "TRUONG_KIET_GRADUATION_BASIC";
+    public const string TruongKietGraduationEnergy = "TRUONG_KIET_GRADUATION_ENERGY";
+    public const string QuocNhanGraduationBasic = "QUOC_NHAN_GRADUATION_BASIC";
+    public const string QuocNhanGraduationEnergy = "QUOC_NHAN_GRADUATION_ENERGY";
+    public const string LongLeCatScratchBasic = "LONG_LE_CAT_SCRATCH_BASIC";
+    public const string LongLeCatCompanions = "LONG_LE_CAT_COMPANIONS";
+    public const string QuocNhanRunNowBasic = "QUOC_NHAN_RUN_NOW_BASIC";
+    public const string QuocNhanRunNowEnergy = "QUOC_NHAN_RUN_NOW_ENERGY";
 }
 
 public sealed class BattleSimulationRequest
@@ -111,8 +137,8 @@ public sealed class BattleCombatant
     public int Spd { get; init; }
     public int MagicDamage { get; init; }
     public int MagicResistance { get; init; }
-    public decimal CritChance { get; init; }
-    public decimal CritDamage { get; init; } = 150m;
+    public decimal CritChance { get; set; }
+    public decimal CritDamage { get; set; } = 150m;
     public int Energy { get; set; }
     public int MaxEnergy { get; init; } = 100;
     public required BattleSkill BasicSkill { get; init; }

@@ -10,5 +10,6 @@ namespace Core.RabbitMQ.Interfaces
     public interface IRabbitMqChannel : IAsyncDisposable
     {
         Task<IChannel> GetChannelAsync(CancellationToken ct = default);
+        Task<IChannel> CreateChannelAsync(CancellationToken ct = default);
     }
 }

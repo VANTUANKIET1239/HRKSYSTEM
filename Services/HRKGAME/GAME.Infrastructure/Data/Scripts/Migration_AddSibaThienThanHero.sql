@@ -330,13 +330,14 @@ BEGIN TRY
     INSERT INTO dbo.HRK_SkillEffectParameters (SkillEffectId, ParameterCode, BoolValue, CreatedOn, UpdatedOn)
     VALUES (@EffId, 'CAN_CRIT', 0, SYSUTCDATETIME(), SYSUTCDATETIME());
 
-    -- Effect 5 (EMPOWERED): Refresh Encouragement to 2 turns & grant +15 Energy
+    -- Effect 5 (EMPOWERED): Apply Encouragement to all; existing holders refresh and gain +15 Energy
     INSERT INTO dbo.HRK_SkillEffects (SkillId, EffectTypeId, TargetTypeId, DamageSchoolCode, BaseValue, DurationTurns, ChancePercent, MaxStacks, DisplayOrder, IsActive, CreatedOn, UpdatedOn, ExecutionGroup)
     VALUES ('SIBA_CELESTIAL_PROTECTION', @EnergyChangeEffectTypeId, @AllyAllTargetId, NULL, 15, NULL, 100.00, 1, 5, 1, SYSUTCDATETIME(), SYSUTCDATETIME(), 'EMPOWERED');
     SET @EffId = SCOPE_IDENTITY();
     INSERT INTO dbo.HRK_SkillEffectParameters (SkillEffectId, ParameterCode, StringValue, IntValue, CreatedOn, UpdatedOn)
     VALUES
         (@EffId, 'STATUS_GROUP', 'ENCOURAGEMENT', NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
+        (@EffId, 'BUFF_PERCENT', NULL, 20, SYSUTCDATETIME(), SYSUTCDATETIME()),
         (@EffId, 'REFRESH_DURATION', NULL, 2, SYSUTCDATETIME(), SYSUTCDATETIME()),
         (@EffId, 'EMPOWERED_ENERGY_GAIN', NULL, 15, SYSUTCDATETIME(), SYSUTCDATETIME());
 

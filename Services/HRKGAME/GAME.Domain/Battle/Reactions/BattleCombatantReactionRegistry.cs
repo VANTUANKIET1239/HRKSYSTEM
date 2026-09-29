@@ -14,5 +14,5 @@ public sealed class BattleCombatantReactionRegistry
     public IReadOnlyList<IBattleCombatantReactionHandler> Handlers => _handlers;
 
     public static BattleCombatantReactionRegistry CreateDefault() =>
-        new([new ThanhThaiAuraReactionHandler()]);
+        new([new ThanhThaiAuraReactionHandler(), new CatCombatantReactionHandler()]);
 }

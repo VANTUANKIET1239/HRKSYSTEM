@@ -3,10 +3,12 @@ using GAME.Application.Features.Commands.Inventory.EnhanceEquipment;
 using GAME.Application.Features.Commands.Inventory.ExpandCapacity;
 using GAME.Application.Features.Commands.Inventory.SellItems;
 using GAME.Application.Features.Commands.Inventory.ToggleItemLock;
+using GAME.Application.Features.Commands.Inventory.DowngradeEquipment;
 using GAME.Application.Features.Queries.Inventory;
 using GAME.Application.Features.Queries.Inventory.GetEnhancementConfigs;
 using GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPreview;
 using GAME.Application.Features.Queries.Inventory.GetForgeEquipment;
+using GAME.Application.Features.Queries.Inventory.GetEquipmentDowngradePreview;
 using GAME.Application.Features.Queries.Inventory.GetPlayerEquipment;
 using HRK.GAME.Common;
 using MediatR;
@@ -97,5 +99,13 @@ namespace HRK.GAME.Controllers
             var response = await _mediator.Send(new GetEquipmentEnhancementPreviewQuery(id));
             return HrkOk(response);
         }
+
+        [HttpGet("enhancement/downgrade-preview/{inventoryItemId}")]
+        public async Task<IActionResult> GetDowngradePreview([FromRoute] long inventoryItemId, [FromQuery] int targetLevel)
+            => HrkOk(await _mediator.Send(new GetEquipmentDowngradePreviewQuery(inventoryItemId, targetLevel)));
+
+        [HttpPost("enhancement/downgrade")]
+        public async Task<IActionResult> Downgrade([FromBody] DowngradeEquipmentRequestDto request)
+            => HrkOk(await _mediator.Send(new DowngradeEquipmentCommand(request)));
     }
 }

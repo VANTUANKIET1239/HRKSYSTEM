@@ -118,4 +118,37 @@ namespace GAME.Application.DTOs
         public string? ReasonCode { get; set; }
         public string? Message { get; set; }
     }
+
+    public class DowngradeEquipmentRequestDto
+    {
+        public Guid RequestId { get; set; } = Guid.NewGuid();
+        public long InventoryItemId { get; set; }
+        public int TargetEnhancement { get; set; }
+    }
+
+    public class RefundedMaterialDto
+    {
+        public int ItemTemplateId { get; set; }
+        public string Code { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public string? ImagePath { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    public class EquipmentDowngradePreviewDto
+    {
+        public long InventoryItemId { get; set; }
+        public int CurrentEnhancement { get; set; }
+        public int TargetEnhancement { get; set; }
+        public Dictionary<string, decimal> CurrentStats { get; set; } = new();
+        public Dictionary<string, decimal> NextStats { get; set; } = new();
+        public int CurrentCombatPower { get; set; }
+        public int NextCombatPower { get; set; }
+        public long RefundedGold { get; set; }
+        public List<RefundedMaterialDto> RefundedStones { get; set; } = new();
+        public List<string> NonRefundedResources { get; set; } = new();
+        public bool CanDowngrade { get; set; }
+        public string? ReasonCode { get; set; }
+        public string? Message { get; set; }
+    }
 }

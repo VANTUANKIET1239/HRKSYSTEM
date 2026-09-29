@@ -48,6 +48,14 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkCombatPowerConfig> CombatPowerConfigs { get; set; } = null!;
         public DbSet<HrkHeroRarityUpgradeConfig> HeroRarityUpgradeConfigs { get; set; } = null!;
         public DbSet<HrkHeroStarAuraConfig> HeroStarAuraConfigs { get; set; } = null!;
+        public DbSet<HrkEquipmentDowngradeConfig> EquipmentDowngradeConfigs { get; set; } = null!;
+        public DbSet<HrkEquipmentDowngradeHistory> EquipmentDowngradeHistories { get; set; } = null!;
+        public DbSet<HrkHeroStoneConfig> HeroStoneConfigs { get; set; } = null!;
+        public DbSet<HrkHeroStarUpgradeConfig> HeroStarUpgradeConfigs { get; set; } = null!;
+        public DbSet<HrkPlayerHeroBonusAttribute> PlayerHeroBonusAttributes { get; set; } = null!;
+        public DbSet<HrkHeroStarAttributePool> HeroStarAttributePools { get; set; } = null!;
+        public DbSet<HrkHeroStarUpgradeHistory> HeroStarUpgradeHistories { get; set; } = null!;
+        public DbSet<HrkHeroAcquisitionHistory> HeroAcquisitionHistories { get; set; } = null!;
         public DbSet<HrkAvatarTemplate> AvatarTemplates { get; set; } = null!;
         public DbSet<HrkPlayerCustomAvatar> PlayerCustomAvatars { get; set; } = null!;
         public DbSet<HrkDungeonMap> DungeonMaps { get; set; } = null!;
@@ -1002,6 +1010,88 @@ namespace GAME.Infrastructure.Data
                     .WithMany(p => p.StarAuraConfigs)
                     .HasForeignKey(d => d.HeroTemplateId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkEquipmentDowngradeConfig>(entity =>
+            {
+                entity.ToTable("HRK_EquipmentDowngradeConfigs");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.FromLevel, x.ToLevel }).IsUnique();
+                entity.Property(x => x.GoldRefundPercent).HasPrecision(8, 4);
+                entity.Property(x => x.StoneRefundPercent).HasPrecision(8, 4);
+            });
+
+            modelBuilder.Entity<HrkEquipmentDowngradeHistory>(entity =>
+            {
+                entity.ToTable("HRK_EquipmentDowngradeHistories");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.RequestId).IsUnique();
+                entity.HasIndex(x => new { x.PlayerId, x.PlayerInventoryId });
+                entity.Property(x => x.RefundedMaterialsJson).IsRequired();
+            });
+
+            modelBuilder.Entity<HrkHeroStoneConfig>(entity =>
+            {
+                entity.ToTable("HRK_HeroStoneConfigs");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.HeroTemplateId).IsUnique();
+                entity.HasIndex(x => x.ItemTemplateId).IsUnique();
+            });
+
+            modelBuilder.Entity<HrkHeroStarUpgradeConfig>(entity =>
+            {
+                entity.ToTable("HRK_HeroStarUpgradeConfigs");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new
+                {
+                    x.RarityId,
+                    x.CurrentStar,
+                    x.NextStar
+                }).IsUnique();
+                entity.Property(x => x.GrowthBonusPercent).HasPrecision(10, 6);
+            });
+
+            modelBuilder.Entity<HrkPlayerHeroBonusAttribute>(entity =>
+            {
+                entity.ToTable("HRK_PlayerHeroBonusAttributes");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new
+                {
+                    x.PlayerHeroId,
+                    x.UnlockedAtStar
+                }).IsUnique();
+                entity.Property(x => x.Value).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<HrkHeroStarAttributePool>(entity =>
+            {
+                entity.ToTable("HRK_HeroStarAttributePools");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new
+                {
+                    x.RarityId,
+                    x.AttributeTypeId
+                }).IsUnique();
+                entity.Property(x => x.MinValue).HasPrecision(18, 4);
+                entity.Property(x => x.MaxValue).HasPrecision(18, 4);
+            });
+
+            modelBuilder.Entity<HrkHeroStarUpgradeHistory>(entity =>
+            {
+                entity.ToTable("HRK_HeroStarUpgradeHistories");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.RequestId).IsUnique();
+                entity.HasIndex(x => new { x.PlayerId, x.PlayerHeroId });
+            });
+
+            modelBuilder.Entity<HrkHeroAcquisitionHistory>(entity =>
+            {
+                entity.ToTable("HRK_HeroAcquisitionHistories");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.RequestId).IsUnique();
+                entity.HasIndex(x => new { x.PlayerId, x.HeroTemplateId });
+                entity.Property(x => x.SourceType).HasMaxLength(50);
+                entity.Property(x => x.SourceReferenceId).HasMaxLength(150);
             });
         }
     }

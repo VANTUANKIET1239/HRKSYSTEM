@@ -20,6 +20,24 @@ namespace GAME.Application.DTOs
         public string Winner { get; set; } = null!;
         public BattleInitialStateDto InitialState { get; set; } = new();
         public List<BattleEventDto> Events { get; set; } = new();
+        public List<BattleHeroStatisticsDto> HeroStatistics { get; set; } = new();
+    }
+
+    public class BattleHeroStatisticsDto
+    {
+        public long CombatantId { get; set; }
+        public long SourceHeroId { get; set; }
+        public int Team { get; set; }
+
+        public string HeroName { get; set; } = string.Empty;
+        public string? Avatar { get; set; }
+
+        public long PhysicalDamageDealt { get; set; }
+        public long MagicDamageDealt { get; set; }
+        public long HealingDone { get; set; }
+
+        public long PhysicalDamageTaken { get; set; }
+        public long MagicDamageTaken { get; set; }
     }
 
     public class BattleEventDto

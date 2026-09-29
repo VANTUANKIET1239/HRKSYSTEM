@@ -27,6 +27,15 @@ namespace Core.RabbitMQ.Channel
             return _ch;
         }
 
+        public async Task<IChannel> CreateChannelAsync(CancellationToken ct = default)
+        {
+            var connection = await _conn.GetConnectionAsync(ct);
+            var options = new CreateChannelOptions(
+                publisherConfirmationsEnabled: true,
+                publisherConfirmationTrackingEnabled: true);
+            return await connection.CreateChannelAsync(options, ct);
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (_ch != null) { await _ch.DisposeAsync(); }

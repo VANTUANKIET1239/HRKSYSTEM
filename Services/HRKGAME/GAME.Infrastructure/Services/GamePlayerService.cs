@@ -180,6 +180,54 @@ namespace GAME.Infrastructure.Services
             if (baseHero == null) return null;
 
             var statResult = _heroStatCalculationService.CalculateStats(ph, eq);
+            var starBonusAttributes = await (
+                from bonus in _unitOfWork.ReadOnlyRepository<HrkPlayerHeroBonusAttribute>().Query()
+                join attribute in _unitOfWork.ReadOnlyRepository<HrkAttributeType>().Query()
+                    on bonus.AttributeTypeId equals attribute.Id
+                where bonus.PlayerHeroId == ph.Id
+                orderby bonus.UnlockedAtStar
+                select new HeroBonusAttributeDto
+                {
+                    UnlockedAtStar = bonus.UnlockedAtStar,
+                    Code = attribute.Code,
+                    Name = attribute.Name,
+                    Value = bonus.Value,
+                    IsPercentage = bonus.IsPercentage
+                }).ToListAsync(cancellationToken);
+
+            // CurrentStats already contains star bonus values. Move those values from
+            // the generic growth bucket into a dedicated STAR source so the hero stat
+            // tooltip explains the real origin without changing the calculated total.
+            foreach (var bonusGroup in starBonusAttributes.GroupBy(x => x.Code))
+            {
+                var breakdown = statResult.Breakdowns.FirstOrDefault(x =>
+                    string.Equals(x.StatCode, bonusGroup.Key, StringComparison.OrdinalIgnoreCase));
+                if (breakdown == null) continue;
+
+                var starValue = bonusGroup.Sum(x => x.Value);
+                breakdown.HeroGrowthValue = Math.Max(0, breakdown.HeroGrowthValue - starValue);
+                breakdown.OtherValue += starValue;
+                breakdown.Sources.RemoveAll(x => x.SourceType == "HERO_GROWTH");
+                if (breakdown.HeroGrowthValue > 0)
+                {
+                    breakdown.Sources.Add(new HeroStatSourceDto
+                    {
+                        SourceType = "HERO_GROWTH",
+                        SourceName = "Tăng trưởng cấp",
+                        Value = breakdown.HeroGrowthValue
+                    });
+                }
+
+                foreach (var bonus in bonusGroup)
+                {
+                    breakdown.Sources.Add(new HeroStatSourceDto
+                    {
+                        SourceType = "STAR",
+                        SourceName = $"Tăng sao {bonus.UnlockedAtStar}",
+                        Value = bonus.Value
+                    });
+                }
+            }
 
             return new PlayerHeroDetailDto
             {
@@ -205,6 +253,7 @@ namespace GAME.Infrastructure.Services
                 IsFavorite = baseHero.IsFavorite,
                 Stats = statResult.FinalStats,
                 StatBreakdowns = statResult.Breakdowns,
+                StarBonusAttributes = starBonusAttributes,
                 Skills = baseHero.Skills,
                 Equipment = GameDtoMapper.MapHeroEquipment(eq, ph.Id)
             };

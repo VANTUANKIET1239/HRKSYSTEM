@@ -56,7 +56,9 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
         var isCrit = false;
         if (canCrit && damage > 0)
         {
-            isCrit = (decimal)context.Random.NextDouble() * 100m < actor.CritChance;
+            var critBonus = effect.GetDecimal("CRIT_CHANCE_BONUS_PERCENT", 0m);
+            var effectiveCritChance = actor.CritChance + critBonus;
+            isCrit = (decimal)context.Random.NextDouble() * 100m < effectiveCritChance;
             if (isCrit) damage = Math.Max(1, (int)Math.Round(damage * actor.CritDamage / 100m));
         }
 

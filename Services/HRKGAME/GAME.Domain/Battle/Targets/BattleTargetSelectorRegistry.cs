@@ -35,6 +35,9 @@ public sealed class BattleTargetSelectorRegistry
         new EnemyBackRowTargetSelector(),
         new EnemySameLaneBackRowTargetSelector(),
         new LowestHpPercentTargetSelector(),
-        new AllyLowestHpPreferWithoutStatusTargetSelector()
+        new AllyLowestHpPreferWithoutStatusTargetSelector(),
+        new EnemySameVerticalLaneTargetSelector(),
+        new EnemyFrontRowFallbackTargetSelector(),
+        new RandomEligibleAlliesNTargetSelector()
     });
 }

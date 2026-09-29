@@ -517,7 +517,7 @@ public sealed class SibaThienThanSkillHandlerTests
     }
 
     [Fact]
-    public void EnergySkill_EmpoweredVersion_HealsTeam_RefreshesEncouragement_Grants15Energy_AndConsumes5Stacks()
+    public void EnergySkill_EmpoweredVersion_EncouragesWholeTeam_ButGrantsEnergyOnlyToExistingHolders()
     {
         var handler = CreateHandler();
         var siba = CreateSiba(magicDmg: 200, hp: 500, maxHp: 1000); // 110% of 200 = 220 heal
@@ -560,21 +560,37 @@ public sealed class SibaThienThanSkillHandlerTests
         Assert.Equal(3, healEvents.Count); // Siba, ally1, ally2
         Assert.All(healEvents, h => Assert.Equal(220, h.Value));
 
-        // 2. Only Ally 1 (having Encouragement) gets Encouragement refreshed to 2 turns
+        // 2. Ally 1 already had Encouragement: keep its variant, refresh it, and gain Energy.
         var encStatus = ally1.StatusEffects.FirstOrDefault(s => s.EffectTypeCode == SibaThienThanSkillCodes.StatusOffense);
         Assert.NotNull(encStatus);
         Assert.Equal(2, encStatus.RemainingTurns);
         Assert.Contains(result.Events, e => e.EventType == BattleCodes.StatusRefreshed && e.TargetId == ally1.Id && e.EffectTypeCode == SibaThienThanSkillCodes.StatusOffense);
 
-        // Ally 2 did NOT get Encouragement applied
-        Assert.DoesNotContain(ally2.StatusEffects, s => s.StatusGroup == SibaThienThanSkillCodes.StatusGroupEncouragement);
+        // Ally 2 did not have Encouragement: apply the front-row defensive variant.
+        var ally2Encouragement = ally2.StatusEffects.SingleOrDefault(s => s.StatusGroup == SibaThienThanSkillCodes.StatusGroupEncouragement);
+        Assert.NotNull(ally2Encouragement);
+        Assert.Equal(SibaThienThanSkillCodes.StatusDefense, ally2Encouragement.EffectTypeCode);
+        Assert.Equal(2, ally2Encouragement.RemainingTurns);
+        Assert.Contains(result.Events, e =>
+            e.EventType == "STATUS_APPLIED" &&
+            e.TargetId == ally2.Id &&
+            e.EffectTypeCode == SibaThienThanSkillCodes.StatusDefense &&
+            e.ExecutionGroup == "EMPOWERED");
 
-        // 3. Only Ally 1 receives +15 Energy (10 -> 25)
+        // Siba is also a living back-row ally and receives new offensive Encouragement.
+        var sibaEncouragement = siba.StatusEffects.SingleOrDefault(s => s.StatusGroup == SibaThienThanSkillCodes.StatusGroupEncouragement);
+        Assert.NotNull(sibaEncouragement);
+        Assert.Equal(SibaThienThanSkillCodes.StatusOffense, sibaEncouragement.EffectTypeCode);
+
+        // 3. Only the pre-cast holder receives +15 Energy (10 -> 25).
         Assert.Equal(25, ally1.Energy);
         Assert.Equal(10, ally2.Energy); // Unchanged
+        Assert.Equal(0, siba.Energy); // Newly encouraged, therefore no empowered Energy gain.
         var energyEvt = result.Events.FirstOrDefault(e => e.EventType == BattleCodes.EnergyChanged && e.TargetId == ally1.Id);
         Assert.NotNull(energyEvt);
         Assert.Equal(15, energyEvt.Value);
+        Assert.DoesNotContain(result.Events, e => e.EventType == BattleCodes.EnergyChanged && e.TargetId == ally2.Id);
+        Assert.DoesNotContain(result.Events, e => e.EventType == BattleCodes.EnergyChanged && e.TargetId == siba.Id);
 
         // 4. Consumes 5 Ân Phúc (5 -> 0)
         Assert.Equal(0, siba.GetResource(SibaThienThanSkillCodes.ResourceBlessing, 0));

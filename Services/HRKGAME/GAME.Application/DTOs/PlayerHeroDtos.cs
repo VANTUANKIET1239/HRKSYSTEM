@@ -87,6 +87,7 @@ namespace GAME.Application.DTOs
     {
         public HeroEquipmentDto Equipment { get; set; } = new();
         public List<HeroStatBreakdownDto> StatBreakdowns { get; set; } = new();
+        public List<HeroBonusAttributeDto> StarBonusAttributes { get; set; } = new();
     }
 
     public class EquipHeroItemRequestDto
@@ -111,5 +112,64 @@ namespace GAME.Application.DTOs
     {
         /// <summary>Number of levels to buy. The server caps this at 50.</summary>
         public int Levels { get; set; } = 1;
+    }
+
+    public class SwapHeroEquipmentRequestDto
+    {
+        public long TargetHeroId { get; set; }
+    }
+
+    public class SwapHeroEquipmentResultDto
+    {
+        public PlayerHeroDetailDto SourceHero { get; set; } = null!;
+        public PlayerHeroDetailDto TargetHero { get; set; } = null!;
+    }
+
+    public class StarMaterialRequirementDto
+    {
+        public int ItemTemplateId { get; set; }
+        public string Name { get; set; } = null!;
+        public string? ImagePath { get; set; }
+        public int Required { get; set; }
+        public int Owned { get; set; }
+    }
+
+    public class HeroBonusAttributeDto
+    {
+        public int UnlockedAtStar { get; set; }
+        public string Code { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public decimal Value { get; set; }
+        public bool IsPercentage { get; set; }
+    }
+
+    public class HeroStarUpgradePreviewDto
+    {
+        public long HeroId { get; set; }
+        public int CurrentStar { get; set; }
+        public int NextStar { get; set; }
+        public int CurrentLevel { get; set; }
+        public int MaxStar { get; set; } = 5;
+        public long GoldRequired { get; set; }
+        public long GoldOwned { get; set; }
+        public StarMaterialRequirementDto UniversalStone { get; set; } = new();
+        public StarMaterialRequirementDto HeroStone { get; set; } = new();
+        public CalculatedStatsDto CurrentStats { get; set; } = new();
+        public CalculatedStatsDto NextStats { get; set; } = new();
+        public CalculatedStatsDto StatIncrease { get; set; } = new();
+        public decimal CurrentGrowthRate { get; set; }
+        public decimal NextGrowthRate { get; set; }
+        public List<HeroBonusAttributeDto> CurrentBonusAttributes { get; set; } = new();
+        public bool WillUnlockBonusAttribute { get; set; }
+        public int CurrentCombatPower { get; set; }
+        public int NextCombatPower { get; set; }
+        public bool CanUpgrade { get; set; }
+        public string? ReasonCode { get; set; }
+        public string? Message { get; set; }
+    }
+
+    public class HeroStarUpgradeRequestDto
+    {
+        public Guid RequestId { get; set; }
     }
 }

@@ -2,6 +2,8 @@ using GAME.Application.DTOs;
 using GAME.Application.Features.Commands.PlayerHeroes;
 using GAME.Application.Features.Commands.PlayerHeroes.EquipHeroItem;
 using GAME.Application.Features.Commands.PlayerHeroes.UnequipHeroItem;
+using GAME.Application.Features.Commands.PlayerHeroes.UnequipAllHeroItems;
+using GAME.Application.Features.Commands.PlayerHeroes.SwapHeroEquipment;
 using GAME.Application.Features.Queries.PlayerHeroes;
 using GAME.Application.Interfaces;
 using HRK.GAME.Common;
@@ -18,11 +20,27 @@ namespace HRK.GAME.Controllers
     {
         private readonly IMediator _mediator;
         private readonly IHeroUpgradeService _heroUpgradeService;
+        private readonly IHeroStarUpgradeService _heroStarUpgradeService;
 
-        public PlayerHeroesController(IMediator mediator, IHeroUpgradeService heroUpgradeService)
+        public PlayerHeroesController(IMediator mediator, IHeroUpgradeService heroUpgradeService, IHeroStarUpgradeService heroStarUpgradeService)
         {
             _mediator = mediator;
             _heroUpgradeService = heroUpgradeService;
+            _heroStarUpgradeService = heroStarUpgradeService;
+        }
+
+        [HttpGet("{heroId}/star-upgrade-preview")]
+        public async Task<IActionResult> GetStarUpgradePreview([FromRoute] long heroId, CancellationToken cancellationToken)
+        {
+            try { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<HeroStarUpgradePreviewDto>.SuccessResponse(await _heroStarUpgradeService.PreviewAsync(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException(), heroId, cancellationToken))); }
+            catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<object>.FailResponse(ex.Message, statusCode: 400)); }
+        }
+
+        [HttpPost("{heroId}/star-upgrade")]
+        public async Task<IActionResult> StarUpgrade([FromRoute] long heroId, [FromBody] HeroStarUpgradeRequestDto request, CancellationToken cancellationToken)
+        {
+            try { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<HeroStarUpgradePreviewDto>.SuccessResponse(await _heroStarUpgradeService.UpgradeAsync(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException(), heroId, request.RequestId, cancellationToken), "Tăng sao thành công.")); }
+            catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<object>.FailResponse(ex.Message, statusCode: 400)); }
         }
 
         [HttpGet("list")]
@@ -83,6 +101,20 @@ namespace HRK.GAME.Controllers
         public async Task<IActionResult> UnequipHeroItem([FromRoute] long heroId, [FromRoute] string slotCode)
         {
             var response = await _mediator.Send(new UnequipHeroItemCommand(heroId, slotCode));
+            return HrkOk(response);
+        }
+
+        [HttpDelete("{heroId}/equipment")]
+        public async Task<IActionResult> UnequipAllHeroItems([FromRoute] long heroId)
+        {
+            var response = await _mediator.Send(new UnequipAllHeroItemsCommand(heroId));
+            return HrkOk(response);
+        }
+
+        [HttpPost("{heroId}/equipment/swap")]
+        public async Task<IActionResult> SwapHeroEquipment([FromRoute] long heroId, [FromBody] SwapHeroEquipmentRequestDto request)
+        {
+            var response = await _mediator.Send(new SwapHeroEquipmentCommand(heroId, request));
             return HrkOk(response);
         }
     }

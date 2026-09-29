@@ -393,6 +393,7 @@ public sealed class SibaThienThanSkillHandler : ISkillHandler
         // 4. Empowered branch (if was snapshot with >= 5 stacks)
         if (isEmpowered)
         {
+
             // 4a. Heal all living allies: 110% Magic Damage of Siba
             var empoweredHealEffect = effects.FirstOrDefault(e =>
                 e.EffectTypeCode.Equals(BattleCodes.Heal, StringComparison.OrdinalIgnoreCase) &&
@@ -429,25 +430,29 @@ public sealed class SibaThienThanSkillHandler : ISkillHandler
                 });
             }
 
-            // 4b & 4c. Refresh Encouragement to 2 turns and grant +15 Energy to snapshotted allies with Encouragement
+            // 4b & 4c. Apply Encouragement to the whole living team. Allies who already
+            // had Encouragement in the pre-cast snapshot keep their variant, refresh it,
+            // and gain Energy. Newly encouraged allies get the variant for their current row.
             var empoweredEncEffect = effects.FirstOrDefault(e =>
                 (string.Equals(e.ExecutionGroup, "EMPOWERED", StringComparison.OrdinalIgnoreCase) || e.DisplayOrder == 5) &&
                 string.Equals(e.GetString(SibaThienThanSkillCodes.ParamStatusGroup), SibaThienThanSkillCodes.StatusGroupEncouragement, StringComparison.OrdinalIgnoreCase));
 
             var refreshDuration = empoweredEncEffect?.GetInt(SibaThienThanSkillCodes.ParamRefreshDuration, 2) ?? 2;
             var empEnergyGain = empoweredEncEffect?.GetInt(SibaThienThanSkillCodes.ParamEmpoweredEnergyGain, 15) ?? 15;
+            var configuredBuffValue = empoweredEncEffect?.BaseValue ?? 0m;
+            var buffPercent = empoweredEncEffect?.GetInt(SibaThienThanSkillCodes.ParamBuffPercent, 20)
+                ?? (configuredBuffValue != 0m ? configuredBuffValue : 20m);
+            var encouragementSnapshotIds = alliesWithEncouragement.Select(x => x.Id).ToHashSet();
 
-            foreach (var ally in alliesWithEncouragement)
+            foreach (var ally in livingAllies)
             {
-                if (!ally.IsAlive) continue;
-
                 var encStatus = ally.StatusEffects.FirstOrDefault(s =>
                     (s.RemainingTurns > 0 || s.RemainingTurns == -1) &&
                     (s.EffectTypeCode.Equals(SibaThienThanSkillCodes.StatusOffense, StringComparison.OrdinalIgnoreCase) ||
                      s.EffectTypeCode.Equals(SibaThienThanSkillCodes.StatusDefense, StringComparison.OrdinalIgnoreCase) ||
                      (!string.IsNullOrEmpty(s.StatusGroup) && s.StatusGroup.Equals(SibaThienThanSkillCodes.StatusGroupEncouragement, StringComparison.OrdinalIgnoreCase))));
 
-                if (encStatus != null)
+                if (encouragementSnapshotIds.Contains(ally.Id) && encStatus != null)
                 {
                     encStatus.RemainingTurns = refreshDuration; // Exactly 2 turns
                     result.Events.Add(new PendingBattleEvent
@@ -464,26 +469,76 @@ public sealed class SibaThienThanSkillHandler : ISkillHandler
                         StatusInstanceId = encStatus.InstanceId,
                         ExecutionGroup = "EMPOWERED"
                     });
+
+                    // Only allies who had Encouragement before this cast gain Energy.
+                    var eBefore = ally.Energy;
+                    ally.Energy = Math.Clamp(ally.Energy + empEnergyGain, 0, ally.MaxEnergy);
+
+                    result.Events.Add(new PendingBattleEvent
+                    {
+                        EventType = BattleCodes.EnergyChanged,
+                        ActorId = context.Actor.Id,
+                        TargetId = ally.Id,
+                        SkillId = context.Skill.Id,
+                        EffectTypeCode = BattleCodes.EnergyChange,
+                        Value = ally.Energy - eBefore,
+                        EnergyBefore = eBefore,
+                        EnergyAfter = ally.Energy,
+                        TimelineOffsetMs = 1900,
+                        PhaseCode = "IMPACT",
+                        ExecutionGroup = "EMPOWERED"
+                    });
                 }
-
-                // Grant +15 Energy
-                var eBefore = ally.Energy;
-                ally.Energy = Math.Clamp(ally.Energy + empEnergyGain, 0, ally.MaxEnergy);
-
-                result.Events.Add(new PendingBattleEvent
+                else
                 {
-                    EventType = BattleCodes.EnergyChanged,
-                    ActorId = context.Actor.Id,
-                    TargetId = ally.Id,
-                    SkillId = context.Skill.Id,
-                    EffectTypeCode = BattleCodes.EnergyChange,
-                    Value = ally.Energy - eBefore,
-                    EnergyBefore = eBefore,
-                    EnergyAfter = ally.Energy,
-                    TimelineOffsetMs = 1900,
-                    PhaseCode = "IMPACT",
-                    ExecutionGroup = "EMPOWERED"
-                });
+                    var isBackRow = ally.Position is 2 or 4;
+                    var variant = isBackRow
+                        ? SibaThienThanSkillCodes.StatusOffense
+                        : SibaThienThanSkillCodes.StatusDefense;
+                    var statMods = BuildEncouragementModifiers(variant, buffPercent);
+                    var instanceId = $"{context.Actor.Id}:{context.Skill.Id}:{variant}:{ally.Id}";
+
+                    // Remove expired or malformed members of the mutually-exclusive group
+                    // before applying the row-appropriate variant.
+                    ally.StatusEffects.RemoveAll(s =>
+                        s.EffectTypeCode.Equals(SibaThienThanSkillCodes.StatusOffense, StringComparison.OrdinalIgnoreCase) ||
+                        s.EffectTypeCode.Equals(SibaThienThanSkillCodes.StatusDefense, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(s.StatusGroup) &&
+                         s.StatusGroup.Equals(SibaThienThanSkillCodes.StatusGroupEncouragement, StringComparison.OrdinalIgnoreCase)));
+
+                    var newStatus = new BattleStatusEffect
+                    {
+                        InstanceId = instanceId,
+                        EffectTypeCode = variant,
+                        StatusGroup = SibaThienThanSkillCodes.StatusGroupEncouragement,
+                        SourceSkillId = context.Skill.Id,
+                        SourceHeroId = context.Actor.Id,
+                        RemainingTurns = refreshDuration,
+                        AppliedTurn = context.Turn,
+                        MaxStacks = 1,
+                        Stacks = 1,
+                        Value = buffPercent,
+                        Dispellable = true,
+                        StatModifiers = statMods
+                    };
+                    ally.StatusEffects.Add(newStatus);
+
+                    result.Events.Add(new PendingBattleEvent
+                    {
+                        EventType = "STATUS_APPLIED",
+                        ActorId = context.Actor.Id,
+                        TargetId = ally.Id,
+                        SkillId = context.Skill.Id,
+                        EffectTypeCode = variant,
+                        Value = (int)Math.Round(buffPercent),
+                        RemainingTurns = refreshDuration,
+                        StatModifiers = newStatus.StatModifiers,
+                        TimelineOffsetMs = 1600,
+                        PhaseCode = "IMPACT",
+                        StatusInstanceId = instanceId,
+                        ExecutionGroup = "EMPOWERED"
+                    });
+                }
             }
 
             // 5. Consume 5 Ân Phúc stacks

@@ -1,4 +1,6 @@
-﻿using Core.RabbitMQ.Entities;
+using System.Text;
+using System.Text.Json;
+using Core.RabbitMQ.Entities;
 using Core.RabbitMQ.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,123 +8,167 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System.Text;
-using System.Text.Json;
 
 namespace Hrk.Messaging.RabbitMq.Consuming;
 
-/// <summary>
-/// Generic async consumer (v7 API) with manual acks and retry→DLQ.
-/// </summary>
 public sealed class ConsumerBackgroundService<TMessage, THandler> : BackgroundService
     where THandler : class, IMessageHandler<TMessage>
 {
-    private readonly ILogger<ConsumerBackgroundService<TMessage, THandler>> _log;
+    private readonly ILogger<ConsumerBackgroundService<TMessage, THandler>> _logger;
     private readonly IRabbitMqChannel _channelFactory;
-    private readonly RabbitMqOptions _opt;
-    private readonly IServiceProvider _sp;
-    private readonly string _queue;
+    private readonly RabbitMqOptions.ConsumerOptions _consumerOptions;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly string _consumerName;
     private IChannel? _channel;
     private string? _consumerTag;
 
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public ConsumerBackgroundService(
-        ILogger<ConsumerBackgroundService<TMessage, THandler>> log,
+        ILogger<ConsumerBackgroundService<TMessage, THandler>> logger,
         IRabbitMqChannel channelFactory,
         IOptions<RabbitMqOptions> options,
-        IServiceProvider sp,
-        string queue)
+        IServiceProvider serviceProvider,
+        string consumerName)
     {
-        _log = log;
+        _logger = logger;
         _channelFactory = channelFactory;
-        _opt = options.Value;
-        _sp = sp;
-        _queue = queue;
+        _consumerOptions = options.Value.ResolveConsumer(consumerName);
+        _serviceProvider = serviceProvider;
+        _consumerName = consumerName;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _channel = await _channelFactory.GetChannelAsync(stoppingToken);
-        await _channel.BasicQosAsync(0, _opt.Consumer.PrefetchCount, global: false, cancellationToken: stoppingToken);
+        // Each consumer owns a channel. RabbitMQ channels must not be shared by
+        // independent consumers or disposed by another hosted service.
+        _channel = await _channelFactory.CreateChannelAsync(stoppingToken);
+        await _channel.BasicQosAsync(
+            0,
+            _consumerOptions.PrefetchCount,
+            global: false,
+            cancellationToken: stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
-        consumer.ReceivedAsync += async (_, ea) =>
+        consumer.ReceivedAsync += async (_, delivery) =>
         {
             try
             {
-                var json = Encoding.UTF8.GetString(ea.Body.ToArray());
-                var msg = JsonSerializer.Deserialize<TMessage>(json, JsonOpts)!;
+                var json = Encoding.UTF8.GetString(delivery.Body.ToArray());
+                var message = JsonSerializer.Deserialize<TMessage>(json, JsonOptions)
+                    ?? throw new JsonException($"Cannot deserialize {typeof(TMessage).Name}.");
 
-                using var scope = _sp.CreateScope();
+                using var scope = _serviceProvider.CreateScope();
                 var handler = scope.ServiceProvider.GetRequiredService<THandler>();
-                await handler.HandleAsync(msg, stoppingToken);
+                await handler.HandleAsync(message, stoppingToken);
 
-                await _channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
+                await _channel.BasicAckAsync(
+                    delivery.DeliveryTag,
+                    multiple: false,
+                    cancellationToken: stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                try { await _channel!.BasicAckAsync(ea.DeliveryTag, false, stoppingToken); } catch { /* ignore */ }
+                // Host shutdown: leave the delivery unacked so RabbitMQ can redeliver it.
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                _log.LogError(ex, "Handler failed — routing to retry (once) then DLQ.");
-
-                var headers = ea.BasicProperties?.Headers ?? new Dictionary<string, object?>();
-                var body = ea.Body.ToArray();
-
-                if (!headers.ContainsKey("x-retried"))
-                {
-                    var props = new BasicProperties
-                    {
-                        Headers = new Dictionary<string, object?>(headers) { ["x-retried"] = 1 },
-                        ContentType = ea.BasicProperties?.ContentType ?? "application/json",
-                        DeliveryMode = DeliveryModes.Persistent
-                    };
-
-                    await _channel!.BasicPublishAsync(_opt.Consumer.RetryExchange, "retry", true, props, body, stoppingToken);
-                    await _channel.BasicAckAsync(ea.DeliveryTag, false, stoppingToken);
-                }
-                else
-                {
-                    var props = new BasicProperties
-                    {
-                        ContentType = ea.BasicProperties?.ContentType ?? "application/json",
-                        DeliveryMode = DeliveryModes.Persistent
-                    };
-
-                    await _channel!.BasicPublishAsync(_opt.Consumer.DlqExchange, "dlq", true, props, body, stoppingToken);
-                    await _channel.BasicAckAsync(ea.DeliveryTag, false, stoppingToken);
-                }
+                await HandleFailureAsync(delivery, exception, stoppingToken);
             }
         };
 
         _consumerTag = await _channel.BasicConsumeAsync(
-            queue: _queue,
+            queue: _consumerOptions.Queue,
             autoAck: false,
             consumer: consumer,
             cancellationToken: stoppingToken);
 
-        _log.LogInformation("Started consumer on '{Queue}' (tag {Tag}).", _queue, _consumerTag);
+        _logger.LogInformation(
+            "Started RabbitMQ consumer {ConsumerName} on queue {Queue} with tag {Tag}.",
+            _consumerName,
+            _consumerOptions.Queue,
+            _consumerTag);
+    }
+
+    private async Task HandleFailureAsync(
+        BasicDeliverEventArgs delivery,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogError(
+            exception,
+            "RabbitMQ consumer {ConsumerName} failed to handle message {MessageId}.",
+            _consumerName,
+            delivery.BasicProperties?.MessageId);
+
+        var existingHeaders = delivery.BasicProperties?.Headers
+            ?? new Dictionary<string, object?>();
+        var wasRetried = existingHeaders.ContainsKey("x-retried");
+        var properties = new BasicProperties
+        {
+            Headers = new Dictionary<string, object?>(existingHeaders),
+            ContentType = delivery.BasicProperties?.ContentType ?? "application/json",
+            DeliveryMode = DeliveryModes.Persistent,
+            MessageId = delivery.BasicProperties?.MessageId,
+            Type = delivery.BasicProperties?.Type,
+            Timestamp = delivery.BasicProperties?.Timestamp ?? new AmqpTimestamp(0)
+        };
+
+        if (!wasRetried)
+        {
+            properties.Headers["x-retried"] = 1;
+            await _channel!.BasicPublishAsync(
+                _consumerOptions.ResolveRetryExchange(),
+                delivery.RoutingKey,
+                mandatory: true,
+                basicProperties: properties,
+                body: delivery.Body,
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            await _channel!.BasicPublishAsync(
+                _consumerOptions.ResolveDlqExchange(),
+                "dlq",
+                mandatory: true,
+                basicProperties: properties,
+                body: delivery.Body,
+                cancellationToken: cancellationToken);
+        }
+
+        await _channel!.BasicAckAsync(
+            delivery.DeliveryTag,
+            multiple: false,
+            cancellationToken: cancellationToken);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         try
         {
-            if (_channel is not null && !string.IsNullOrEmpty(_consumerTag))
-                await _channel.BasicCancelAsync(_consumerTag,false, cancellationToken);
+            if (_channel is not null && !string.IsNullOrWhiteSpace(_consumerTag))
+            {
+                await _channel.BasicCancelAsync(_consumerTag, false, cancellationToken);
+            }
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            _log.LogWarning(ex, "Failed to cancel consumer cleanly.");
+            _logger.LogWarning(
+                exception,
+                "Failed to stop RabbitMQ consumer {ConsumerName} cleanly.",
+                _consumerName);
         }
+
         await base.StopAsync(cancellationToken);
     }
 
-    public async override void Dispose()
+    public override void Dispose()
     {
-        try { if (_channel is not null) await _channel.DisposeAsync(); } catch { /* ignore */ }
+        if (_channel is not null)
+        {
+            _channel.Dispose();
+        }
+
         base.Dispose();
     }
 }

@@ -259,6 +259,39 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
                     }
                 }
 
+                // Coordinate post-action reactions generically
+                var actionCompletedCtx = new BattleActionCompletedReactionContext
+                {
+                    Actor = actor,
+                    Skill = skill,
+                    ExecutionResult = execution,
+                    ActionId = actionId,
+                    Round = round,
+                    Turn = turn,
+                    Combatants = heroes,
+                    Random = random,
+                    TimelineOffsetMs = skill.Animation.TotalDurationMs,
+                    PhaseCode = "RECOVERY"
+                };
+                foreach (var reactionHandler in _combatantReactions.Handlers)
+                {
+                    var postEvts = reactionHandler.OnActionCompleted(actor, actionCompletedCtx);
+                    foreach (var pevt in postEvts)
+                    {
+                        Add(pevt.EventType, round, turn, pevt.ActorId, pevt.TargetId, pevt.SkillId,
+                            pevt.EffectTypeCode, pevt.DamageSchoolCode, pevt.Value, pevt.HpBefore, pevt.HpAfter,
+                            energyBefore: pevt.EnergyBefore, energyAfter: pevt.EnergyAfter,
+                            isCrit: pevt.IsCrit, remainingTurns: pevt.RemainingTurns,
+                            previousStacks: pevt.PreviousStacks, currentStacks: pevt.CurrentStacks, maxStacks: pevt.MaxStacks,
+                            castSequence: turn, timelineOffsetMs: pevt.TimelineOffsetMs ?? skill.Animation.TotalDurationMs,
+                            phaseCode: pevt.PhaseCode ?? "RECOVERY",
+                            statModifiers: pevt.StatModifiers, executionGroup: pevt.ExecutionGroup, hitIndex: pevt.HitIndex,
+                            resourceCode: pevt.ResourceCode, previousValue: pevt.PreviousValue, currentValue: pevt.CurrentValue,
+                            reasonCode: pevt.ReasonCode, actionId: pevt.ActionId ?? actionId,
+                            statusInstanceId: pevt.StatusInstanceId);
+                    }
+                }
+
                 if (request.BasicAttackHitEnergyGain > 0)
                 {
                     var impactTiming = GetEventTiming(skill, "DAMAGE");

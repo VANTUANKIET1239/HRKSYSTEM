@@ -71,12 +71,15 @@ namespace GAME.Infrastructure.Services
                 Combatants = combatants
             });
 
+            var heroStats = BattleStatisticsCalculator.Calculate(initialState, simulation.Events);
+
             return new StartBattleResultDto
             {
                 BattleId = initialState.BattleId,
                 RandomSeed = seed,
                 Winner = simulation.Winner,
                 InitialState = initialState,
+                HeroStatistics = heroStats,
                 Events = simulation.Events.Select(e => new BattleEventDto
                 {
                     Sequence = e.Sequence, Round = e.Round, Turn = e.Turn, EventType = e.EventType,

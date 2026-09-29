@@ -1,54 +1,120 @@
-﻿using Core.RabbitMQ.Entities;
+using Core.RabbitMQ.Entities;
 using Core.RabbitMQ.Interfaces;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Core.RabbitMQ.Entology
+namespace Core.RabbitMQ.Entology;
+
+public sealed class RabbitMqTopology : IRabbitMqTopology
 {
-    public sealed class RabbitMqTopology : IRabbitMqTopology
-    {
-        private readonly RabbitMqOptions _opt;
-        private readonly IRabbitMqChannel _channel;
+    private readonly RabbitMqOptions _options;
+    private readonly IRabbitMqChannel _channel;
 
-        public RabbitMqTopology(IOptions<RabbitMqOptions> opts, IRabbitMqChannel channel)
+    public RabbitMqTopology(IOptions<RabbitMqOptions> options, IRabbitMqChannel channel)
+    {
+        _options = options.Value;
+        _channel = channel;
+    }
+
+    public async Task EnsureAsync(CancellationToken ct = default)
+    {
+        var channel = await _channel.GetChannelAsync(ct);
+
+        foreach (var (_, publisher) in _options.GetPublishers())
         {
-            _opt = opts.Value;
-            _channel = channel;
+            await channel.ExchangeDeclareAsync(
+                publisher.Exchange,
+                publisher.ExchangeType,
+                durable: publisher.Durable,
+                autoDelete: false,
+                cancellationToken: ct);
         }
 
-        public async Task EnsureAsync(CancellationToken ct = default)
+        foreach (var (_, consumer) in _options.GetConsumers())
         {
-            var ch = await _channel.GetChannelAsync(ct);
+            await EnsureConsumerAsync(channel, consumer, ct);
+        }
+    }
 
-            // main exchange + queue
-            await ch.ExchangeDeclareAsync(_opt.Publisher.Exchange, _opt.Publisher.ExchangeType,
-                durable: _opt.Publisher.Durable, autoDelete: false, cancellationToken: ct);
+    private async Task EnsureConsumerAsync(
+        IChannel channel,
+        RabbitMqOptions.ConsumerOptions consumer,
+        CancellationToken ct)
+    {
+        var legacyPublisher = _options.Publisher;
+        var exchange = consumer.ResolveExchange(legacyPublisher);
+        var routingKeys = consumer.ResolveRoutingKeys(legacyPublisher);
+        var retryExchange = consumer.ResolveRetryExchange();
+        var retryQueue = consumer.ResolveRetryQueue();
+        var dlqExchange = consumer.ResolveDlqExchange();
+        var dlqQueue = consumer.ResolveDlqQueue();
 
-            await ch.QueueDeclareAsync(_opt.Consumer.Queue, durable: true, exclusive: false, autoDelete: false, cancellationToken: ct);
+        await channel.ExchangeDeclareAsync(
+            exchange,
+            consumer.ExchangeType,
+            durable: consumer.ExchangeDurable,
+            autoDelete: false,
+            cancellationToken: ct);
 
-            await ch.QueueBindAsync(_opt.Consumer.Queue, _opt.Publisher.Exchange,
-                routingKey: _opt.Publisher.DefaultRoutingKey, cancellationToken: ct);
+        await channel.QueueDeclareAsync(
+            consumer.Queue,
+            durable: consumer.QueueDurable,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: ct);
 
-            // DLQ
-            await ch.ExchangeDeclareAsync(_opt.Consumer.DlqExchange, ExchangeType.Direct, durable: true, cancellationToken: ct);
-            await ch.QueueDeclareAsync(_opt.Consumer.DlqQueue, durable: true, exclusive: false, autoDelete: false, cancellationToken: ct);
-            await ch.QueueBindAsync(_opt.Consumer.DlqQueue, _opt.Consumer.DlqExchange, routingKey: "dlq", cancellationToken: ct);
+        foreach (var routingKey in routingKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await channel.QueueBindAsync(
+                consumer.Queue,
+                exchange,
+                routingKey,
+                cancellationToken: ct);
+        }
 
-            // Retry (TTL → dead-letter back to main)
-            await ch.ExchangeDeclareAsync(_opt.Consumer.RetryExchange, ExchangeType.Direct, durable: true, cancellationToken: ct);
-            await ch.QueueDeclareAsync(_opt.Consumer.RetryQueue, durable: true, exclusive: false, autoDelete: false,
-                arguments: new Dictionary<string, object?>
-                {
-                    ["x-message-ttl"] = _opt.Consumer.RetryDelayMs,
-                    ["x-dead-letter-exchange"] = _opt.Publisher.Exchange,
-                    ["x-dead-letter-routing-key"] = _opt.Publisher.DefaultRoutingKey
-                }, cancellationToken: ct);
-            await ch.QueueBindAsync(_opt.Consumer.RetryQueue, _opt.Consumer.RetryExchange, routingKey: "retry", cancellationToken: ct);
+        await channel.ExchangeDeclareAsync(
+            dlqExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+        await channel.QueueDeclareAsync(
+            dlqQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            cancellationToken: ct);
+        await channel.QueueBindAsync(
+            dlqQueue,
+            dlqExchange,
+            routingKey: "dlq",
+            cancellationToken: ct);
+
+        await channel.ExchangeDeclareAsync(
+            retryExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+        await channel.QueueDeclareAsync(
+            retryQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                ["x-message-ttl"] = consumer.RetryDelayMs,
+                ["x-dead-letter-exchange"] = exchange
+            },
+            cancellationToken: ct);
+
+        foreach (var routingKey in routingKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await channel.QueueBindAsync(
+                retryQueue,
+                retryExchange,
+                routingKey,
+                cancellationToken: ct);
         }
     }
 }

@@ -18,6 +18,11 @@ using GAME.Domain.Battle.Skills.ChuanMen;
 using GAME.Domain.Battle.Skills.ThanhThaiAura;
 using GAME.Domain.Battle.Skills.NghiaPhucPrime;
 using GAME.Domain.Battle.Skills.SibaThienThan;
+using GAME.Domain.Battle.Skills.KietMaiXeo;
+using GAME.Domain.Battle.Skills.TruongKietGraduation;
+using GAME.Domain.Battle.Skills.QuocNhanGraduation;
+using GAME.Domain.Battle.Skills.LongLeCat;
+using GAME.Domain.Battle.Skills.QuocNhanRunNow;
 using GAME.Domain.Battle.Reactions;
 using GAME.Domain.Battle.Targets;
 using Microsoft.Data.SqlClient;
@@ -56,7 +61,7 @@ namespace HRK.GAME.Configuration
             services.AddDatabase<GameDbContext>(configuration);
 
             services.AddScoped<IDbConnection>(sp =>
-                new SqlConnection(configuration.GetConnectionString(Core.Common.Constants.Common.Constants.CORE_CONSTANTS.DefaultConnection) 
+                new SqlConnection(configuration.GetConnectionString(Core.Common.Constants.Common.Constants.CORE_CONSTANTS.DefaultConnection)
                                  ?? configuration["Database:ConnectionString"]));
         }
 
@@ -97,6 +102,8 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IGameFeatureConfigService, GameFeatureConfigService>();
             services.AddScoped<ICombatPowerService, CombatPowerService>();
             services.AddScoped<IHeroUpgradeService, HeroUpgradeService>();
+            services.AddScoped<IHeroProgressionStatService, HeroProgressionStatService>();
+            services.AddScoped<IHeroStarUpgradeService, HeroStarUpgradeService>();
 
             // Domain Services & Infrastructure abstractions (DDD)
             services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
@@ -146,6 +153,9 @@ namespace HRK.GAME.Configuration
             services.AddSingleton<IBattleTargetSelector, EnemySameLaneBackRowTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, LowestHpPercentTargetSelector>();
             services.AddSingleton<IBattleTargetSelector, AllyLowestHpPreferWithoutStatusTargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, EnemySameVerticalLaneTargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, EnemyFrontRowFallbackTargetSelector>();
+            services.AddSingleton<IBattleTargetSelector, RandomEligibleAlliesNTargetSelector>();
             services.AddSingleton<BattleTargetSelectorRegistry>();
         }
 
@@ -158,14 +168,23 @@ namespace HRK.GAME.Configuration
             services.AddSingleton<ISkillHandler, ThanhThaiAuraSkillHandler>();
             services.AddSingleton<ISkillHandler, NghiaPhucPrimeSkillHandler>();
             services.AddSingleton<ISkillHandler, SibaThienThanSkillHandler>();
+            services.AddSingleton<ISkillHandler, KietMaiXeoSkillHandler>();
+            services.AddSingleton<ISkillHandler, TruongKietGraduationSkillHandler>();
+            services.AddSingleton<ISkillHandler, QuocNhanGraduationSkillHandler>();
+            services.AddSingleton<ISkillHandler, LongLeCatSkillHandler>();
+            services.AddSingleton<ISkillHandler, QuocNhanRunNowSkillHandler>();
             services.AddSingleton<SkillHandlerRegistry>();
         }
 
         private static void AddBattleReactionHandlers(IServiceCollection services)
         {
             services.AddSingleton<IBattleStatusReactionHandler, RicardoStatusReactionHandler>();
+            services.AddSingleton<IBattleStatusReactionHandler, TinChiDanhDuReactionHandler>();
+            services.AddSingleton<IBattleStatusReactionHandler>(_ => new CatScratchReactionHandler(BattleCodes.CatScratch));
+            services.AddSingleton<IBattleStatusReactionHandler>(_ => new CatScratchReactionHandler(BattleCodes.DeepCatScratch));
             services.AddSingleton<BattleStatusReactionHandlerRegistry>();
             services.AddSingleton<IBattleCombatantReactionHandler, ThanhThaiAuraReactionHandler>();
+            services.AddSingleton<IBattleCombatantReactionHandler, CatCombatantReactionHandler>();
             services.AddSingleton<BattleCombatantReactionRegistry>();
             services.AddSingleton<IBattleSkillSelectionStrategy, ThanhThaiAuraSkillSelectionStrategy>();
             services.AddSingleton<BattleSkillSelectionStrategyRegistry>();

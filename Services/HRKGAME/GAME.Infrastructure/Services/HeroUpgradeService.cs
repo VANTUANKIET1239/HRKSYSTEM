@@ -12,22 +12,26 @@ namespace GAME.Infrastructure.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
         private readonly ILevelExperienceService _levelExperienceService;
+        private readonly IHeroProgressionStatService _progressionStats;
         private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public HeroUpgradeService(
             IUnitOfWork unitOfWork,
             IGamePlayerService gamePlayerService,
-            ILevelExperienceService levelExperienceService)
+            ILevelExperienceService levelExperienceService,
+            IHeroProgressionStatService progressionStats)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
             _levelExperienceService = levelExperienceService;
+            _progressionStats = progressionStats;
         }
 
         public async Task<HeroUpgradePreviewDto> GetPreviewAsync(string userId, long heroId, CancellationToken cancellationToken = default)
         {
             var (_, hero, config) = await LoadHeroAsync(userId, heroId, cancellationToken);
-            return BuildPreview(hero, config);
+            var starBonus = await GetStarBonusAsync(hero, cancellationToken);
+            return BuildPreview(hero, config, starBonus);
         }
 
         public async Task<PlayerHeroDetailDto> UpgradeAsync(string userId, long heroId, int levels, CancellationToken cancellationToken = default)
@@ -52,8 +56,8 @@ namespace GAME.Infrastructure.Services
             if (!wallet.HasEnoughGold(goldCost)) throw new InvalidOperationException("Khong du Vang de nang cap vo tuong.");
             if (wallet.UpgradeMaterials < materialCost) throw new InvalidOperationException("Khong du Da nang cap vo tuong.");
 
-            var baseStats = GetHeroOnlyStats(hero, config, hero.Level);
-            var nextStats = GetHeroOnlyStats(hero, config, hero.Level + actualLevels);
+            var starBonus = await GetStarBonusAsync(hero, cancellationToken);
+            var nextStats = _progressionStats.Calculate(hero.HeroTemplate, hero.Level + actualLevels, config.StatGrowthRate, starBonus);
             wallet.DeductGold(goldCost);
             wallet.UpgradeMaterials -= materialCost;
             wallet.UpdatedOn = DateTime.UtcNow;
@@ -86,46 +90,34 @@ namespace GAME.Infrastructure.Services
             return (player, hero, config);
         }
 
-        private static HeroUpgradePreviewDto BuildPreview(HrkPlayerHero hero, HrkHeroRarityUpgradeConfig config)
+        private HeroUpgradePreviewDto BuildPreview(HrkPlayerHero hero, HrkHeroRarityUpgradeConfig config, decimal starBonus)
         {
             var nextLevel = Math.Min(hero.Level + 1, config.MaxLevel);
-            var current = GetHeroOnlyStats(hero, config, hero.Level);
-            var next = GetHeroOnlyStats(hero, config, nextLevel);
+            var current = _progressionStats.Calculate(hero.HeroTemplate, hero.Level, config.StatGrowthRate, starBonus);
+            var next = _progressionStats.Calculate(hero.HeroTemplate, nextLevel, config.StatGrowthRate, starBonus);
             return new HeroUpgradePreviewDto
             {
-                HeroId = hero.Id, CurrentLevel = hero.Level, NextLevel = nextLevel, MaxLevel = config.MaxLevel,
+                HeroId = hero.Id,
+                CurrentLevel = hero.Level,
+                NextLevel = nextLevel,
+                MaxLevel = config.MaxLevel,
                 GoldCost = hero.Level >= config.MaxLevel ? 0 : GetGoldCost(hero.Level, config),
                 MaterialCost = hero.Level >= config.MaxLevel ? 0 : GetMaterialCost(hero.Level, config),
-                CurrentStats = current, NextStats = next, StatIncrease = Subtract(next, current)
+                CurrentStats = current,
+                NextStats = next,
+                StatIncrease = _progressionStats.Subtract(next, current)
             };
+        }
+
+        private async Task<decimal> GetStarBonusAsync(HrkPlayerHero hero, CancellationToken ct)
+        {
+            if (hero.Stars <= 1) return 0m;
+            return await _unitOfWork.ReadOnlyRepository<HrkHeroStarUpgradeConfig>().Query()
+                .Where(x => x.RarityId == hero.HeroTemplate.RarityId && x.NextStar == hero.Stars && x.IsEnabled)
+                .Select(x => x.GrowthBonusPercent).FirstOrDefaultAsync(ct);
         }
 
         private static long GetGoldCost(int currentLevel, HrkHeroRarityUpgradeConfig c) => c.BaseGoldCost + (long)Math.Max(0, currentLevel - 1) * c.GoldCostPerLevel;
         private static int GetMaterialCost(int currentLevel, HrkHeroRarityUpgradeConfig c) => c.BaseMaterialCost + Math.Max(0, currentLevel - 1) * c.MaterialCostPerLevel;
-        private static CalculatedStatsDto GetHeroOnlyStats(HrkPlayerHero hero, HrkHeroRarityUpgradeConfig c, int level)
-        {
-            var t = hero.HeroTemplate;
-            var multiplier = 1m + Math.Max(0, level - 1) * c.StatGrowthRate;
-            return new CalculatedStatsDto
-            {
-                Hp = (int)Math.Round(t.BaseHp * multiplier, MidpointRounding.AwayFromZero),
-                Atk = (int)Math.Round(t.BaseAtk * multiplier, MidpointRounding.AwayFromZero),
-                Def = (int)Math.Round(t.BaseDef * multiplier, MidpointRounding.AwayFromZero),
-                Spd = (int)Math.Round(t.BaseSpd * multiplier, MidpointRounding.AwayFromZero),
-                Crit = Math.Round(t.BaseCrit * multiplier, 2), CritDmg = Math.Round(t.BaseCritDmg * multiplier, 2),
-                Lifesteal = Math.Round(t.BaseLifesteal * multiplier, 2), Accuracy = Math.Round(t.BaseAccuracy * multiplier, 2),
-                Resistance = Math.Round(t.BaseResistance * multiplier, 2),
-                MagicDamage = (int)Math.Round(t.BaseMagicDamage * multiplier, MidpointRounding.AwayFromZero),
-                MagicResistance = (int)Math.Round(t.BaseMagicResistance * multiplier, MidpointRounding.AwayFromZero)
-            };
-        }
-
-        private static CalculatedStatsDto Subtract(CalculatedStatsDto a, CalculatedStatsDto b) => new()
-        {
-            Hp = a.Hp - b.Hp, Atk = a.Atk - b.Atk, Def = a.Def - b.Def, Spd = a.Spd - b.Spd,
-            Crit = a.Crit - b.Crit, CritDmg = a.CritDmg - b.CritDmg, Lifesteal = a.Lifesteal - b.Lifesteal,
-            Accuracy = a.Accuracy - b.Accuracy, Resistance = a.Resistance - b.Resistance,
-            MagicDamage = a.MagicDamage - b.MagicDamage, MagicResistance = a.MagicResistance - b.MagicResistance
-        };
     }
 }

@@ -13,5 +13,10 @@ public sealed class BattleStatusReactionHandlerRegistry
         _handlers.TryGetValue(effectTypeCode, out var handler) ? handler : null;
 
     public static BattleStatusReactionHandlerRegistry CreateDefault() =>
-        new([new RicardoStatusReactionHandler()]);
+        new([
+            new RicardoStatusReactionHandler(),
+            new TinChiDanhDuReactionHandler(),
+            new CatScratchReactionHandler(BattleCodes.CatScratch),
+            new CatScratchReactionHandler(BattleCodes.DeepCatScratch)
+        ]);
 }

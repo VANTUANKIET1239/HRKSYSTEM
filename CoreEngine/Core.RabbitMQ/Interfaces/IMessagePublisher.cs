@@ -8,6 +8,12 @@ namespace Core.RabbitMQ.Interfaces
 {
     public interface IMessagePublisher
     {
-        public Task PublishJsonAsync<T>(T message, string? routingKey = null, CancellationToken ct = default);
+        Task PublishJsonAsync<T>(T message, string? routingKey = null, CancellationToken ct = default);
+
+        Task PublishJsonAsync<T>(
+            string publisherName,
+            T message,
+            string? routingKey = null,
+            CancellationToken ct = default);
     }
 }
