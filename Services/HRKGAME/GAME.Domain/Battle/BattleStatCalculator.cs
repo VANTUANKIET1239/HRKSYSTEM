@@ -2,6 +2,12 @@ namespace GAME.Domain.Battle;
 
 public static class BattleStatCalculator
 {
+    public static int MitigateDamage(decimal rawDamage, decimal defense, decimal constant)
+    {
+        if (constant <= 0m) throw new ArgumentOutOfRangeException(nameof(constant));
+        return Math.Max(1, (int)Math.Round(rawDamage * constant / (constant + Math.Max(0m, defense))));
+    }
+
     public static decimal GetEffectiveStat(BattleCombatant hero, string code)
     {
         var baseValue = code.ToUpperInvariant() switch

@@ -133,7 +133,7 @@ public sealed class BleedEffectHandler : IBattleEffectHandler, ITurnStartEffectH
             ? Math.Max(0m, targetDef * (100m - armorIgnorePercent) / 100m)
             : targetDef;
 
-        var damage = Math.Max(1, (int)Math.Round(status.Value * status.Stacks * 100m / (100m + effectiveDef)));
+        var damage = BattleStatCalculator.MitigateDamage(status.Value * status.Stacks, effectiveDef, actor.DefenseMitigationConstant);
 
         var isCrit = false;
         if (status.CanCrit)

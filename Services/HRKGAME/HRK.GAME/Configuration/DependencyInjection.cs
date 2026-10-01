@@ -86,6 +86,8 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IFormationStatService, FormationStatService>();
             services.AddScoped<IFormationService, FormationService>();
             services.AddScoped<IBattleService, BattleService>();
+            services.AddScoped<IBattleLabService, BattleLabService>();
+            services.AddScoped<BattleLabBuildResolver>();
             services.AddScoped<IDungeonStarService, DungeonStarService>();
             services.AddScoped<IDungeonRewardService, DungeonRewardService>();
             services.AddScoped<IDungeonEquipmentRewardPolicy, DungeonEquipmentRewardPolicy>();
@@ -104,6 +106,16 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IHeroUpgradeService, HeroUpgradeService>();
             services.AddScoped<IHeroProgressionStatService, HeroProgressionStatService>();
             services.AddScoped<IHeroStarUpgradeService, HeroStarUpgradeService>();
+
+            services.AddScoped<TowerOperationRunner>();
+            services.AddScoped<TowerBattleExecutor>();
+            services.AddScoped<TowerRewardService>();
+            // Event & Tower Climb Services
+            services.AddScoped<IEventPeriodService, EventPeriodService>();
+            services.AddScoped<ITowerClimbService, TowerClimbService>();
+            services.AddScoped<ITowerQuickClimbService, TowerQuickClimbService>();
+            services.Configure<TowerWorkerOptions>(configuration.GetSection("TowerWorker"));
+            services.AddHostedService<TowerQuickClimbWorker>();
 
             // Domain Services & Infrastructure abstractions (DDD)
             services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();

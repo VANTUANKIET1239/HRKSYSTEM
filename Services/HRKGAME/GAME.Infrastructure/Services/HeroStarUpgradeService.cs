@@ -1,4 +1,5 @@
 using Core.Common.Repositories;
+using GAME.Application.Common;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
@@ -37,7 +38,8 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
         string userId,
         long heroId,
         Guid requestId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? materialType = null)
     {
         if (requestId == Guid.Empty)
         {
@@ -79,15 +81,14 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
 
                 wallet.DeductGold(data.Config.GoldCost);
 
+                var useHeroStone = HeroStarMaterialPolicy.UseHeroStone(
+                    materialType, preview.UniversalStone, preview.HeroStone);
+                var material = useHeroStone ? preview.HeroStone : preview.UniversalStone;
+
                 await ConsumeMaterialAsync(
                     data.Player.Id,
-                    data.Config.UniversalStarStoneItemTemplateId,
-                    data.Config.UniversalStarStoneQuantity,
-                    cancellationToken);
-                await ConsumeMaterialAsync(
-                    data.Player.Id,
-                    data.StoneConfig.ItemTemplateId,
-                    data.Config.HeroStoneQuantity,
+                    material.ItemTemplateId,
+                    material.Required,
                     cancellationToken);
 
                 var rolledAttributes = new List<HeroBonusAttributeDto>();
@@ -135,9 +136,9 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
                         NewStar = data.Config.NextStar,
                         GoldCost = data.Config.GoldCost,
                         UniversalStoneQuantity =
-                            data.Config.UniversalStarStoneQuantity,
+                            useHeroStone ? 0 : data.Config.UniversalStarStoneQuantity,
                         HeroStoneItemTemplateId = data.StoneConfig.ItemTemplateId,
-                        HeroStoneQuantity = data.Config.HeroStoneQuantity,
+                        HeroStoneQuantity = useHeroStone ? data.Config.HeroStoneQuantity : 0,
                         RolledAttributesJson = JsonSerializer.Serialize(
                             rolledAttributes)
                     });
@@ -291,18 +292,16 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
                 nextStats, cancellationToken)
         };
 
-        preview.CanUpgrade =
-            wallet.Gold >= data.Config.GoldCost &&
-            universalStone.Owned >= universalStone.Required &&
-            heroStone.Owned >= heroStone.Required;
+        preview.CanUpgrade = HeroStarMaterialPolicy.CanUpgrade(
+            wallet.Gold, data.Config.GoldCost, universalStone, heroStone);
 
         if (!preview.CanUpgrade)
         {
             preview.ReasonCode = "INSUFFICIENT_RESOURCES";
             preview.Message = BuildMissingResourceMessage(
                 wallet.Gold < data.Config.GoldCost,
-                universalStone.Owned < universalStone.Required,
-                heroStone.Owned < heroStone.Required);
+                !HeroStarMaterialPolicy.IsEnough(universalStone),
+                !HeroStarMaterialPolicy.IsEnough(heroStone));
         }
 
         return preview;
@@ -456,29 +455,7 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
                 "Pool thuộc tính sao đang trống.");
         }
 
-        var seedBytes = seed.ToByteArray()
-            .Concat(BitConverter.GetBytes(offset))
-            .ToArray();
-        var hash = BitConverter.ToUInt32(SHA256.HashData(seedBytes), 0);
-        var totalWeight = pool.Sum(x => Math.Max(1, x.Weight));
-        var weightCursor = (int)(hash % (uint)totalWeight);
-        var selected = pool[0];
-
-        foreach (var entry in pool)
-        {
-            weightCursor -= Math.Max(1, entry.Weight);
-            if (weightCursor < 0)
-            {
-                selected = entry;
-                break;
-            }
-        }
-
-        var fraction = hash % 10001 / 10000m;
-        var value = Math.Round(
-            selected.MinValue +
-            (selected.MaxValue - selected.MinValue) * fraction,
-            2);
+        var (selected, value) = HeroStarRollCalculator.Roll(pool, seed, offset);
 
         await _unitOfWork.Repository<HrkPlayerHeroBonusAttribute>()
             .AddAsync(new HrkPlayerHeroBonusAttribute
@@ -515,8 +492,8 @@ public class HeroStarUpgradeService : IHeroStarUpgradeService
     {
         var missing = new List<string>();
         if (missingGold) missing.Add("vàng");
-        if (missingUniversalStone) missing.Add("Đá Tăng Sao");
-        if (missingHeroStone) missing.Add("đá nhân vật");
+        if (missingUniversalStone && missingHeroStone)
+            missing.Add("đủ một trong hai loại: Đá Tăng Sao hoặc đá nhân vật");
         return "Thiếu " + string.Join(", ", missing);
     }
 

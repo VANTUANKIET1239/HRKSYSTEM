@@ -116,6 +116,7 @@ public static class BattleCodes
 
 public sealed class BattleSimulationRequest
 {
+    public decimal DefenseMitigationConstant { get; init; } = 1000m;
     public int RandomSeed { get; init; }
     public int MaxRounds { get; init; } = 100;
     public int BasicAttackEnergyGain { get; init; } = 25;
@@ -125,6 +126,8 @@ public sealed class BattleSimulationRequest
 
 public sealed class BattleCombatant
 {
+    // Battle-wide rule copied onto simulation-owned combatants, not a hero stat.
+    public decimal DefenseMitigationConstant { get; set; } = 1000m;
     public long Id { get; init; }
     public long SourceHeroId { get; init; }
     public int Team { get; init; }

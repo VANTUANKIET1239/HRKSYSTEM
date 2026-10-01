@@ -71,6 +71,18 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkPlayerInventoryAttribute> PlayerInventoryAttributes { get; set; } = null!;
         public DbSet<HrkHeroLevelConfig> HeroLevelConfigs { get; set; } = null!;
         public DbSet<HrkPlayerLevelConfig> PlayerLevelConfigs { get; set; } = null!;
+        public DbSet<HrkGameEvent> GameEvents { get; set; } = null!;
+        public DbSet<HrkEventPeriod> EventPeriods { get; set; } = null!;
+        public DbSet<HrkPlayerEventPeriodProgress> PlayerEventPeriodProgresses { get; set; } = null!;
+        public DbSet<HrkPlayerEventAllTimeRecord> PlayerEventAllTimeRecords { get; set; } = null!;
+        public DbSet<HrkPlayerTowerRun> PlayerTowerRuns { get; set; } = null!;
+        public DbSet<HrkTowerFloor> TowerFloors { get; set; } = null!;
+        public DbSet<HrkTowerFloorEnemy> TowerFloorEnemies { get; set; } = null!;
+        public DbSet<HrkTowerChestConfig> TowerChestConfigs { get; set; } = null!;
+        public DbSet<HrkPlayerEventRewardClaim> PlayerEventRewardClaims { get; set; } = null!;
+        public DbSet<HrkPlayerPendingReward> PlayerPendingRewards { get; set; } = null!;
+        public DbSet<HrkTowerQuickClimbJob> TowerQuickClimbJobs { get; set; } = null!;
+        public DbSet<HrkPlayerTowerBattle> PlayerTowerBattles { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1092,6 +1104,159 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(x => new { x.PlayerId, x.HeroTemplateId });
                 entity.Property(x => x.SourceType).HasMaxLength(50);
                 entity.Property(x => x.SourceReferenceId).HasMaxLength(150);
+            });
+
+            // Campaign Events & Tower Climb System
+            modelBuilder.Entity<HrkGameEvent>(entity =>
+            {
+                entity.ToTable("HRK_GameEvents");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.Code).IsUnique();
+                entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.EventType).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(500);
+                entity.Property(x => x.BannerImagePath).HasMaxLength(500).IsRequired();
+                entity.Property(x => x.Icon).HasMaxLength(100);
+                entity.Property(x => x.ResetType).HasMaxLength(30).HasDefaultValue("DAILY");
+                entity.Property(x => x.TimeZoneId).HasMaxLength(50).HasDefaultValue("Asia/Ho_Chi_Minh");
+                entity.Property(x => x.LifeConsumeMode).HasMaxLength(30).HasDefaultValue("ON_DEFEAT");
+                entity.Property(x => x.InitialLives).HasDefaultValue(3);
+                entity.Property(x => x.IsOpen).HasDefaultValue(true);
+            });
+
+            modelBuilder.Entity<HrkEventPeriod>(entity =>
+            {
+                entity.ToTable("HRK_EventPeriods");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.EventId, x.PeriodKey }).IsUnique();
+                entity.Property(x => x.PeriodKey).HasMaxLength(50).IsRequired();
+                entity.HasOne(x => x.Event).WithMany(x => x.Periods).HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkPlayerEventPeriodProgress>(entity =>
+            {
+                entity.ToTable("HRK_PlayerEventPeriodProgresses");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.EventId, x.EventPeriodId }).IsUnique();
+                entity.Property(x => x.PeriodKey).HasMaxLength(50).IsRequired();
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany(x => x.PlayerProgresses).HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkPlayerEventAllTimeRecord>(entity =>
+            {
+                entity.ToTable("HRK_PlayerEventAllTimeRecords");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.EventId }).IsUnique();
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkPlayerTowerRun>(entity =>
+            {
+                entity.ToTable("HRK_PlayerTowerRuns");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.EventPeriodId, x.RunNumber });
+                entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkTowerFloor>(entity =>
+            {
+                entity.ToTable("HRK_TowerFloors");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.EventId, x.FloorNumber }).IsUnique();
+                entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.FloorType).HasMaxLength(30).IsRequired().HasDefaultValue("NORMAL");
+                entity.Property(x => x.BackgroundPath).HasMaxLength(500);
+                entity.Property(x => x.StatMultiplier).HasPrecision(8, 4).HasDefaultValue(1.0m);
+                entity.Property(x => x.HpMultiplier).HasPrecision(8, 4).HasDefaultValue(1.0m);
+                entity.Property(x => x.AtkMultiplier).HasPrecision(8, 4).HasDefaultValue(1.0m);
+                entity.Property(x => x.DefMultiplier).HasPrecision(8, 4).HasDefaultValue(1.0m);
+                entity.HasOne(x => x.Event).WithMany(x => x.Floors).HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.RepresentativeHeroTemplate).WithMany().HasForeignKey(x => x.RepresentativeHeroTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkTowerFloorEnemy>(entity =>
+            {
+                entity.ToTable("HRK_TowerFloorEnemies");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.TowerFloorId, x.Position }).IsUnique();
+                entity.Property(x => x.DisplayName).HasMaxLength(150);
+                entity.Property(x => x.ImagePath).HasMaxLength(500);
+                entity.Property(x => x.StatMultiplier).HasPrecision(8, 4).HasDefaultValue(1.0m);
+                entity.HasOne(x => x.TowerFloor).WithMany(x => x.Enemies).HasForeignKey(x => x.TowerFloorId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.HeroTemplate).WithMany().HasForeignKey(x => x.HeroTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkTowerChestConfig>(entity =>
+            {
+                entity.ToTable("HRK_TowerChestConfigs");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.EventId, x.FloorNumber }).IsUnique();
+                entity.Property(x => x.ChestName).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.ChestIcon).HasMaxLength(100);
+                entity.Property(x => x.Description).HasMaxLength(500);
+                entity.HasOne(x => x.Event).WithMany(x => x.Chests).HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.GuaranteedItemTemplate).WithMany().HasForeignKey(x => x.GuaranteedItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HrkPlayerEventRewardClaim>(entity =>
+            {
+                entity.ToTable("HRK_PlayerEventRewardClaims");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.EventPeriodId, x.ClaimType, x.TargetId }).IsUnique();
+                entity.Property(x => x.ClaimType).HasMaxLength(30).IsRequired();
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkPlayerPendingReward>(entity =>
+            {
+                entity.ToTable("HRK_PlayerPendingRewards");
+                entity.HasIndex(x => new { x.PlayerId, x.EventPeriodId, x.SourceRefId })
+                    .IsUnique().HasDatabaseName("UX_TowerPending_Milestone")
+                    .HasFilter("[SourceType] = 'UNCLAIMED_MILESTONE_CHEST'");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.Status });
+                entity.Property(x => x.SourceType).HasMaxLength(30).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(255).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(30).IsRequired().HasDefaultValue("PENDING");
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkTowerQuickClimbJob>(entity =>
+            {
+                entity.ToTable("HRK_TowerQuickClimbJobs");
+                entity.HasIndex(x => x.PlayerId).IsUnique().HasDatabaseName("UX_TowerJob_ActivePlayer")
+                    .HasFilter("[Status] IN ('QUEUED', 'PROCESSING')");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.JobId).IsUnique();
+                entity.HasIndex(x => new { x.PlayerId, x.Status });
+                entity.Property(x => x.JobId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+                entity.Property(x => x.StopReason).HasMaxLength(50);
+                entity.Property(x => x.FormationCode).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.WorkerId).HasMaxLength(100);
+                entity.Property(x => x.LastBattleId).HasMaxLength(64);
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<HrkPlayerTowerBattle>(entity =>
+            {
+                entity.ToTable("HRK_PlayerTowerBattles");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.BattleId).IsUnique();
+                entity.HasIndex(x => new { x.PlayerId, x.EventPeriodId, x.FloorNumber });
+                entity.Property(x => x.BattleId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Result).HasMaxLength(20).IsRequired();
+                entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

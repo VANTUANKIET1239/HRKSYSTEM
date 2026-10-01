@@ -135,7 +135,7 @@ public sealed class BattleSimulationEngineTests
         var enemy = Hero(3, 1, hp: 10000, defense: 100, speed: 50);
         var result = Run(actor, ally, enemy);
         var damage = result.Events.First(x => x.EventType == "DAMAGE" && x.ActorId == ally.Id);
-        Assert.Equal(667, damage.Value); // 1000 * 100 / (100 + 50)
+        Assert.Equal(952, damage.Value); // 1000 * 1000 / (1000 + 50)
     }
 
     [Fact]

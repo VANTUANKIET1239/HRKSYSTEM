@@ -50,7 +50,7 @@ public sealed class DamageEffectHandler : IBattleEffectHandler
 
         var damage = school.Equals(BattleCodes.True, StringComparison.OrdinalIgnoreCase)
             ? Math.Max(1, (int)Math.Round(rawDamage))
-            : Math.Max(1, (int)Math.Round(rawDamage * 100m / (100m + Math.Max(0m, defense))));
+            : BattleStatCalculator.MitigateDamage(rawDamage, defense, target.DefenseMitigationConstant);
 
         var canCrit = effect.GetBool("CAN_CRIT", true);
         var isCrit = false;

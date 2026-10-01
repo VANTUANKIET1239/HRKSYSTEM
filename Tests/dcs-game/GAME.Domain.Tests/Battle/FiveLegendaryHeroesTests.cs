@@ -321,13 +321,12 @@ public sealed class FiveLegendaryHeroesTests
         var damageEvents = result.Events.Where(e => e.EventType == "DAMAGE").ToList();
         Assert.Equal(3, damageEvents.Count);
 
-        // 3 stacks -> +36% damage bonus. Base hit = 70 * 1.36 = 95.2
-        // Hits 1 & 2: DEF = 100 -> damage = 95.2 * 100 / (100 + 100) = 47.6 -> 48
-        Assert.Equal(48, damageEvents[0].Value);
-        Assert.Equal(48, damageEvents[1].Value);
+        // K=1000: round(70 * 1000 / 1100) = 64; then +36% = 87.
+        Assert.Equal(87, damageEvents[0].Value);
+        Assert.Equal(87, damageEvents[1].Value);
 
-        // Hit 3: DEF ignored 20% -> effective DEF = 80 -> damage = 95.2 * 100 / (100 + 80) = 52.88 -> 53
-        Assert.Equal(53, damageEvents[2].Value);
+        // Last hit ignores 20% DEF: round(70 * 1000 / 1080) = 65; then +36% = 88.
+        Assert.Equal(88, damageEvents[2].Value);
         Assert.True(damageEvents[2].Value > damageEvents[0].Value);
     }
 

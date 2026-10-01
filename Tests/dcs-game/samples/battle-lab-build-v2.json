@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "settings": {
+    "seed": 1,
+    "count": 100,
+    "maxRounds": 50,
+    "defenseConstant": 1000,
+    "left": [
+      {
+        "heroTemplateId": 12,
+        "position": 1,
+        "mode": "BUILD",
+        "build": { "level": 40, "stars": 5, "auraTier": 4, "rollSeed": 42, "equipment": [] }
+      }
+    ],
+    "right": [
+      {
+        "heroTemplateId": 6,
+        "position": 1,
+        "mode": "CUSTOM",
+        "stats": { "hp": 19549, "atk": 2876, "def": 1244, "spd": 137,
+          "crit": 13, "critDmg": 150, "magicDamage": 1741, "magicResistance": 1125 }
+      }
+    ]
+  }
+}

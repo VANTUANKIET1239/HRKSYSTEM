@@ -39,7 +39,7 @@ namespace HRK.GAME.Controllers
         [HttpPost("{heroId}/star-upgrade")]
         public async Task<IActionResult> StarUpgrade([FromRoute] long heroId, [FromBody] HeroStarUpgradeRequestDto request, CancellationToken cancellationToken)
         {
-            try { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<HeroStarUpgradePreviewDto>.SuccessResponse(await _heroStarUpgradeService.UpgradeAsync(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException(), heroId, request.RequestId, cancellationToken), "Tăng sao thành công.")); }
+            try { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<HeroStarUpgradePreviewDto>.SuccessResponse(await _heroStarUpgradeService.UpgradeAsync(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException(), heroId, request.RequestId, cancellationToken, request.MaterialType), "Tăng sao thành công.")); }
             catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { return HrkOk(Core.Common.Entity.MyCompany.Shared.Responses.BaseResponse<object>.FailResponse(ex.Message, statusCode: 400)); }
         }
 

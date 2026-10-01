@@ -59,13 +59,14 @@ namespace GAME.Infrastructure.Services
                 throw new InvalidOperationException("The enemy formation has no active heroes.");
 
             var seed = request.RandomSeed ?? System.Random.Shared.Next(1, int.MaxValue);
-            var combatants = initialState.LeftTeam.Select(h => MapCombatant(h, 0, initialEnergy, maxEnergy))
-                .Concat(initialState.RightTeam.Select(h => MapCombatant(h, 1, initialEnergy, maxEnergy)))
+            var combatants = initialState.LeftTeam.Select(h => BattleCombatantMapper.Map(h, 0, initialEnergy, maxEnergy))
+                .Concat(initialState.RightTeam.Select(h => BattleCombatantMapper.Map(h, 1, initialEnergy, maxEnergy)))
                 .ToList();
             var simulation = _battleSimulationEngine.Simulate(new BattleSimulationRequest
             {
                 RandomSeed = seed,
                 MaxRounds = maxRounds,
+                DefenseMitigationConstant = BattleMitigationConfig.Read(battleConfigs),
                 BasicAttackEnergyGain = basicEnergyGain,
                 BasicAttackHitEnergyGain = basicHitEnergyGain,
                 Combatants = combatants
@@ -73,82 +74,9 @@ namespace GAME.Infrastructure.Services
 
             var heroStats = BattleStatisticsCalculator.Calculate(initialState, simulation.Events);
 
-            return new StartBattleResultDto
-            {
-                BattleId = initialState.BattleId,
-                RandomSeed = seed,
-                Winner = simulation.Winner,
-                InitialState = initialState,
-                HeroStatistics = heroStats,
-                Events = simulation.Events.Select(e => new BattleEventDto
-                {
-                    Sequence = e.Sequence, Round = e.Round, Turn = e.Turn, EventType = e.EventType,
-                    ActorId = e.ActorId, TargetId = e.TargetId, SkillId = e.SkillId,
-                    EffectTypeCode = e.EffectTypeCode, DamageSchoolCode = e.DamageSchoolCode,
-                    Value = e.Value, HpBefore = e.HpBefore, HpAfter = e.HpAfter,
-                    EnergyBefore = e.EnergyBefore, EnergyAfter = e.EnergyAfter,
-                    IsCrit = e.IsCrit, RemainingTurns = e.RemainingTurns,
-                    PreviousStacks = e.PreviousStacks, CurrentStacks = e.CurrentStacks, MaxStacks = e.MaxStacks,
-                    CastSequence = e.CastSequence, TimelineOffsetMs = e.TimelineOffsetMs,
-                    PhaseCode = e.PhaseCode,
-                    ExecutionGroup = e.ExecutionGroup,
-                    HitIndex = e.HitIndex,
-                    ResourceCode = e.ResourceCode,
-                    PreviousValue = e.PreviousValue,
-                    CurrentValue = e.CurrentValue,
-                    ReasonCode = e.ReasonCode,
-                    ActionId = e.ActionId,
-                    StatusInstanceId = e.StatusInstanceId,
-                    SourceHeroId = e.SourceHeroId,
-                    OriginalDamage = e.OriginalDamage,
-                    RedirectRequested = e.RedirectRequested,
-                    RedirectActual = e.RedirectActual,
-                    AllyDamageAfterRedirect = e.AllyDamageAfterRedirect,
-                    GuardianHpBefore = e.GuardianHpBefore,
-                    GuardianHpAfter = e.GuardianHpAfter,
-                    StatModifiers = e.StatModifiers.Select(m => new BattleStatModifierDto
-                    {
-                        AttributeCode = m.AttributeCode,
-                        AttributeName = m.AttributeName,
-                        ValueType = m.ValueType,
-                        Value = m.Value
-                    }).ToList()
-                }).ToList()
-            };
+            return BattleResultMapper.Map(initialState.BattleId, initialState, simulation, seed, heroStats);
         }
 
-
-        private BattleCombatant MapCombatant(PlayerHeroDto hero, int team, int initialEnergy, int maxEnergy)
-        {
-            var activeSkills = hero.Skills.Where(s => s != null).ToList();
-            var basic = activeSkills.SingleOrDefault(s => s.SkillTypeCode == BattleCodes.Normal)
-                ?? throw new InvalidOperationException($"Hero {hero.Name} must have exactly one active NORMAL skill.");
-            var energySkills = activeSkills.Where(s => s.SkillTypeCode == BattleCodes.Energy).ToList();
-            if (energySkills.Count > 1)
-                throw new InvalidOperationException($"Hero {hero.Name} can have at most one active ENERGY skill.");
-
-            return new BattleCombatant
-            {
-                Id = team == 0 ? hero.Id : -hero.Id,
-                SourceHeroId = hero.Id,
-                Team = team,
-                Position = hero.Position ?? 1,
-                Name = hero.Name,
-                MaxHp = hero.Stats.Hp,
-                Hp = hero.Stats.Hp,
-                Atk = hero.Stats.Atk,
-                Def = hero.Stats.Def,
-                Spd = hero.Stats.Spd,
-                MagicDamage = hero.Stats.MagicDamage,
-                MagicResistance = hero.Stats.MagicResistance,
-                CritChance = hero.Stats.Crit,
-                CritDamage = hero.Stats.CritDmg,
-                Energy = initialEnergy,
-                MaxEnergy = maxEnergy,
-                BasicSkill = MapSkill(basic),
-                EnergySkill = energySkills.Count == 1 ? MapSkill(energySkills[0]) : null
-            };
-        }
 
         private static int GetPositiveIntConfig(IReadOnlyDictionary<string, decimal> configs, string code, int fallback) =>
             Math.Max(1, GetIntConfig(configs, code, fallback));
@@ -157,66 +85,6 @@ namespace GAME.Infrastructure.Services
             configs.TryGetValue(code, out var value)
                 ? decimal.ToInt32(decimal.Round(value, 0, MidpointRounding.AwayFromZero))
                 : fallback;
-
-        private static BattleSkill MapSkill(SkillTemplateDto skill) => new()
-        {
-            Id = skill.Id,
-            Name = skill.Name,
-            SkillTypeCode = skill.SkillTypeCode,
-            EnergyCost = skill.EnergyCost,
-            Animation = skill.Animation == null ? BattleSkillAnimation.Default : new BattleSkillAnimation
-            {
-                AnimationKey = skill.Animation.AnimationKey,
-                TotalDurationMs = skill.Animation.TotalDurationMs,
-                Phases = skill.Animation.Phases.OrderBy(p => p.DisplayOrder)
-                    .Select(p => new BattleSkillTimelinePhase(p.PhaseCode, p.StartAtMs, p.DurationMs, p.TriggerEventType))
-                    .ToList()
-            },
-            Effects = skill.Effects.Select(e => MapEffect(skill.Id, e)).ToList()
-        };
-
-        private static BattleSkillEffect MapEffect(string skillId, SkillEffectDto effect)
-        {
-            if (string.IsNullOrWhiteSpace(effect.EffectTypeCode))
-                throw new InvalidOperationException(
-                    $"Skill '{skillId}' contains effect {effect.Id} without EffectTypeCode.");
-            if (string.IsNullOrWhiteSpace(effect.TargetTypeCode))
-                throw new InvalidOperationException(
-                    $"Skill '{skillId}', effect {effect.Id}, has no TargetTypeCode. Check HRK_SkillEffects.TargetTypeId.");
-
-            return new BattleSkillEffect
-            {
-                EffectTypeCode = effect.EffectTypeCode,
-                TargetTypeCode = NormalizeTargetCode(effect.TargetTypeCode),
-                DamageSchoolCode = effect.DamageSchoolCode,
-                BaseValue = effect.BaseValue,
-                DurationTurns = effect.DurationTurns ?? 0,
-                ChancePercent = effect.ChancePercent,
-                MaxStacks = effect.MaxStacks ?? 1,
-                DisplayOrder = effect.DisplayOrder,
-                ExecutionGroup = effect.ExecutionGroup,
-                ConditionCode = effect.ConditionCode,
-                Scalings = effect.Scalings.Select(s =>
-                    new BattleEffectScaling(s.AttributeTypeCode, s.Coefficient, s.FlatValue)).ToList(),
-                StatModifiers = effect.StatModifiers.Select(m =>
-                    new BattleStatModifier(m.AttributeTypeCode, m.ValueType, m.Value, m.AttributeTypeName)).ToList(),
-                Parameters = effect.Parameters.ToDictionary(
-                    p => p.ParameterCode,
-                    p => new BattleSkillEffectParameter(p.ParameterCode, p.DecimalValue, p.IntValue, p.BoolValue, p.StringValue),
-                    StringComparer.OrdinalIgnoreCase)
-            };
-        }
-
-        private static string NormalizeTargetCode(string code) => code.ToUpperInvariant() switch
-        {
-            "SINGLE_ENEMY" => BattleCodes.EnemySingle,
-            "ALL_ENEMIES" => BattleCodes.EnemyAll,
-            "RANDOM_ENEMY" => BattleCodes.EnemyRandom,
-            "SELF" => BattleCodes.Self,
-            "ALLY_RANDOM" => BattleCodes.AllyRandom,
-            "ALL_ALLIES" => BattleCodes.AllyAll,
-            var value => value
-        };
 
         public async Task<BattleInitialStateDto> GetBattleInitialStateAsync(
             string userId,

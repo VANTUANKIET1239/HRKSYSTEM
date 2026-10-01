@@ -9,6 +9,7 @@ namespace GAME.Application.DTOs
         public string ItemCode { get; set; } = "";
         public string Name { get; set; } = null!;
         public string? ImagePath { get; set; }
+        public string? HeroStonePortrait { get; set; }
         public string? Icon { get; set; }
         public int RarityId { get; set; }
         public string RarityCode { get; set; } = null!;

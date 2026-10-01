@@ -56,7 +56,25 @@ namespace GAME.Infrastructure.Services
 
             var items = await query.ToListAsync(cancellationToken);
 
-            return items.Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
+            var result = items.Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
+            var templateIds = items.Select(x => x.ItemTemplateId).Distinct().ToList();
+            var stonePortraits = await (
+                from stone in _unitOfWork.ReadOnlyRepository<HrkHeroStoneConfig>().Query()
+                join hero in _unitOfWork.ReadOnlyRepository<HrkHeroTemplate>().Query()
+                    on stone.HeroTemplateId equals hero.Id
+                where stone.IsActive && templateIds.Contains(stone.ItemTemplateId)
+                select new { stone.ItemTemplateId, hero.Avatar })
+                .ToDictionaryAsync(x => x.ItemTemplateId, x => x.Avatar, cancellationToken);
+
+            foreach (var item in result)
+            {
+                if (stonePortraits.TryGetValue(item.ItemTemplateId, out var portrait))
+                {
+                    item.HeroStonePortrait = portrait;
+                }
+            }
+
+            return result;
         }
 
         public async Task<List<InventoryItemDto>> GetPlayerEquipmentAsync(string userId, string? categoryCode, bool includeEquipped = false, CancellationToken cancellationToken = default)

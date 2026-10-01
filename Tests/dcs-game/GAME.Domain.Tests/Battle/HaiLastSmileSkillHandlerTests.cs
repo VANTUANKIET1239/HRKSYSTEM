@@ -422,7 +422,7 @@ public sealed class HaiLastSmileSkillHandlerTests
         var tick = events[0];
 
         Assert.False(tick.IsCrit);
-        Assert.Equal(59, tick.Value);
+        Assert.Equal(93, tick.Value); // 100 * 1000 / (1000 + 70)
     }
 
     // 8. BLEED không hạ HP xuống dưới 1

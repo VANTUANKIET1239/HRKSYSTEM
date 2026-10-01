@@ -33,7 +33,7 @@ public sealed class BleedDetonateEffectHandler : IBattleEffectHandler
                 ? Math.Max(0m, targetDef * (100m - armorIgnore) / 100m)
                 : targetDef;
 
-            var detonateDmg = Math.Max(1, (int)Math.Round(rawDetonate * 100m / (100m + effectiveDef)));
+            var detonateDmg = BattleStatCalculator.MitigateDamage(rawDetonate, effectiveDef, context.Target.DefenseMitigationConstant);
 
             var isCrit = false;
             if (canCrit && detonateDmg > 0)

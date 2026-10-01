@@ -91,6 +91,10 @@ public sealed class BattleSimulationEngine : IBattleSimulationEngine
         Validate(request);
         var random = new Random(request.RandomSeed);
         var heroes = request.Combatants.Select(Clone).ToList();
+        if (request.DefenseMitigationConstant <= 0m)
+            throw new ArgumentOutOfRangeException(nameof(request.DefenseMitigationConstant));
+        foreach (var hero in heroes)
+            hero.DefenseMitigationConstant = request.DefenseMitigationConstant;
         var events = new List<BattleEvent>();
         var sequence = 0;
         var turn = 0;

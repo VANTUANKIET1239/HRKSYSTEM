@@ -289,7 +289,7 @@ public sealed class NghiaPhucPrimeReactionHandler : IBattleEffectHandler, IDamag
         foreach (var enemy in enemies)
         {
             var enemyDef = BattleStatCalculator.GetEffectiveStat(enemy, "DEF");
-            var enemyDamage = Math.Max(1, (int)Math.Round(rawDamagePerEnemy * 100m / (100m + Math.Max(0m, enemyDef))));
+            var enemyDamage = BattleStatCalculator.MitigateDamage(rawDamagePerEnemy, enemyDef, enemy.DefenseMitigationConstant);
 
             var enemyHpBefore = enemy.Hp;
             enemy.Hp = Math.Max(0, enemy.Hp - enemyDamage);
