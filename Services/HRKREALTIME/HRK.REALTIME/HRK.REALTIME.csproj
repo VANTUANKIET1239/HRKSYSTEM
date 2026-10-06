@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>..\..\..</DockerfileContext>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="9.0.9" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\CoreEngine\Core.RabbitMQ\Core.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.Messaging.Contracts\Core.Messaging.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
+</Project>

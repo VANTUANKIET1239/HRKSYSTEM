@@ -33,4 +33,7 @@
 
   <ProjectExtensions><VisualStudio><UserProperties appsettings_1json__JsonSchema="https://www.schemastore.org/appveyor.json" /></VisualStudio></ProjectExtensions>
 
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
 </Project>

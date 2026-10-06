@@ -12,6 +12,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ApiGateway/ApiGateway/ApiGateway.csproj", "ApiGateway/ApiGateway/"]
+COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 RUN dotnet restore "./ApiGateway/ApiGateway/ApiGateway.csproj"
 COPY . .
 WORKDIR "/src/ApiGateway/ApiGateway"

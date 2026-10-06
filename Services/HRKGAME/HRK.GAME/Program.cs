@@ -1,14 +1,15 @@
+using Oservability;
+
 using HRK.GAME.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddCustomDependency();
 
 // Add services to container
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
-
-builder.Services.AddCustomDependency(builder.Configuration);
 
 builder.Services
     .AddAuthentication("Bearer")
@@ -36,6 +37,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+app.UseHrkCorrelation();
 
 if (app.Environment.IsDevelopment())
 {
@@ -44,8 +46,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
+app.UseHrkIdentityLogging();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();

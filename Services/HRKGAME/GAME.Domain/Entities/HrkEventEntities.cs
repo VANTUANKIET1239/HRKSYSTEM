@@ -52,6 +52,7 @@ public class HrkPlayerEventPeriodProgress
     public int CurrentFloor { get; set; } = 1;
     public int RemainingLives { get; set; } = 3;
     public int CurrentRunNumber { get; set; } = 1;
+    public int QuickClimbRunsUsed { get; set; }
     public int HighestFloorInPeriod { get; set; } = 0;
     public bool IsCompleted { get; set; } = false;
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
@@ -190,13 +191,14 @@ public class HrkTowerQuickClimbJob
     public long PlayerId { get; set; }
     public long EventPeriodId { get; set; }
     public string Status { get; set; } = "QUEUED"; // QUEUED, PROCESSING, COMPLETED, STOPPED_DEFEAT, CANCELLED, EXPIRED, ERROR
-    public string? StopReason { get; set; } // FIRST_DEFEAT, TOWER_COMPLETED, USER_CANCELLED, PERIOD_EXPIRED, EVENT_CLOSED, ERROR
+    public string? StopReason { get; set; } // FIRST_DEFEAT, TOWER_COMPLETED, USER_CANCELLED, PERIOD_EXPIRED, EVENT_CLOSED, RULES_CHANGED, ERROR
     public int StartFloor { get; set; }
     public int CurrentFloor { get; set; }
     public int TargetFloor { get; set; }
     public int InitialLives { get; set; }
     public int RemainingLives { get; set; }
     public int ClearedFloorsCount { get; set; } = 0;
+    public int DailyRunNumber { get; set; }
     public int? FailedFloor { get; set; }
     public string FormationCode { get; set; } = null!;
     public string FormationSnapshotJson { get; set; } = null!;
@@ -208,6 +210,7 @@ public class HrkTowerQuickClimbJob
     public DateTime CreatedOnUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedOnUtc { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedOnUtc { get; set; }
+    public long Version { get; set; }
 
     public virtual HrkPlayer Player { get; set; } = null!;
     public virtual HrkEventPeriod EventPeriod { get; set; } = null!;

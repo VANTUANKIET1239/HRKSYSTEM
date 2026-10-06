@@ -124,3 +124,15 @@ Notification consumer:
 
 Use separate queues for separate services. If two services consume the same queue,
 RabbitMQ load-balances messages between them instead of broadcasting a copy to each.
+
+# Reliability behavior
+
+The library uses publisher confirms, persistent messages, manual consumer acknowledgements, named publishers/consumers, configurable delayed retries and per-consumer dead-letter queues.
+
+- Supply `RabbitPublishMetadata.MessageId` for Outbox publishing. Retrying the same Outbox row must reuse the same ID.
+- Delivery is at-least-once. Handlers that mutate state must be idempotent.
+- Handler failure and ACK failure are handled separately. An ACK failure does not republish an already successful handler as a new failure.
+- Retry bucket queues dead-letter to a private redelivery exchange bound directly to the original consumer queue. This prevents retries from being broadcast again to other subscribers of the main topic exchange.
+- `OperationCanceledException` caused by host shutdown is left unacknowledged for broker redelivery.
+
+Consumer retry behavior is configured under `RabbitMq:Consumers:{name}:Retry` with `MaxRetryCount`, `DelaysMs`, `UnknownExceptionBehavior` and `ErrorMaxLength`.

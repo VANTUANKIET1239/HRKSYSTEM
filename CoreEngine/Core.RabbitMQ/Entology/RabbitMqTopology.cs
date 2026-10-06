@@ -45,9 +45,10 @@ public sealed class RabbitMqTopology : IRabbitMqTopology
         var exchange = consumer.ResolveExchange(legacyPublisher);
         var routingKeys = consumer.ResolveRoutingKeys(legacyPublisher);
         var retryExchange = consumer.ResolveRetryExchange();
-        var retryQueue = consumer.ResolveRetryQueue();
         var dlqExchange = consumer.ResolveDlqExchange();
         var dlqQueue = consumer.ResolveDlqQueue();
+        var redeliveryExchange = consumer.ResolveRedeliveryExchange();
+        var redeliveryRoutingKey = consumer.ResolveRedeliveryRoutingKey();
 
         await channel.ExchangeDeclareAsync(
             exchange,
@@ -71,6 +72,21 @@ public sealed class RabbitMqTopology : IRabbitMqTopology
                 routingKey,
                 cancellationToken: ct);
         }
+
+        // Retried deliveries return directly to this consumer queue. They do not
+        // pass through the shared event exchange and therefore cannot duplicate
+        // work already completed by other subscribers.
+        await channel.ExchangeDeclareAsync(
+            redeliveryExchange,
+            ExchangeType.Direct,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: ct);
+        await channel.QueueBindAsync(
+            consumer.Queue,
+            redeliveryExchange,
+            redeliveryRoutingKey,
+            cancellationToken: ct);
 
         await channel.ExchangeDeclareAsync(
             dlqExchange,
@@ -96,24 +112,28 @@ public sealed class RabbitMqTopology : IRabbitMqTopology
             durable: true,
             autoDelete: false,
             cancellationToken: ct);
-        await channel.QueueDeclareAsync(
-            retryQueue,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: new Dictionary<string, object?>
-            {
-                ["x-message-ttl"] = consumer.RetryDelayMs,
-                ["x-dead-letter-exchange"] = exchange
-            },
-            cancellationToken: ct);
-
-        foreach (var routingKey in routingKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        var retryDelays = consumer.ResolveRetryDelays();
+        for (var index = 0; index < retryDelays.Count; index++)
         {
+            var delayMs = retryDelays[index];
+            var retryQueue = consumer.ResolveRetryBucketQueue(index, delayMs);
+            var retryRoutingKey = consumer.ResolveRetryBucketRoutingKey(index);
+            await channel.QueueDeclareAsync(
+                retryQueue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-message-ttl"] = delayMs,
+                    ["x-dead-letter-exchange"] = redeliveryExchange,
+                    ["x-dead-letter-routing-key"] = redeliveryRoutingKey
+                },
+                cancellationToken: ct);
             await channel.QueueBindAsync(
                 retryQueue,
                 retryExchange,
-                routingKey,
+                retryRoutingKey,
                 cancellationToken: ct);
         }
     }

@@ -18,8 +18,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.TransactionalMessaging\Core.TransactionalMessaging.csproj" />
     <ProjectReference Include="..\GAME.Application\GAME.Application.csproj" />
     <ProjectReference Include="..\GAME.Infrastructure\GAME.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
 </Project>

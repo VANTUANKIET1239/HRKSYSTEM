@@ -11,6 +11,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Oservability.Tracing;
+using Microsoft.Extensions.Logging;
 
 namespace GAME.Infrastructure.Services
 {
@@ -23,6 +25,7 @@ namespace GAME.Infrastructure.Services
         private readonly ICombatPowerService _combatPowerService;
         private readonly IBattleSimulationEngine _battleSimulationEngine;
         private readonly IFormationSnapshotService _formationSnapshotService;
+        private readonly ILogger<BattleService> _logger;
 
         public BattleService(
             IUnitOfWork unitOfWork,
@@ -31,7 +34,8 @@ namespace GAME.Infrastructure.Services
             IHeroStatCalculationService heroStatCalculationService,
             ICombatPowerService combatPowerService,
             IBattleSimulationEngine battleSimulationEngine,
-            IFormationSnapshotService formationSnapshotService)
+            IFormationSnapshotService formationSnapshotService,
+            ILogger<BattleService> logger)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
@@ -40,10 +44,13 @@ namespace GAME.Infrastructure.Services
             _combatPowerService = combatPowerService;
             _battleSimulationEngine = battleSimulationEngine;
             _formationSnapshotService = formationSnapshotService;
+            _logger = logger;
         }
 
         public async Task<StartBattleResultDto> StartBattleAsync(string userId, StartBattleRequestDto request, CancellationToken cancellationToken = default)
         {
+            using var operation = new GameOperation("battle");
+            _logger.LogInformation("Starting battle for user {UserId} at stage {StageId}", userId, request.StageId);
             var battleConfigs = await _unitOfWork.ReadOnlyRepository<HrkBattleConfig>().Query()
                 .Where(x => x.IsEnabled)
                 .ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase, cancellationToken);
@@ -74,7 +81,10 @@ namespace GAME.Infrastructure.Services
 
             var heroStats = BattleStatisticsCalculator.Calculate(initialState, simulation.Events);
 
-            return BattleResultMapper.Map(initialState.BattleId, initialState, simulation, seed, heroStats);
+            var result = BattleResultMapper.Map(initialState.BattleId, initialState, simulation, seed, heroStats);
+            operation.Complete();
+            _logger.LogInformation("Completed battle {BattleId} for user {UserId}", initialState.BattleId, userId);
+            return result;
         }
 
 

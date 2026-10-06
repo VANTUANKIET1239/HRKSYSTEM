@@ -11,6 +11,10 @@ COPY ["Services/HRKGAME/GAME.Application/GAME.Application.csproj", "Services/HRK
 COPY ["Services/HRKGAME/GAME.Infrastructure/GAME.Infrastructure.csproj", "Services/HRKGAME/GAME.Infrastructure/"]
 COPY ["Services/HRKGAME/GAME.Domain/GAME.Domain.csproj", "Services/HRKGAME/GAME.Domain/"]
 COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
+COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
+COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
+COPY ["CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj", "CoreEngine/Core.TransactionalMessaging/"]
+COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 RUN dotnet restore "./Services/HRKGAME/HRK.GAME/HRK.GAME.csproj"
 COPY . .
 WORKDIR "/src/Services/HRKGAME/HRK.GAME"

@@ -1,4 +1,6 @@
 using GAME.Domain.Entities;
+using Core.TransactionalMessaging.Entities;
+using Core.TransactionalMessaging.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Infrastructure.Data
@@ -83,6 +85,8 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkPlayerPendingReward> PlayerPendingRewards { get; set; } = null!;
         public DbSet<HrkTowerQuickClimbJob> TowerQuickClimbJobs { get; set; } = null!;
         public DbSet<HrkPlayerTowerBattle> PlayerTowerBattles { get; set; } = null!;
+        public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+        public DbSet<InboxMessage> InboxMessages { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1140,6 +1144,7 @@ namespace GAME.Infrastructure.Data
                 entity.HasKey(x => x.Id);
                 entity.HasIndex(x => new { x.PlayerId, x.EventId, x.EventPeriodId }).IsUnique();
                 entity.Property(x => x.PeriodKey).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.QuickClimbRunsUsed).HasDefaultValue(0);
                 entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.EventPeriod).WithMany(x => x.PlayerProgresses).HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
@@ -1243,6 +1248,7 @@ namespace GAME.Infrastructure.Data
                 entity.Property(x => x.FormationCode).HasMaxLength(50).IsRequired();
                 entity.Property(x => x.WorkerId).HasMaxLength(100);
                 entity.Property(x => x.LastBattleId).HasMaxLength(64);
+                entity.Property(x => x.DailyRunNumber).HasDefaultValue(0);
                 entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
             });
@@ -1258,6 +1264,10 @@ namespace GAME.Infrastructure.Data
                 entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.EventPeriod).WithMany().HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);
             });
+
+            modelBuilder.ConfigureTransactionalMessaging(
+                outboxTable: "HRK_OutboxMessages",
+                inboxTable: "HRK_ProcessedMessages");
         }
     }
 }

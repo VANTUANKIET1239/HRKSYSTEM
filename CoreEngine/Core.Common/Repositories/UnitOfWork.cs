@@ -5,6 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Common.Repositories
 {
@@ -16,10 +19,15 @@ namespace Core.Common.Repositories
         private IDbContextTransaction? _transaction;
         private string _errorMessage = string.Empty;
         public bool HasActiveTransaction => _transaction != null;
+        private readonly ILogger<UnitOfWork<TDbContext>>? _logger;
+        private readonly int _slowTransactionMilliseconds;
 
-        public UnitOfWork(TDbContext context)
+        public UnitOfWork(TDbContext context, ILogger<UnitOfWork<TDbContext>>? logger = null,
+            IConfiguration? configuration = null)
         {
             _context = context;
+            _logger = logger;
+            _slowTransactionMilliseconds = Math.Max(1, configuration?.GetValue<int?>("Database:SlowTransactionMilliseconds") ?? 1000);
         }
 
         public async Task BeginTransactionAsync()
@@ -39,12 +47,16 @@ namespace Core.Common.Repositories
 
         public async Task CommitTransactionAsync()
         {
+            var started = Stopwatch.GetTimestamp();
             try
             {
                 await _context.SaveChangesAsync();
                 if (_transaction != null)
                 {
                     await _transaction.CommitAsync();
+                    var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    _logger?.Log(elapsed >= _slowTransactionMilliseconds ? LogLevel.Warning : LogLevel.Debug,
+                        "Committed transaction in {DurationMs} ms for {DbContext}", elapsed, typeof(TDbContext).Name);
                 }
             }
             catch
@@ -141,9 +153,13 @@ namespace Core.Common.Repositories
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            var started = Stopwatch.GetTimestamp();
             try
             {
                 var result = await _context.SaveChangesAsync(cancellationToken);
+                var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                _logger?.Log(elapsed >= _slowTransactionMilliseconds ? LogLevel.Warning : LogLevel.Debug,
+                    "Saved {ChangedEntries} entries in {DurationMs} ms for {DbContext}", result, elapsed, typeof(TDbContext).Name);
                 return result;
             }
             catch (DbEntityValidationException dbEx)

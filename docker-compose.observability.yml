@@ -1,0 +1,83 @@
+# Combine with docker-compose.yml. Configure required secrets in your local .env.
+x-observability: &observability
+  Seq__ServerUrl: http://seq:5341
+  Seq__ApiKey: ${SEQ_INGESTION_API_KEY:-}
+  Telemetry__Otlp__Enabled: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+
+services:
+  apigateway:
+    environment: *observability
+  hrk.auth:
+    environment: *observability
+  hrk.game:
+    environment: *observability
+  hrk.realtime:
+    environment: *observability
+
+  rabbitmq:
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  seq:
+    image: datalust/seq:2025.2
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_ADMINPASSWORDHASH: ${SEQ_ADMIN_PASSWORD_HASH:?Set SEQ_ADMIN_PASSWORD_HASH}
+      SEQ_FIRSTRUN_REQUIREAUTHENTICATIONFORHTTPINGESTION: ${SEQ_REQUIRE_INGESTION_AUTH:-false}
+    ports:
+      - "127.0.0.1:5340:80"
+    volumes:
+      - seq-data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./docker/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.68.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=14d"]
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  hrk.activity:
+    build:
+      context: .
+      dockerfile: Services/HRKACTIVITY/HRK.ACTIVITY/Dockerfile
+    environment:
+      <<: *observability
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Database__ConnectionString: ${ACTIVITY_DB_CONNECTION_STRING:?Set ACTIVITY_DB_CONNECTION_STRING to the shared SQL Server with Database=HRK_Activity}
+      JwtSettings__SecretKey: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY}
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__UserName: ${RABBITMQ_USER:-guest}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "127.0.0.1:5004:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  seq-data:
+  prometheus-data:
+  rabbitmq-data:

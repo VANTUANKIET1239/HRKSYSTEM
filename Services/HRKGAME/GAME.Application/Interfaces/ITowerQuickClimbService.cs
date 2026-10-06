@@ -10,5 +10,12 @@ public interface ITowerQuickClimbService
     Task<QuickClimbJobStatusDto?> GetActiveJobAsync(string userId, CancellationToken ct = default);
     Task<QuickClimbJobStatusDto> GetJobStatusAsync(string userId, string jobId, CancellationToken ct = default);
     Task<QuickClimbJobStatusDto> StopQuickClimbAsync(string userId, string jobId, CancellationToken ct = default);
-    Task<bool> ProcessNextJobFloorAsync(string workerId, CancellationToken ct = default);
+    Task<bool> ProcessJobFloorMessageAsync(
+        Guid messageId,
+        string jobId,
+        string userId,
+        int expectedFloor,
+        long expectedVersion,
+        string workerId,
+        CancellationToken ct = default);
 }

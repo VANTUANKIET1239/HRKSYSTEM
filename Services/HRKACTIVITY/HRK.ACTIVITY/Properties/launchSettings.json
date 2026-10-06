@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "HRK.ACTIVITY": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Telemetry__Otlp__Protocol": "HttpProtobuf",
+        "Telemetry__Otlp__Enabled": "true",
+        "Telemetry__Otlp__Endpoint": "http://localhost:4318",
+        "Seq__ServerUrl": "http://localhost:5340"
+      },
+      "applicationUrl": "https://localhost:63645;http://localhost:63646"
+    }
+  }
+}

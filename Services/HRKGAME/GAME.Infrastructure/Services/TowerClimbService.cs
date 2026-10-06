@@ -66,6 +66,7 @@ public class TowerClimbService : ITowerClimbService
 
             int pendingCount = await _unitOfWork.ReadOnlyRepository<HrkPlayerPendingReward>().Query()
                 .CountAsync(r => r.PlayerId == player.Id && r.Status == "PENDING", ct);
+            var rules = TowerRules.Parse(ev.RulesJson);
 
             bool isLevelMet = player.Level >= ev.MinPlayerLevel;
             string status = !EventAccessPolicy.IsOpen(ev, DateTime.UtcNow) ? "ENDED" : (!isLevelMet ? "LOCKED" : "OPEN");
@@ -104,6 +105,10 @@ public class TowerClimbService : ITowerClimbService
                     RemainingLives = progress.RemainingLives,
                     InitialLives = ev.InitialLives,
                     CurrentRunNumber = progress.CurrentRunNumber,
+                    QuickClimbRunsUsed = progress.QuickClimbRunsUsed,
+                    QuickClimbDailyLimit = rules.QuickClimbDailyLimit,
+                    QuickClimbRunsRemaining = Math.Max(0, rules.QuickClimbDailyLimit - progress.QuickClimbRunsUsed),
+                    CanStartQuickClimb = progress.QuickClimbRunsUsed < rules.QuickClimbDailyLimit,
                     HighestFloorInPeriod = progress.HighestFloorInPeriod,
                     HighestFloorAllTime = allTime?.HighestFloorAllTime ?? 0,
                     IsCompleted = progress.IsCompleted,
@@ -139,6 +144,7 @@ public class TowerClimbService : ITowerClimbService
         var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
         var allTime = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventAllTimeRecord>().Query()
             .FirstOrDefaultAsync(a => a.PlayerId == player.Id && a.EventId == ev.Id, ct);
+        var rules = TowerRules.Parse(ev.RulesJson);
 
         var chests = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
             .Where(c => c.EventId == ev.Id && c.IsActive)
@@ -166,7 +172,8 @@ public class TowerClimbService : ITowerClimbService
         var pending = await GetPendingRewardsAsync(userId, ct);
 
         var activeJob = await _unitOfWork.ReadOnlyRepository<HrkTowerQuickClimbJob>().Query()
-            .FirstOrDefaultAsync(j => j.PlayerId == player.Id && (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct);
+            .FirstOrDefaultAsync(j => j.PlayerId == player.Id && j.EventPeriodId == period.Id &&
+                (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct);
 
         return new PlayerEventProgressDto
         {
@@ -181,6 +188,10 @@ public class TowerClimbService : ITowerClimbService
             RemainingLives = progress.RemainingLives,
             InitialLives = ev.InitialLives,
             CurrentRunNumber = progress.CurrentRunNumber,
+            QuickClimbRunsUsed = progress.QuickClimbRunsUsed,
+            QuickClimbDailyLimit = rules.QuickClimbDailyLimit,
+            QuickClimbRunsRemaining = Math.Max(0, rules.QuickClimbDailyLimit - progress.QuickClimbRunsUsed),
+            CanStartQuickClimb = progress.QuickClimbRunsUsed < rules.QuickClimbDailyLimit,
             HighestFloorInPeriod = progress.HighestFloorInPeriod,
             HighestFloorAllTime = allTime?.HighestFloorAllTime ?? 0,
             IsCompleted = progress.IsCompleted,

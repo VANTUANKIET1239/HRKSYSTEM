@@ -14,6 +14,7 @@ public sealed record TowerRules
     public decimal SecondaryPerFloor { get; init; } = .2m;
     public decimal MaxCrit { get; init; } = 35;
     public decimal MaxResistance { get; init; } = 40;
+    public int QuickClimbDailyLimit { get; init; } = 3;
 
     public static TowerRules Parse(string? json)
     {
@@ -22,7 +23,8 @@ public sealed record TowerRules
             ?? throw new InvalidOperationException("RulesJson không hợp lệ.");
         if (rules.MaxFloor <= 0 || rules.HpPerLevel < 0 || rules.AttackPerLevel < 0 || rules.DefensePerLevel < 0 ||
             rules.SpeedPerFloor < 0 || rules.MaxSpeedBonus < 0 || rules.SecondaryPerFloor < 0 ||
-            rules.MaxCrit is < 0 or > 100 || rules.MaxResistance is < 0 or > 100)
+            rules.MaxCrit is < 0 or > 100 || rules.MaxResistance is < 0 or > 100 ||
+            rules.QuickClimbDailyLimit <= 0)
             throw new InvalidOperationException("Cấu hình tăng trưởng tầng không hợp lệ.");
         return rules;
     }

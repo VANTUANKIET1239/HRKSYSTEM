@@ -1,12 +1,19 @@
 using Core.Common.Repositories;
+using Core.Messaging.Contracts;
+using Core.TransactionalMessaging.Inbox;
+using Core.TransactionalMessaging.Outbox;
 using Microsoft.Data.SqlClient;
 using GAME.Application.Common;
 using GAME.Application.Common.Helpers;
 using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
+using GAME.Application.Events;
 using GAME.Domain.Battle;
 using GAME.Domain.Entities;
+using GAME.Infrastructure.Messaging.Consumers;
+using Oservability.Tracing;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
@@ -27,13 +34,19 @@ public class TowerQuickClimbService : ITowerQuickClimbService
     private readonly IEventPeriodService _eventPeriodService;
     private readonly IFormationSnapshotService _formationSnapshotService;
     private readonly ILogger<TowerQuickClimbService> _logger;
+    private readonly IInboxExecutor _inbox;
+    private readonly IOutboxWriter _outbox;
+    private readonly IPlayerActivityEvents _activityEvents;
 
     public TowerQuickClimbService(
         TowerOperationRunner runner, TowerBattleExecutor executor, TowerRewardService rewards,
         IUnitOfWork unitOfWork,
         IEventPeriodService eventPeriodService,
         IFormationSnapshotService formationSnapshotService,
-        ILogger<TowerQuickClimbService> logger)
+        IInboxExecutor inbox,
+        IOutboxWriter outbox,
+        ILogger<TowerQuickClimbService> logger,
+        IPlayerActivityEvents activityEvents)
     {
         _runner = runner;
         _executor = executor;
@@ -41,15 +54,30 @@ public class TowerQuickClimbService : ITowerQuickClimbService
         _unitOfWork = unitOfWork;
         _eventPeriodService = eventPeriodService;
         _formationSnapshotService = formationSnapshotService;
+        _inbox = inbox;
+        _outbox = outbox;
         _logger = logger;
+        _activityEvents = activityEvents;
     }
 
-    public Task<QuickClimbJobStatusDto> StartQuickClimbAsync(
-        string userId, StartQuickClimbRequestDto request, CancellationToken ct = default) =>
-        _runner.RunAsync(userId, () => StartQuickClimbAsyncCore(userId, request, ct), ct);
+    public async Task<QuickClimbJobStatusDto> StartQuickClimbAsync(
+        string userId, StartQuickClimbRequestDto request, CancellationToken ct = default)
+    {
+        long? createdPlayerId = null;
+        var result = await _runner.RunAsync(userId, () =>
+        {
+            createdPlayerId = null;
+            return StartQuickClimbAsyncCore(userId, request, id => createdPlayerId = id, ct);
+        }, ct);
+        _logger.Log(createdPlayerId.HasValue ? LogLevel.Information : LogLevel.Debug,
+            "{EventName}: JobId={JobId}, UserId={UserId}, PlayerId={PlayerId}, Status={Status}, TargetFloor={TargetFloor}, DailyRunNumber={DailyRunNumber}",
+            createdPlayerId.HasValue ? "QuickClimbJobCreated" : "QuickClimbJobReused",
+            result.JobId, userId, createdPlayerId, result.Status, result.TargetFloor, result.DailyRunNumber);
+        return result;
+    }
 
     private async Task<QuickClimbJobStatusDto> StartQuickClimbAsyncCore(
-        string userId, StartQuickClimbRequestDto request, CancellationToken ct = default)
+        string userId, StartQuickClimbRequestDto request, Action<long> onCreated, CancellationToken ct = default)
     {
         var player = await GetPlayerAsync(userId, ct);
         var ev = await GetTowerEventAsync(ct);
@@ -58,19 +86,32 @@ public class TowerQuickClimbService : ITowerQuickClimbService
         var currentPeriod = await _eventPeriodService.GetOrCreateCurrentPeriodAsync(ev, ct);
         var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, currentPeriod, ct);
 
-        if (progress.RemainingLives <= 0)
-            throw new InvalidOperationException("Đã hết mạng trong lượt leo hiện tại. Vui lòng bắt đầu lượt mới trước khi leo nhanh.");
-        if (progress.IsCompleted)
-            throw new InvalidOperationException("Đã hoàn thành toàn bộ tầng tháp trong kỳ này.");
-
         // Check if player already has an active job
         var existingJob = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
             .FirstOrDefaultAsync(j => j.PlayerId == player.Id && (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct);
 
         if (existingJob != null)
         {
-            // Resume existing job
-            return MapJobToDto(existingJob);
+            if (existingJob.EventPeriodId == currentPeriod.Id)
+            {
+                // Repeated start requests return the same job without consuming another daily run.
+                return MapJobToDto(existingJob);
+            }
+
+            existingJob.Status = "EXPIRED";
+            existingJob.StopReason = "PERIOD_EXPIRED";
+            existingJob.CompletedOnUtc = DateTime.UtcNow;
+            existingJob.UpdatedOnUtc = DateTime.UtcNow;
+            existingJob.Version++;
+            EnqueueStatus(existingJob, userId);
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+
+        var rules = TowerRules.Parse(ev.RulesJson);
+        if (progress.QuickClimbRunsUsed >= rules.QuickClimbDailyLimit)
+        {
+            throw new InvalidOperationException(
+                $"Đã sử dụng hết {rules.QuickClimbDailyLimit} lượt leo nhanh trong kỳ hôm nay.");
         }
 
         // Build frozen snapshot
@@ -79,31 +120,38 @@ public class TowerQuickClimbService : ITowerQuickClimbService
             throw new InvalidOperationException("Đội hình xuất chiến không có võ tướng nào.");
 
         await _executor.FreezeSkillsAsync(snapshot, ct, force: true);
+        progress.QuickClimbRunsUsed++;
+        progress.UpdatedOn = DateTime.UtcNow;
         var job = new HrkTowerQuickClimbJob
         {
             JobId = Guid.NewGuid().ToString("N"),
             PlayerId = player.Id,
             EventPeriodId = currentPeriod.Id,
             Status = "QUEUED",
-            StartFloor = progress.CurrentFloor,
-            CurrentFloor = progress.CurrentFloor,
+            StartFloor = 1,
+            CurrentFloor = 1,
             TargetFloor = await _executor.MaxFloorAsync(ev.Id, ct),
-            InitialLives = progress.RemainingLives,
-            RemainingLives = progress.RemainingLives,
+            InitialLives = 1,
+            RemainingLives = 1,
             ClearedFloorsCount = 0,
+            DailyRunNumber = progress.QuickClimbRunsUsed,
             FormationCode = snapshot.FormationCode,
             FormationSnapshotJson = JsonSerializer.Serialize(snapshot),
             AccumulatedRewardsJson = "[]",
             LogsJson = "[]",
             CreatedOnUtc = DateTime.UtcNow,
-            UpdatedOnUtc = DateTime.UtcNow
+            UpdatedOnUtc = DateTime.UtcNow,
+            Version = 1
         };
 
         await _unitOfWork.Repository<HrkTowerQuickClimbJob>().AddAsync(job);
+        _activityEvents.Raise(new QuickClimbStartedEvent(player.Id, userId, job.JobId,
+            job.StartFloor, job.CurrentFloor, job.TargetFloor, job.ClearedFloorsCount, job.Version));
+        EnqueueStatus(job, userId);
+        EnqueueFloorCommand(job, userId);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Started quick climb job {JobId} for Player {PlayerId} from floor {StartFloor}",
-            job.JobId, player.Id, job.StartFloor);
+        onCreated(player.Id);
 
         return MapJobToDto(job);
     }
@@ -160,6 +208,8 @@ public class TowerQuickClimbService : ITowerQuickClimbService
             job.StopReason = "USER_CANCELLED";
             job.CompletedOnUtc = DateTime.UtcNow;
             job.UpdatedOnUtc = DateTime.UtcNow;
+            job.Version++;
+            EnqueueStatus(job, userId);
             await _unitOfWork.SaveChangesAsync(ct);
         }
         else if (job.Status == "PROCESSING")
@@ -173,54 +223,156 @@ public class TowerQuickClimbService : ITowerQuickClimbService
         return MapJobToDto(job);
     }
 
-    public async Task<bool> ProcessNextJobFloorAsync(string workerId, CancellationToken ct = default)
+    public async Task<bool> ProcessJobFloorMessageAsync(
+        Guid messageId,
+        string jobId,
+        string userId,
+        int expectedFloor,
+        long expectedVersion,
+        string workerId,
+        CancellationToken ct = default)
     {
-        var candidate = await _unitOfWork.ReadOnlyRepository<HrkTowerQuickClimbJob>().Query()
-            .Where(j => j.Status == "QUEUED" || j.Status == "PROCESSING")
-            .OrderBy(j => j.UpdatedOnUtc).FirstOrDefaultAsync(ct);
-        if (candidate == null) return false;
-        var userId = await _unitOfWork.ReadOnlyRepository<HrkPlayer>().Query()
-            .Where(p => p.Id == candidate.PlayerId).Select(p => p.UserId).SingleAsync(ct);
-        string jobId = candidate.JobId;
-        int expectedFloor = candidate.CurrentFloor;
+        const string consumerName = "QuickClimb";
+        var messageKey = messageId.ToString("N");
+        using var activity = GameOperation.Source.StartActivity("QuickClimb.ProcessFloor", ActivityKind.Internal);
+        activity?.SetTag("quickclimb.job.id", jobId);
+        activity?.SetTag("quickclimb.floor", expectedFloor);
+        activity?.SetTag("messaging.message.id", messageKey);
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        HrkTowerQuickClimbJob? processedJob = null;
         try
         {
-            return await _runner.RunAsync(userId, async () =>
+            var processed = await _runner.RunAsync(userId, async () =>
             {
-                var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
-                    .SingleAsync(j => j.JobId == jobId, ct);
-                // Another worker (or a retried commit) already advanced this attempt.
-                if (job.CurrentFloor != expectedFloor || (job.Status != "QUEUED" && job.Status != "PROCESSING"))
-                    return false;
-                job.Status = "PROCESSING";
-                job.WorkerId = workerId;
-                job.LockedUntilUtc = null; // Transaction-owned DB lock, released immediately after this floor.
-                await ProcessSingleFloorIterationAsync(job, ct);
-                return true;
+                // Reset on execution-strategy retries; only report the committed attempt.
+                processedJob = null;
+                var execution = await _inbox.ExecuteInCurrentTransactionAsync(
+                    consumerName,
+                    messageKey,
+                    async token =>
+                    {
+                        var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
+                            .SingleAsync(x => x.JobId == jobId, token);
+                        if (job.CurrentFloor != expectedFloor ||
+                            job.Version != expectedVersion ||
+                            (job.Status != "QUEUED" && job.Status != "PROCESSING"))
+                        {
+                            return false;
+                        }
+
+                        job.Status = "PROCESSING";
+                        job.WorkerId = workerId;
+                        job.LockedUntilUtc = null;
+                        await ProcessSingleFloorIterationAsync(job, token);
+                        processedJob = job;
+                        job.Version++;
+                        EnqueueStatus(job, userId);
+
+                        if (job.Status is "QUEUED" or "PROCESSING")
+                        {
+                            EnqueueFloorCommand(job, userId);
+                        }
+
+                        return true;
+                    },
+                    ct);
+
+                return !execution.IsDuplicate && execution.Result;
             }, ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (SqlException ex) when (ex.Number == 51000)
-        {
-            return false; // Lock contention is not a battle/system failure.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Quick climb {JobId} failed at floor {Floor}", jobId, expectedFloor);
-            await _runner.RunAsync(userId, async () =>
+            if (processed && processedJob is not null)
             {
-                var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
-                    .SingleAsync(j => j.JobId == jobId, ct);
-                if (job.CurrentFloor == expectedFloor && (job.Status == "QUEUED" || job.Status == "PROCESSING"))
-                {
-                    job.Status = "ERROR";
-                    job.StopReason = "ERROR";
-                    job.CompletedOnUtc = DateTime.UtcNow;
-                }
-                return true;
+                activity?.SetTag("quickclimb.status", processedJob.Status);
+                var floorLog = ParseLogsJson(processedJob.LogsJson)
+                    .LastOrDefault(x => x.FloorNumber == expectedFloor);
+                activity?.SetTag("quickclimb.floor.result", floorLog is null ? "NOT_RUN"
+                    : floorLog.IsVictory ? "VICTORY" : "DEFEAT");
+                if (processedJob.Status == "ERROR") activity?.SetStatus(ActivityStatusCode.Error);
+                if (floorLog is not null)
+                    _logger.LogDebug(
+                        "QuickClimbFloorProcessed: JobId={JobId}, PlayerId={PlayerId}, Floor={Floor}, Result={Result}, TotalTurns={TotalTurns}, DurationMs={DurationMs}, MessageId={MessageId}",
+                        jobId, processedJob.PlayerId, expectedFloor,
+                        floorLog.IsVictory ? "VICTORY" : "DEFEAT", floorLog.TotalTurns,
+                        timer.Elapsed.TotalMilliseconds, messageId);
+                LogCommittedJobEnd(processedJob, messageId);
+            }
+            activity?.SetTag("quickclimb.processed", processed);
+            return processed;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (SqlException exception) when (IsTransientSql(exception))
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            throw new QuickClimbTransientMessageException(
+                "Quick-climb persistence is temporarily unavailable.",
+                exception);
+        }
+        catch (TimeoutException exception)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            throw new QuickClimbTransientMessageException(
+                "Quick-climb processing timed out.",
+                exception);
+        }
+        catch (Exception exception)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            _logger.LogError(
+                exception,
+                "Quick climb message {MessageId} failed for job {JobId} at floor {Floor}.",
+                messageId,
+                jobId,
+                expectedFloor);
+
+            HrkTowerQuickClimbJob? failedJob = null;
+            var failureRecorded = await _runner.RunAsync(userId, async () =>
+            {
+                failedJob = null;
+                var execution = await _inbox.ExecuteInCurrentTransactionAsync(
+                    consumerName,
+                    messageKey,
+                    async token =>
+                    {
+                        var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
+                            .SingleAsync(x => x.JobId == jobId, token);
+                        if (job.CurrentFloor == expectedFloor &&
+                            job.Version == expectedVersion &&
+                            job.Status is "QUEUED" or "PROCESSING")
+                        {
+                            job.Status = "ERROR";
+                            job.StopReason = "ERROR";
+                            job.CompletedOnUtc = DateTime.UtcNow;
+                            job.UpdatedOnUtc = DateTime.UtcNow;
+                            job.Version++;
+                            failedJob = job;
+                            EnqueueStatus(
+                                job,
+                                userId,
+                                "QUICK_CLIMB_FAILED",
+                                "Quick climb could not continue because of a system error.");
+                        }
+
+                        return true;
+                    },
+                    ct);
+
+                return !execution.IsDuplicate && execution.Result;
             }, ct);
+            if (failureRecorded && failedJob is not null)
+                LogCommittedJobEnd(failedJob, messageId);
             return true;
         }
+    }
+
+    private void LogCommittedJobEnd(HrkTowerQuickClimbJob job, Guid messageId)
+    {
+        if (job.Status is "QUEUED" or "PROCESSING") return;
+        _logger.LogInformation(
+            "QuickClimbEnded: JobId={JobId}, PlayerId={PlayerId}, Status={Status}, ClearedFloorsCount={ClearedFloorsCount}, TargetFloor={TargetFloor}, StopReason={StopReason}, MessageId={MessageId}",
+            job.JobId, job.PlayerId, job.Status, job.ClearedFloorsCount,
+            job.TargetFloor, job.StopReason, messageId);
     }
 
     private async Task ProcessSingleFloorIterationAsync(HrkTowerQuickClimbJob job, CancellationToken ct)
@@ -331,42 +483,38 @@ public class TowerQuickClimbService : ITowerQuickClimbService
                 allTime.HighestFloorAllTime = Math.Max(allTime.HighestFloorAllTime, currentFloor);
                 job.ClearedFloorsCount++;
 
-                // Grant floor rewards if not already claimed in period
-                bool alreadyClaimed = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query()
-                    .AnyAsync(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "FLOOR_REWARD" && c.TargetId == currentFloor, ct);
+                // Quick-climb is a repeatable daily run. Every cleared floor grants its configured
+                // reward again; milestone chests remain once per event period.
+                var configuredRewards = ParseRewardsJson(floor.RewardsJson);
+                var (granted, pending, _) = await _rewards.GrantGenericRewardsAsync(
+                    player.Id,
+                    configuredRewards,
+                    period.Id,
+                    $"Leo nhanh lượt {job.DailyRunNumber} - Tầng {currentFloor}",
+                    ct,
+                    experienceHandled: true);
+                floorRewardsGained.AddRange(granted);
+                pendingRewards.AddRange(pending);
+                var experience = TowerRewardService.GetExperience(configuredRewards);
+                playerExp = experience.Player;
+                await _rewards.AddPlayerExpAsync(player, playerExp, ct);
+                heroExpResults = await _rewards.AddParticipantHeroExp(
+                    player.Id,
+                    snapshot.ParticipantHeroIds,
+                    experience.Hero,
+                    ct);
 
-                if (!alreadyClaimed)
-                {
-                    var configuredRewards = ParseRewardsJson(floor.RewardsJson);
-                    var (granted, pending, bagFull) = await _rewards.GrantGenericRewardsAsync(player.Id, configuredRewards, period.Id, $"Leo nhanh Tầng {currentFloor}", ct, experienceHandled: true);
-                    floorRewardsGained.AddRange(granted);
-                    pendingRewards.AddRange(pending);
-                    var experience = TowerRewardService.GetExperience(configuredRewards);
-                    playerExp = experience.Player;
-                    await _rewards.AddPlayerExpAsync(player, playerExp, ct);
-                    heroExpResults = await _rewards.AddParticipantHeroExp(player.Id, snapshot.ParticipantHeroIds, experience.Hero, ct);
-
-                    // Merge into accumulated rewards
-                    MergeRewards(accumulatedRewards, granted);
-                    var expRewards = configuredRewards.Where(r => r.Type is "PLAYER_EXP" or "HERO_EXP").ToList();
-                    MergeRewards(accumulatedRewards, expRewards);
-                    floorRewardsGained.AddRange(expRewards);
-
-                    var claim = new HrkPlayerEventRewardClaim
-                    {
-                        PlayerId = player.Id,
-                        EventPeriodId = period.Id,
-                        ClaimType = "FLOOR_REWARD",
-                        TargetId = currentFloor,
-                        ClaimedAtUtc = DateTime.UtcNow,
-                        RewardSummaryJson = JsonSerializer.Serialize(granted)
-                    };
-                    await _unitOfWork.Repository<HrkPlayerEventRewardClaim>().AddAsync(claim);
-                }
+                MergeRewards(accumulatedRewards, granted);
+                var expRewards = configuredRewards
+                    .Where(r => r.Type is "PLAYER_EXP" or "HERO_EXP")
+                    .ToList();
+                MergeRewards(accumulatedRewards, expRewards);
+                floorRewardsGained.AddRange(expRewards);
 
                 if (currentFloor >= job.TargetFloor)
                 {
                     // Tower completed!
+                    progress.CurrentFloor = job.TargetFloor;
                     progress.IsCompleted = true;
                     allTime.TotalClears++;
                     job.Status = "COMPLETED";
@@ -375,7 +523,7 @@ public class TowerQuickClimbService : ITowerQuickClimbService
                 }
                 else
                 {
-                    progress.CurrentFloor = currentFloor + 1;
+                    progress.CurrentFloor = Math.Max(progress.CurrentFloor, currentFloor + 1);
                     job.CurrentFloor = currentFloor + 1;
 
                     if (job.StopReason == "USER_CANCELLED")
@@ -388,33 +536,14 @@ public class TowerQuickClimbService : ITowerQuickClimbService
             else
             {
                 // FIRST DEFEAT: Stop quick climb immediately!
-                job.RemainingLives = EventAccessPolicy.LivesAfter(ev, job.RemainingLives, false);
-                progress.RemainingLives = job.RemainingLives;
+                job.RemainingLives = 0;
                 job.FailedFloor = currentFloor;
-
-                if (job.RemainingLives <= 0)
-                {
-                    // Out of lives: reset run to floor 1
-                    progress.CurrentFloor = 1;
-                }
 
                 job.Status = "STOPPED_DEFEAT";
                 job.StopReason = "FIRST_DEFEAT";
                 job.CompletedOnUtc = DateTime.UtcNow;
             }
 
-            if (isVictory && ev.LifeConsumeMode == "ON_ENTRY")
-            {
-                job.RemainingLives = EventAccessPolicy.LivesAfter(ev, job.RemainingLives, true);
-                progress.RemainingLives = job.RemainingLives;
-                if (job.RemainingLives == 0 && !progress.IsCompleted)
-                {
-                    progress.CurrentFloor = 1;
-                    job.Status = "STOPPED_DEFEAT";
-                    job.StopReason = "LIVES_EXHAUSTED";
-                    job.CompletedOnUtc = DateTime.UtcNow;
-                }
-            }
             // Add log entry
             logs.Add(new QuickClimbFloorLogDto
             {
@@ -454,12 +583,12 @@ public class TowerQuickClimbService : ITowerQuickClimbService
             {
                 Battle = TowerBattleExecutor.ToBattleResult(battleId, initialState, simulation, randomSeed, heroStats),
                 FloorNumber = currentFloor,
-                NextFloorNumber = progress.IsCompleted || progress.RemainingLives == 0 ? null : progress.CurrentFloor,
+                NextFloorNumber = job.Status is "QUEUED" or "PROCESSING" ? job.CurrentFloor : null,
                 LivesBefore = livesBefore,
                 LivesAfter = job.RemainingLives,
                 IsVictory = isVictory,
-                IsRunEnded = progress.RemainingLives == 0,
-                IsTowerCompleted = progress.IsCompleted,
+                IsRunEnded = job.Status is not ("QUEUED" or "PROCESSING"),
+                IsTowerCompleted = job.Status == "COMPLETED",
                 EarnedRewards = floorRewardsGained,
                 PendingRewards = pendingRewards,
                 PlayerExpGained = playerExp,
@@ -469,7 +598,6 @@ public class TowerQuickClimbService : ITowerQuickClimbService
                 Heroes = heroExpResults
             };
             battleRecord.ResultJson = JsonSerializer.Serialize(result);
-            await _executor.UpdateRunAsync(progress, currentFloor, ct);
             await _unitOfWork.Repository<HrkPlayerTowerBattle>().AddAsync(battleRecord);
 
             await _unitOfWork.SaveChangesAsync(ct);
@@ -518,14 +646,77 @@ public class TowerQuickClimbService : ITowerQuickClimbService
         InitialLives = job.InitialLives,
         RemainingLives = job.RemainingLives,
         ClearedFloorsCount = job.ClearedFloorsCount,
+        DailyRunNumber = job.DailyRunNumber,
         FailedFloor = job.FailedFloor,
         AccumulatedRewards = ParseRewardsJson(job.AccumulatedRewardsJson),
         Logs = ParseLogsJson(job.LogsJson),
         LastBattleId = job.LastBattleId,
         CreatedOnUtc = job.CreatedOnUtc,
         UpdatedOnUtc = job.UpdatedOnUtc,
-        CompletedOnUtc = job.CompletedOnUtc
+        CompletedOnUtc = job.CompletedOnUtc,
+        Version = job.Version
     };
+
+    private static bool IsTransientSql(SqlException exception) =>
+        exception.Errors.Cast<SqlError>().Any(error => error.Number is
+            -2 or 64 or 233 or 1205 or 4060 or 10928 or 10929 or 40197 or 40501 or 40613 or
+            49918 or 49919 or 49920 or 10053 or 10054 or 10060 or 51000);
+
+    private void EnqueueFloorCommand(HrkTowerQuickClimbJob job, string userId)
+    {
+        var command = new ProcessQuickClimbFloorRequestedV1(
+            Guid.NewGuid(),
+            job.JobId,
+            userId,
+            job.CurrentFloor,
+            job.Version);
+        _outbox.Add(
+            command,
+            MessagingContractNames.QuickClimbFloorRequestedV1,
+            MessagingPublisherNames.GameEvents,
+            MessagingContractNames.QuickClimbFloorRequestedV1,
+            partitionKey: job.JobId,
+            sequence: job.Version);
+    }
+
+    private void EnqueueStatus(
+        HrkTowerQuickClimbJob job,
+        string userId,
+        string? errorCode = null,
+        string? errorMessage = null)
+    {
+        var total = Math.Max(1, job.TargetFloor - job.StartFloor + 1);
+        var percentage = Math.Clamp((int)Math.Round(job.ClearedFloorsCount * 100d / total), 0, 100);
+        if (job.Status == "COMPLETED")
+        {
+            percentage = 100;
+        }
+
+        var statusEvent = new ProcessStatusUpdatedV1(
+            Guid.NewGuid(),
+            job.JobId,
+            userId,
+            "TOWER_QUICK_CLIMB",
+            job.Version,
+            job.CurrentFloor,
+            job.TargetFloor,
+            percentage,
+            job.Status,
+            DateTime.UtcNow,
+            errorCode,
+            errorMessage is null ? null : errorMessage[..Math.Min(errorMessage.Length, 500)]);
+        _outbox.Add(
+            statusEvent,
+            MessagingContractNames.ProcessStatusUpdatedV1,
+            MessagingPublisherNames.GameEvents,
+            MessagingContractNames.ProcessStatusUpdatedV1,
+            partitionKey: job.JobId,
+            sequence: job.Version);
+        if (job.Status is not ("QUEUED" or "PROCESSING"))
+            _activityEvents.Raise(new QuickClimbEndedEvent(job.PlayerId, userId, job.JobId,
+                job.Status, job.StartFloor, job.CurrentFloor, job.TargetFloor,
+                job.ClearedFloorsCount, job.StopReason, job.Version));
+    }
 
     private static List<GenericRewardItemDto> ParseRewardsJson(string? json) =>
         TowerRewardService.ParseRewards(json);

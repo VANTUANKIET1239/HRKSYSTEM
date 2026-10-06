@@ -12,6 +12,7 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Services/AUTH/HRK.AUTH/HRK.AUTH.csproj", "Services/AUTH/HRK.AUTH/"]
+COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 RUN dotnet restore "./Services/AUTH/HRK.AUTH/HRK.AUTH.csproj"
 COPY . .
 WORKDIR "/src/Services/AUTH/HRK.AUTH"

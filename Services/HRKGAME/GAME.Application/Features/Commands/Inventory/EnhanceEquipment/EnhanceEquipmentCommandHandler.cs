@@ -4,6 +4,7 @@ using Core.Common.Repositories;
 using CoreEngine.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
+using GAME.Application.Events;
 using GAME.Domain.Entities;
 using GAME.Domain.Exceptions;
 using GAME.Domain.Services;
@@ -17,6 +18,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Oservability.Tracing;
 
 namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
 {
@@ -27,6 +29,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
         private readonly IItemStatCalculationService _statCalculationService;
         private readonly IEquipmentEnhancementDomainService _enhancementDomainService;
         private readonly ILogger<EnhanceEquipmentCommandHandler> _logger;
+        private readonly IPlayerActivityEvents _activityEvents;
 
         public EnhanceEquipmentCommandHandler(
             IUnitOfWork unitOfWork,
@@ -34,7 +37,8 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
             IItemStatCalculationService statCalculationService,
             IEquipmentEnhancementDomainService enhancementDomainService,
             IHttpContextAccessor httpContextAccessor,
-            ILogger<EnhanceEquipmentCommandHandler> logger)
+            ILogger<EnhanceEquipmentCommandHandler> logger,
+            IPlayerActivityEvents activityEvents)
             : base(httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
@@ -42,6 +46,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
             _statCalculationService = statCalculationService;
             _enhancementDomainService = enhancementDomainService;
             _logger = logger;
+            _activityEvents = activityEvents;
         }
 
         public async Task<BaseResponse<EnhanceEquipmentResultDto>> Handle(EnhanceEquipmentCommand command, CancellationToken cancellationToken)
@@ -98,6 +103,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                     throw new KeyNotFoundException("Không tìm thấy thông tin người chơi.");
                 }
 
+                using var playerScope = _logger.BeginScope(new Dictionary<string, object?> { ["PlayerId"] = player.Id });
                 var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken);
                 if (wallet == null)
                 {
@@ -233,6 +239,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
 
                 // 9. Execute Domain Service (Pure Domain Rules + RNG + Aggregate State Transition)
                 // Option A: Enhancement roll occurs before retryable transactional delegate
+                using var operation = new GameOperation("inventory.enhancement");
                 var executionResult = _enhancementDomainService.ExecuteAttempt(equipment, levelConfig, materialsVo);
 
                 // 10. Atomic Database Transaction (Application Layer Orchestration)
@@ -316,20 +323,23 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         };
 
                         await _unitOfWork.Repository<HrkEquipmentEnhancementHistory>().AddAsync(historyRecord);
+                        _activityEvents.Raise(new ItemEnhancedEvent(player.Id, userId, req.RequestId,
+                            equipment.Id, equipment.ItemTemplateId, executionResult.OldEnhancement,
+                            executionResult.NewEnhancement, executionResult.IsSuccess, levelConfig.GoldCost));
 
                         // Commit everything atomically
                         await _unitOfWork.SaveChangesAsync(cancellationToken);
                         await _unitOfWork.CommitTransactionAsync();
                     }
-                    catch (Exception ex)
+                    catch
                     {
                         await _unitOfWork.RollbackTransactionAsync();
-                        _logger.LogError(ex, "Transaction failed and was rolled back during enhancement attempt. RequestId={RequestId}", req.RequestId);
                         throw;
                     }
                 });
 
                 // 11. Build Response DTO
+                operation.Complete(executionResult.IsSuccess ? "success" : "roll_failure");
                 var calculatedStats = _statCalculationService.CalculateCurrentStats(equipment, executionResult.NewEnhancement);
 
                 var responseDto = new EnhanceEquipmentResultDto

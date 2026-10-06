@@ -10,6 +10,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Http;
+using Serilog;
 
 namespace GAME.Infrastructure.Services
 {
@@ -19,23 +21,35 @@ namespace GAME.Infrastructure.Services
         private readonly IHeroStatCalculationService _heroStatCalculationService;
         private readonly ICombatPowerService _combatPowerService;
         private readonly IFormationPowerQueryService _formationPowerQueryService;
+        private readonly IHttpContextAccessor _httpContext;
+        private readonly IDiagnosticContext _diagnostic;
 
         public GamePlayerService(
             IUnitOfWork unitOfWork,
             IHeroStatCalculationService heroStatCalculationService,
             ICombatPowerService combatPowerService,
-            IFormationPowerQueryService formationPowerQueryService)
+            IFormationPowerQueryService formationPowerQueryService,
+            IHttpContextAccessor httpContext,
+            IDiagnosticContext diagnostic)
         {
             _unitOfWork = unitOfWork;
             _heroStatCalculationService = heroStatCalculationService;
             _combatPowerService = combatPowerService;
             _formationPowerQueryService = formationPowerQueryService;
+            _httpContext = httpContext;
+            _diagnostic = diagnostic;
         }
 
         public async Task<HrkPlayer?> GetPlayerByUserIdAsync(string userId, CancellationToken cancellationToken = default)
         {
-            return await _unitOfWork.ReadOnlyRepository<HrkPlayer>().Query()
+            var player = await _unitOfWork.ReadOnlyRepository<HrkPlayer>().Query()
                 .FirstOrDefaultAsync(p => p.UserId == userId && p.IsActive, cancellationToken);
+            if (player is not null && _httpContext.HttpContext is { } http)
+            {
+                http.Items["PlayerId"] = player.Id;
+                _diagnostic.Set("PlayerId", player.Id);
+            }
+            return player;
         }
 
         public async Task<HrkPlayerWallet?> GetWalletByPlayerIdAsync(long playerId, CancellationToken cancellationToken = default)

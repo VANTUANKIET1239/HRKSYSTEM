@@ -8,12 +8,23 @@
     <DockerLaunchAction>LaunchBrowser</DockerLaunchAction>
     <DockerServiceUrl>{Scheme}://localhost:{ServicePort}</DockerServiceUrl>
     <DockerServiceName>apigateway</DockerServiceName>
+    <AdditionalComposeFilePaths>docker-compose.observability.yml</AdditionalComposeFilePaths>
   </PropertyGroup>
   <ItemGroup>
+    <None Include=".env" />
     <None Include="docker-compose.override.yml">
       <DependentUpon>docker-compose.yml</DependentUpon>
     </None>
+    <None Include="docker-compose.vs.debug.yml">
+      <DependentUpon>docker-compose.yml</DependentUpon>
+    </None>
+    <None Include="docker-compose.vs.release.yml">
+      <DependentUpon>docker-compose.yml</DependentUpon>
+    </None>
     <None Include="docker-compose.yml" />
+    <None Include="docker-compose.observability.yml" />
+    <None Include="docker\otel-collector-config.yaml" />
+    <None Include="docker\prometheus.yml" />
     <None Include=".dockerignore" />
   </ItemGroup>
 </Project>

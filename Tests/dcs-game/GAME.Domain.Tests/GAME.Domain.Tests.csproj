@@ -18,5 +18,8 @@
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Domain/GAME.Domain.csproj" />
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Application/GAME.Application.csproj" />
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Infrastructure/GAME.Infrastructure.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj" />
   </ItemGroup>
 </Project>

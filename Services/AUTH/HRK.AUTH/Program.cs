@@ -1,3 +1,4 @@
+using Oservability;
 using AUTH.Infrastructure.Configuration;
 using HRK.AUTH.Configuration;
 using Microsoft.Extensions.Options;
@@ -7,12 +8,11 @@ using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddCustomDependency();
 
 // Add services to the container.
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
-
-DependencyInjection.AddCustomDependency(builder.Services, builder.Configuration);
 
 builder.Services
     .AddAuthentication("Bearer")
@@ -29,7 +29,6 @@ builder.Services
             ValidAudience = builder.Configuration["JwtSettings:Audience"], // e.g. "your-backend-apis"
                                                                            // If you accept multiple audiences at the gateway, use:
                                                                            // ValidAudiences = builder.Configuration.GetSection("Jwt:Audiences").Get<string[]>(),
-
 
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
@@ -48,8 +47,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
-
-
+app.UseHrkCorrelation();
 
 if (app.Environment.IsDevelopment())
 {
@@ -57,10 +55,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(); // default path: /swagger
 }
 
-
 // Configure the HTTP request pipeline.
 
-app.UseAuthentication(); // must come before UseAuthorization
+app.UseAuthentication();
+app.UseHrkIdentityLogging(); // must come before UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();

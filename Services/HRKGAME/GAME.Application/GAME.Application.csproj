@@ -15,4 +15,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
 </Project>

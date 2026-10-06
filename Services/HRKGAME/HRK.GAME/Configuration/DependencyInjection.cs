@@ -2,6 +2,9 @@ using Core.Common.Database.Extensions;
 using Core.Common.Database.Options;
 using Core.Common.Extensions;
 using Core.Common.Caching;
+using Core.RabbitMQ.DependencyInjection;
+using Core.Messaging.Contracts;
+using Core.TransactionalMessaging.DependencyInjection;
 using GAME.Application.Configuration;
 using GAME.Application.Interfaces;
 using GAME.Domain.Interfaces;
@@ -28,11 +31,39 @@ using GAME.Domain.Battle.Targets;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using GAME.Infrastructure.Messaging.Consumers;
+using Oservability;
+using Oservability.Tracing;
+using HRK.GAME.Health;
 
 namespace HRK.GAME.Configuration
 {
     public static class DependencyInjection
     {
+        public static WebApplicationBuilder AddCustomDependency(this WebApplicationBuilder builder)
+        {
+            AddObservability(builder);
+            builder.Services.AddCustomDependency(builder.Configuration);
+            return builder;
+        }
+
+        public static void AddObservability(WebApplicationBuilder builder) =>
+            builder.AddHrkObservability("HRK.GAME");
+
+        public static void AddRedisTelemetry(IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddHrkRedisTelemetry();
+            services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
+                .Configure<RedisTelemetry>((options, telemetry) =>
+                    options.ConnectionMultiplexerFactory = () => telemetry.ConnectAsync(
+                        configuration["Redis:ConnectionString"] ?? "localhost:6379,abortConnect=false"));
+        }
+
+        public static void AddServiceHealthChecks(IServiceCollection services) =>
+            services.AddHealthChecks()
+                .AddCheck<GameDatabaseHealthCheck>("database")
+                .AddCheck<GameRabbitMqHealthCheck>("rabbitmq");
+
         public static IServiceCollection AddCustomDependency(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddHttpContextAccessor();
@@ -45,6 +76,8 @@ namespace HRK.GAME.Configuration
 
             // 3. Add Services & Repositories / UnitOfWork
             AddServices(services, configuration);
+            AddRedisTelemetry(services, configuration);
+            AddServiceHealthChecks(services);
 
             // 4. Register MediatR for GAME.Application assembly
             services.AddMediatR(cfg =>
@@ -69,6 +102,8 @@ namespace HRK.GAME.Configuration
         {
             services.AddCoreService(configuration);
             services.AddHrkRedisCache(configuration);
+            services.AddSingleton<global::GAME.Infrastructure.Messaging.PlayerActivityEventMapper>();
+            services.AddScoped<IPlayerActivityEvents, global::GAME.Infrastructure.Messaging.PlayerActivityEvents>();
 
             // Register UnitOfWork for GameDbContext
             services.AddRepositoryUOW<GameDbContext>();
@@ -107,6 +142,12 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IHeroProgressionStatService, HeroProgressionStatService>();
             services.AddScoped<IHeroStarUpgradeService, HeroStarUpgradeService>();
 
+            services.AddRabbitMqMessaging(configuration)
+                .EnsureRabbitTopology()
+                .AddNamedRabbitConsumer<ProcessQuickClimbFloorRequestedV1, QuickClimbFloorRequestedHandler>(
+                    "QuickClimb");
+            services.AddTransactionalMessaging<GameDbContext>(configuration);
+
             services.AddScoped<TowerOperationRunner>();
             services.AddScoped<TowerBattleExecutor>();
             services.AddScoped<TowerRewardService>();
@@ -114,8 +155,6 @@ namespace HRK.GAME.Configuration
             services.AddScoped<IEventPeriodService, EventPeriodService>();
             services.AddScoped<ITowerClimbService, TowerClimbService>();
             services.AddScoped<ITowerQuickClimbService, TowerQuickClimbService>();
-            services.Configure<TowerWorkerOptions>(configuration.GetSection("TowerWorker"));
-            services.AddHostedService<TowerQuickClimbWorker>();
 
             // Domain Services & Infrastructure abstractions (DDD)
             services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();

@@ -1,5 +1,6 @@
 ﻿using Core.Common.Constants;
 using Core.RabbitMQ.Channel;
+using Core.RabbitMQ.Consumer;
 using Core.RabbitMQ.Connection;
 using Core.RabbitMQ.Entities;
 using Core.RabbitMQ.Entology;
@@ -9,6 +10,8 @@ using Hrk.Messaging.RabbitMq.Consuming;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Oservability.Correlation;
 
 
 namespace Core.RabbitMQ.DependencyInjection
@@ -19,12 +22,17 @@ namespace Core.RabbitMQ.DependencyInjection
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            services.AddHttpContextAccessor();
+            services.TryAddScoped<CorrelationContext>();
+            services.TryAddScoped<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
+            services.AddScoped<MessageContext>();
             services.Configure<RabbitMqOptions>(
                 configuration.GetSection(Common.Constants.Common.Constants.RABBITMQ.RABBITMQ_OPTIONS));
             services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
             services.AddSingleton<IRabbitMqChannel, RabbitMqChannel>();
             services.AddSingleton<IRabbitMqTopology, RabbitMqTopology>();
             services.AddSingleton<IMessagePublisher, MessagePublisher>();
+            services.AddSingleton<IMessageFailureClassifier, DefaultMessageFailureClassifier>();
             return services;
         }
 
@@ -64,6 +72,7 @@ namespace Core.RabbitMQ.DependencyInjection
                     sp.GetRequiredService<IRabbitMqChannel>(),
                     sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RabbitMqOptions>>(),
                     sp,
+                    sp.GetRequiredService<IMessageFailureClassifier>(),
                     consumerName));
             return services;
         }

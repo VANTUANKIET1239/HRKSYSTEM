@@ -5,7 +5,14 @@
       "commandVersion": "1.0",
       "serviceActions": {
         "hrk.auth": "StartDebugging",
-        "apigateway": "StartDebugging"
+        "apigateway": "StartDebugging",
+        "hrk.game": "StartDebugging",
+        "hrk.realtime": "StartDebugging",
+        "hrk.activity": "StartDebugging",
+        "seq": "StartWithoutDebugging",
+        "otel-collector": "StartWithoutDebugging",
+        "jaeger": "StartWithoutDebugging",
+        "prometheus": "StartWithoutDebugging"
       }
     }
   }

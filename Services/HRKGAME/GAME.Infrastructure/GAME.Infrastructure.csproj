@@ -18,6 +18,9 @@
     <ProjectReference Include="..\GAME.Domain\GAME.Domain.csproj" />
     <ProjectReference Include="..\GAME.Application\GAME.Application.csproj" />
     <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.RabbitMQ\Core.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.Messaging.Contracts\Core.Messaging.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\CoreEngine\Core.TransactionalMessaging\Core.TransactionalMessaging.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,8 @@
+services:
+  hrk.realtime:
+    build:
+      args:
+        BUILD_CONFIGURATION: Release
+    labels:
+      com.microsoft.visualstudio.debuggee.arguments: " --additionalProbingPath /.nuget/packages --additionalProbingPath /.nuget/fallbackpackages \"/app/HRK.REALTIME.dll\""
+

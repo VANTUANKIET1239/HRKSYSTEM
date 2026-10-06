@@ -63,6 +63,7 @@ BEGIN
         CurrentFloor INT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_CurrentFloor DEFAULT (1),
         RemainingLives INT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_RemainingLives DEFAULT (3),
         CurrentRunNumber INT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_CurrentRunNumber DEFAULT (1),
+        QuickClimbRunsUsed INT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_QuickClimbRunsUsed DEFAULT (0),
         HighestFloorInPeriod INT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_HighestFloor DEFAULT (0),
         IsCompleted BIT NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_IsCompleted DEFAULT (0),
         CreatedOn DATETIME2 NOT NULL CONSTRAINT DF_HRK_PlayerEventPeriodProgresses_CreatedOn DEFAULT (SYSUTCDATETIME()),
@@ -222,6 +223,7 @@ BEGIN
         InitialLives INT NOT NULL,
         RemainingLives INT NOT NULL,
         ClearedFloorsCount INT NOT NULL CONSTRAINT DF_HRK_TowerQuickClimbJobs_ClearedFloorsCount DEFAULT (0),
+        DailyRunNumber INT NOT NULL CONSTRAINT DF_HRK_TowerQuickClimbJobs_DailyRunNumber DEFAULT (0),
         FailedFloor INT NULL,
         FormationCode NVARCHAR(50) NOT NULL,
         FormationSnapshotJson NVARCHAR(MAX) NOT NULL,
@@ -284,7 +286,7 @@ USING (
         3,
         N'ON_DEFEAT',
         NULL,
-        N'{"maxFloor": 60, "bossMilestones": [15, 30, 45, 60], "eliteMilestones": [5, 10, 20, 25, 35, 40, 50, 55]}'
+        N'{"maxFloor": 60, "quickClimbDailyLimit": 3, "bossMilestones": [15, 30, 45, 60], "eliteMilestones": [5, 10, 20, 25, 35, 40, 50, 55]}'
     )
 ) AS source (Code, Name, EventType, Description, BannerImagePath, Icon, DisplayOrder, MinPlayerLevel, IsOpen, ResetType, ResetTime, TimeZoneId, InitialLives, LifeConsumeMode, MaxDailyRuns, RulesJson)
 ON target.Code = source.Code

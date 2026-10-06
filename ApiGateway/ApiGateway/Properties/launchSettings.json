@@ -1,37 +1,46 @@
 {
-  "profiles": {
-    "http": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "dotnetRunMessages": false,
-      "applicationUrl": "http://localhost:5000"
-    },
-    "Container (Dockerfile)": {
-      "commandName": "Docker",
-      "launchBrowser": true,
-      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
-      "environmentVariables": {
-        "ASPNETCORE_HTTP_PORTS": "8080"
-      },
-      "publishAllPorts": true,
-      "useSSL": false
-    },
-    "IIS Express": {
-      "commandName": "IISExpress",
-      "launchBrowser": false,
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    }
-  },
-  "$schema": "https://json.schemastore.org/launchsettings.json",
-  "iisSettings": {
-    "windowsAuthentication": false,
-    "anonymousAuthentication": true,
-    "iisExpress": {
-      "applicationUrl": "http://localhost:59768/",
-      "sslPort": 44319
-    }
-  }
+    "profiles":  {
+                     "http":  {
+                                  "commandName":  "Project",
+                                  "environmentVariables":  {
+                                                               "ASPNETCORE_ENVIRONMENT":  "Development",
+                                                               "Telemetry__Otlp__Protocol":  "HttpProtobuf",
+                                                               "Telemetry__Otlp__Enabled":  "true",
+                                                               "Telemetry__Otlp__Endpoint":  "http://localhost:4318",
+                                                               "Seq__ServerUrl":  "http://localhost:5340"
+                                                           },
+                                  "dotnetRunMessages":  false,
+                                  "applicationUrl":  "http://localhost:5000"
+                              },
+                     "Container (Dockerfile)":  {
+                                                    "commandName":  "Docker",
+                                                    "launchBrowser":  true,
+                                                    "launchUrl":  "{Scheme}://{ServiceHost}:{ServicePort}",
+                                                    "environmentVariables":  {
+                                                                                 "ASPNETCORE_HTTP_PORTS":  "8080"
+                                                                             },
+                                                    "publishAllPorts":  true,
+                                                    "useSSL":  false
+                                                },
+                     "IIS Express":  {
+                                         "commandName":  "IISExpress",
+                                         "launchBrowser":  false,
+                                         "environmentVariables":  {
+                                                                      "ASPNETCORE_ENVIRONMENT":  "Development",
+                                                                      "Telemetry__Otlp__Protocol":  "HttpProtobuf",
+                                                                      "Telemetry__Otlp__Enabled":  "true",
+                                                                      "Telemetry__Otlp__Endpoint":  "http://localhost:4318",
+                                                                      "Seq__ServerUrl":  "http://localhost:5340"
+                                                                  }
+                                     }
+                 },
+    "$schema":  "https://json.schemastore.org/launchsettings.json",
+    "iisSettings":  {
+                        "windowsAuthentication":  false,
+                        "anonymousAuthentication":  true,
+                        "iisExpress":  {
+                                           "applicationUrl":  "http://localhost:59768/",
+                                           "sslPort":  44319
+                                       }
+                    }
+}

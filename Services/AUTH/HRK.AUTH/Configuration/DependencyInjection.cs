@@ -17,10 +17,20 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Reflection;
+using Oservability;
 namespace HRK.AUTH.Configuration
 {
     public static class DependencyInjection
     {
+        public static WebApplicationBuilder AddCustomDependency(this WebApplicationBuilder builder)
+        {
+            AddObservability(builder);
+            AddCustomDependency(builder.Services, builder.Configuration);
+            return builder;
+        }
+
+        public static void AddObservability(WebApplicationBuilder builder) =>
+            builder.AddHrkObservability("HRK.AUTH");
 
         public static IServiceCollection AddCustomDependency(IServiceCollection services, IConfiguration configuration)
         {

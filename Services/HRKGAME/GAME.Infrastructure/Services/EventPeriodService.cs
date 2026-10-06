@@ -205,6 +205,7 @@ public class EventPeriodService : IEventPeriodService
                 CurrentFloor = 1,
                 RemainingLives = gameEvent.InitialLives,
                 CurrentRunNumber = 1,
+                QuickClimbRunsUsed = 0,
                 HighestFloorInPeriod = 0,
                 IsCompleted = false,
                 CreatedOn = DateTime.UtcNow,
