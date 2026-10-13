@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Core.TransactionalMessaging.Entities;
 using Core.TransactionalMessaging.Outbox;
+using Core.Persistence.Repositories;
 using GAME.Application.Events;
 using GAME.Infrastructure.Data;
 using GAME.Infrastructure.Messaging;
@@ -32,7 +33,7 @@ public class ActivityEventTransactionTests
         var eventId = mapper.Map(activity).Message.EventId;
         await using (var attempt = new GameDbContext(options))
         {
-            var events = new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(attempt), mapper, attempt);
+            var events = new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(attempt), mapper, new UnitOfWork<GameDbContext>(attempt));
             await using (var transaction = await attempt.Database.BeginTransactionAsync())
             {
                 await attempt.Database.ExecuteSqlRawAsync("INSERT INTO BusinessProbe VALUES (1)");

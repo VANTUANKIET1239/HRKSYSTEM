@@ -1,45 +1,126 @@
-using Core.Common.CQRS;
-using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Common.Errors;
+using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
-using System;
-using System.Collections.Generic;
-using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
+using GAME.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Core.Application.CQRS;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 
-namespace GAME.Application.Features.Commands.Inventory.SellItems
+namespace GAME.Application.Features.Commands.Inventory.SellItems;
+
+public record SellItemsCommand(List<SellItemRequestItem> Items) : ICommand<BaseResponse<SellItemsResponseDto>>;
+
+public sealed class SellItemsCommandHandler(
+    IUnitOfWork unitOfWork,
+    IGamePlayerService gamePlayerService,
+    IGameRequestContext actor)
+    : ICommandHandler<SellItemsCommand, BaseResponse<SellItemsResponseDto>>
 {
-    public record SellItemsCommand(List<SellItemRequestItem> Items) : ICommand<BaseResponse<SellItemsResponseDto>>;
-
-    public class SellItemsCommandHandler : HRKBaseCommand, ICommandHandler<SellItemsCommand, BaseResponse<SellItemsResponseDto>>
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
+    private readonly IGameRequestContext _actor = actor;
+    public async Task<BaseResponse<SellItemsResponseDto>> Handle(SellItemsCommand request, CancellationToken cancellationToken)
     {
-        private readonly IInventoryService _inventoryService;
-
-        public SellItemsCommandHandler(IInventoryService inventoryService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
         {
-            _inventoryService = inventoryService;
+            var userId = _actor.UserId;
+            var result = await ExecuteAsync(userId, request.Items, cancellationToken);
+            return BaseResponse<SellItemsResponseDto>.SuccessResponse(result, "Bán vật phẩm thành công.");
+        }
+    }
+
+    private async Task<SellItemsResponseDto> ExecuteAsync(string userId, List<SellItemRequestItem> items, CancellationToken cancellationToken = default)
+    {
+        if (items == null || !items.Any())
+        {
+            throw new BusinessException("INVALID_REQUEST", "Danh sách vật phẩm cần bán không được để trống.", BusinessErrorKind.Validation);
         }
 
-        public async Task<BaseResponse<SellItemsResponseDto>> Handle(SellItemsCommand request, CancellationToken cancellationToken)
+        // Gộp các yêu cầu trùng lặp và loại bỏ các yêu cầu có số lượng <= 0
+        var groupedItems = items.Where(i => i != null && i.Count > 0)
+            .GroupBy(i => i.InventoryItemId)
+            .Select(g => new SellItemRequestItem { InventoryItemId = g.Key, Count = g.Sum(x => x.Count) }).ToList();
+        if (!groupedItems.Any())
         {
-            try
+            throw new BusinessException("INVALID_REQUEST", "Không có vật phẩm hợp lệ để bán.", BusinessErrorKind.Validation);
+        }
+
+        var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken);
+        if (player == null)
+        {
+            throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy thông tin người chơi.", BusinessErrorKind.NotFound);
+        }
+
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken);
+        if (wallet == null)
+        {
+            throw new KeyNotFoundException("Không tìm thấy ví người chơi.");
+        }
+
+        var itemIds = groupedItems.Select(i => i.InventoryItemId).ToList();
+        var inventories = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
+            .Include(i => i.ItemTemplate)
+            .Where(i => i.PlayerId == player.Id && itemIds.Contains(i.Id) && i.IsActive)
+            .ToListAsync(cancellationToken);
+        long totalEarnedGold = 0;
+        int totalSoldCount = 0;
+        foreach (var req in groupedItems)
+        {
+            var inv = inventories.FirstOrDefault(i => i.Id == req.InventoryItemId);
+            if (inv == null)
             {
-                var userId = GetUserId();
-                var result = await _inventoryService.SellItemsAsync(userId, request.Items, cancellationToken);
-                return BaseResponse<SellItemsResponseDto>.SuccessResponse(result, "Bán vật phẩm thành công.");
+                throw new BusinessException("ITEM_NOT_FOUND", $"Không tìm thấy vật phẩm với mã ID {req.InventoryItemId} trong hành trang.", BusinessErrorKind.NotFound);
             }
-            catch (KeyNotFoundException ex)
+
+            if (inv.IsLocked)
             {
-                return BaseResponse<SellItemsResponseDto>.FailResponse(ex.Message, statusCode: 404);
+                throw new BusinessException("ITEM_LOCKED", $"Vật phẩm '{inv.ItemTemplate.Name}' đang bị khóa, không thể bán.", BusinessErrorKind.Conflict);
             }
-            catch (Exception ex)
+
+            if (inv.IsEquipped)
             {
-                return BaseResponse<SellItemsResponseDto>.FailResponse(ex.Message, statusCode: 400);
+                throw new BusinessException("ITEM_EQUIPPED", $"Vật phẩm '{inv.ItemTemplate.Name}' đang được trang bị, không thể bán.", BusinessErrorKind.Conflict);
+            }
+
+            if (req.Count > inv.Count)
+            {
+                throw new BusinessException("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng bán ({req.Count}) vượt quá số lượng hiện có ({inv.Count}) của '{inv.ItemTemplate.Name}'.", BusinessErrorKind.Conflict);
+            }
+
+            if (inv.ItemTemplate.SellPrice < 0)
+            {
+                throw new BusinessException("ITEM_NOT_SELLABLE", $"Vật phẩm '{inv.ItemTemplate.Name}' là vật phẩm không thể bán.", BusinessErrorKind.Conflict);
+            }
+
+            // Sử dụng trực tiếp giá bán SellPrice được cấu hình trong bảng HRK_ItemTemplates
+            long unitPrice = inv.ItemTemplate.SellPrice;
+            totalEarnedGold += unitPrice * req.Count;
+            totalSoldCount += req.Count;
+            // Soft-delete: nếu bán hết thì chuyển IsActive = false, không xóa dòng trong DB
+            if (inv.Count == req.Count)
+            {
+                inv.Count = 0;
+                inv.IsActive = false;
+                inv.UpdatedOn = DateTime.UtcNow;
+                _unitOfWork.Repository<HrkPlayerInventory>().Update(inv);
+            }
+            else
+            {
+                inv.Count -= req.Count;
+                inv.UpdatedOn = DateTime.UtcNow;
+                _unitOfWork.Repository<HrkPlayerInventory>().Update(inv);
             }
         }
+
+        wallet.Gold += totalEarnedGold;
+        wallet.UpdatedOn = DateTime.UtcNow;
+        _unitOfWork.Repository<HrkPlayerWallet>().Update(wallet);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return new SellItemsResponseDto
+        {
+            EarnedGold = totalEarnedGold,
+            CurrentGold = wallet.Gold,
+            SoldItemsCount = totalSoldCount
+        };
     }
 }

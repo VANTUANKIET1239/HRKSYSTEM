@@ -6,7 +6,7 @@ using Core.TransactionalMessaging.Entities;
 using Core.TransactionalMessaging.Outbox;
 using GAME.Domain.Entities;
 using GAME.Infrastructure.Data;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

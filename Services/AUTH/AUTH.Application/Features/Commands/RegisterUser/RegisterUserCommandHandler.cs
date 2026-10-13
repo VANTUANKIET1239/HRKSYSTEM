@@ -1,6 +1,6 @@
 using AUTH.Application.Interfaces;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using MediatR;
 
 namespace AUTH.Application.Features.Commands.RegisterUser
@@ -20,24 +20,14 @@ namespace AUTH.Application.Features.Commands.RegisterUser
 
             if (result.Succeeded)
             {
-                return new BaseResponse<RegisterUserResponse>
+                return BaseResponse<RegisterUserResponse>.SuccessResponse(new RegisterUserResponse
                 {
-                    Data = new RegisterUserResponse
-                    {
-                        Message = "User registered successfully."
-                    },
-                    Success = true
-                };  
+                    Message = "User registered successfully."
+                });
             }
 
-            return new BaseResponse<RegisterUserResponse>
-            {
-                Data = new RegisterUserResponse
-                {
-                    Message = result.Errors ?? "Registration failed."
-                },
-                Success = false
-            };
+            return BaseResponse<RegisterUserResponse>.FailResponse(result.Errors ?? "Registration failed.",
+                statusCode: 400, code: "REGISTRATION_REJECTED", errorType: "business");
         }
     }
 }

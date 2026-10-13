@@ -1,14 +1,14 @@
 using AUTH.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using Core.Common.Constants.Common;
-using Core.Common.Cookie;
-using Core.Common.CQRS;
+using Core.Web.Cookies;
+using Core.Web.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using Core.Common.Helpers;
-using Core.Common.JwtHandler;
-using Core.Common.JwtHandler.Entities;
-using Core.Common.Repositories;
-using CoreEngine.CQRS;
+using Core.AUTH.Tokens;
+using Core.AUTH.Jwt;
+using Core.AUTH.Jwt.Entities;
+using Core.Persistence.Repositories;
+using Core.Application.CQRS;
 using AUTH.Application.Interfaces;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
@@ -56,7 +56,7 @@ namespace AUTH.Application.Features.Commands.LogoutUser
 
                     await _unitOfWork.ExecuteStrategyAsync(async () =>
                     {
-                        await _unitOfWork.BeginTransactionAsync();
+                        await _unitOfWork.BeginTransactionAsync(cancellationToken);
                         var currrentLoginSession = await _unitOfWork.Repository<HRK_LoginSession>()
                                             .Query()
                                             .FirstOrDefaultAsync(x => x.UserId == UserId && x.SessionId == currentSession.Value, cancellationToken);
@@ -69,8 +69,8 @@ namespace AUTH.Application.Features.Commands.LogoutUser
                         await _refreshTokenService.RevokeAllUserRefreshTokensAsync(UserId, cancellationToken);
 
                         await _unitOfWork.SaveChangesAsync(cancellationToken);
-                        await _unitOfWork.CommitTransactionAsync();
-                    });
+                        await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                    }, cancellationToken);
                 }
                 else if (!string.IsNullOrEmpty(UserId))
                 {
@@ -90,7 +90,7 @@ namespace AUTH.Application.Features.Commands.LogoutUser
                     StatusCode = 200
                 };
             }
-            catch (Exception ex)
+            catch
             {
                 await _unitOfWork.RollbackTransactionAsync();
 
@@ -104,16 +104,7 @@ namespace AUTH.Application.Features.Commands.LogoutUser
                     // ignored
                 }
 
-                return new BaseResponse<LogoutUserResponse>
-                {
-                    Data = new LogoutUserResponse()
-                    {
-                        LoggedOut = false
-                    },
-                    Success = false,
-                    StatusCode = 500,
-                    Message = ex.Message
-                };
+                throw;
             }
         }
     }

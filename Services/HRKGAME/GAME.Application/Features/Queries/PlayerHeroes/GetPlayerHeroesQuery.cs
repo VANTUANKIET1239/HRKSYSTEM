@@ -1,20 +1,16 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
 
 namespace GAME.Application.Features.Queries.PlayerHeroes
 {
     public record GetPlayerHeroesQuery : IQuery<BaseResponse<List<PlayerHeroDto>>>;
-
-    public class GetPlayerHeroesQueryHandler : HRKBaseQuery, IQueryHandler<GetPlayerHeroesQuery, BaseResponse<List<PlayerHeroDto>>>
+    public class GetPlayerHeroesQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetPlayerHeroesQuery, BaseResponse<List<PlayerHeroDto>>>
     {
-        private readonly IGamePlayerService _playerService;
-
-        public GetPlayerHeroesQueryHandler(IGamePlayerService playerService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        private readonly IPlayerReadModels _playerService;
+        public GetPlayerHeroesQueryHandler(IPlayerReadModels playerService, IGameRequestContext requestContext) : base(requestContext)
         {
             _playerService = playerService;
         }

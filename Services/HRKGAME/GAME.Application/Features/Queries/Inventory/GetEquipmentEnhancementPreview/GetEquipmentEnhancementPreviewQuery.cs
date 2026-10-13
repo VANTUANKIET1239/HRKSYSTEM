@@ -1,33 +1,21 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using Core.Common.Repositories;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPreview
 {
     public record GetEquipmentEnhancementPreviewQuery(long InventoryItemId) : IQuery<BaseResponse<EquipmentEnhancementPreviewDto>>;
-
-    public class GetEquipmentEnhancementPreviewQueryHandler : HRKBaseQuery, IQueryHandler<GetEquipmentEnhancementPreviewQuery, BaseResponse<EquipmentEnhancementPreviewDto>>
+    public class GetEquipmentEnhancementPreviewQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetEquipmentEnhancementPreviewQuery, BaseResponse<EquipmentEnhancementPreviewDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
         private readonly IItemStatCalculationService _statCalculationService;
-
-        public GetEquipmentEnhancementPreviewQueryHandler(
-            IUnitOfWork unitOfWork,
-            IGamePlayerService gamePlayerService,
-            IItemStatCalculationService statCalculationService,
-            IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        public GetEquipmentEnhancementPreviewQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext) : base(requestContext)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
@@ -48,7 +36,6 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
                 .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
                 .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
                 .FirstOrDefaultAsync(i => i.Id == request.InventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken);
-
             if (item == null)
             {
                 return BaseResponse<EquipmentEnhancementPreviewDto>.FailResponse("Không tìm thấy trang bị trong hành trang.", statusCode: 404);
@@ -57,13 +44,10 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
             var eligibility = item.CheckEnhancementEligibility();
             var currentLevel = item.Enhancement;
             var targetLevel = Math.Min(15, currentLevel + 1);
-
             var levelConfig = await _unitOfWork.ReadOnlyRepository<HrkEnhancementLevelConfig>().Query()
                 .FirstOrDefaultAsync(c => c.CurrentLevel == currentLevel, cancellationToken);
-
             var currentStats = _statCalculationService.CalculateCurrentStats(item, currentLevel);
             var nextStats = _statCalculationService.CalculateCurrentStats(item, targetLevel);
-
             var dto = new EquipmentEnhancementPreviewDto
             {
                 InventoryItemId = item.Id,
@@ -79,7 +63,6 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
                 ReasonCode = eligibility.CanEnhance ? null : eligibility.ReasonCode,
                 Message = eligibility.CanEnhance ? null : eligibility.Message
             };
-
             return BaseResponse<EquipmentEnhancementPreviewDto>.SuccessResponse(dto, "Lấy thông tin xem trước cường hóa thành công.");
         }
     }

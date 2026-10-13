@@ -1,20 +1,16 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
 
 namespace GAME.Application.Features.Queries.PlayerHeroes
 {
     public record GetPlayerHeroDetailQuery(long HeroId) : IQuery<BaseResponse<PlayerHeroDetailDto>>;
-
-    public class GetPlayerHeroDetailQueryHandler : HRKBaseQuery, IQueryHandler<GetPlayerHeroDetailQuery, BaseResponse<PlayerHeroDetailDto>>
+    public class GetPlayerHeroDetailQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetPlayerHeroDetailQuery, BaseResponse<PlayerHeroDetailDto>>
     {
-        private readonly IGamePlayerService _playerService;
-
-        public GetPlayerHeroDetailQueryHandler(IGamePlayerService playerService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        private readonly IPlayerReadModels _playerService;
+        public GetPlayerHeroDetailQueryHandler(IPlayerReadModels playerService, IGameRequestContext requestContext) : base(requestContext)
         {
             _playerService = playerService;
         }
@@ -27,6 +23,7 @@ namespace GAME.Application.Features.Queries.PlayerHeroes
             {
                 return BaseResponse<PlayerHeroDetailDto>.FailResponse("Player hero detail not found.", statusCode: 404);
             }
+
             return BaseResponse<PlayerHeroDetailDto>.SuccessResponse(detail, "Retrieved player hero detail successfully.");
         }
     }

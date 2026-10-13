@@ -10,7 +10,7 @@ namespace HRK.AUTH.Common
         /// <summary>
         /// Returns standardized success response.
         /// </summary>
-        protected IActionResult OkResponse<T>(T data, string message = null)
+        protected IActionResult OkResponse<T>(T data, string? message = null)
         {
             var response = BaseResponse<T>.SuccessResponse(data, message);
             return Ok(response);
@@ -39,7 +39,7 @@ namespace HRK.AUTH.Common
         /// </summary>
         protected IActionResult NotFoundResponse(string message = "Resource not found.")
         {
-            var response = BaseResponse<string>.FailResponse(message);
+            var response = BaseResponse<string>.FailResponse(message, statusCode: 404);
             return NotFound(response);
         }
 
@@ -49,7 +49,7 @@ namespace HRK.AUTH.Common
         {
             if (!response.Success)
             {
-                return StatusCode(response.StatusCode, response);
+                return StatusCode(response.StatusCode > 0 ? response.StatusCode : 400, response);
             }
             return Ok(response);
         }

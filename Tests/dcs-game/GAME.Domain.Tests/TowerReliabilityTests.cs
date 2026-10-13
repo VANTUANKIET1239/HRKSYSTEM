@@ -2,7 +2,7 @@ using GAME.Application.Common;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests;
@@ -20,7 +20,7 @@ public class TowerReliabilityTests
         });
         store.Data<HrkHeroRarityUpgradeConfig>().Add(new() { RarityId = 0, StatGrowthRate = .05m });
         var factory = new Factory();
-        return (store, new TowerRewardService(store, factory, new Levels(), new HeroProgressionStatService(), new Power()), factory);
+        return (store, new TowerRewardService(store, TestGamePlayers.Create(store), factory, new Levels(), new HeroProgressionStatService(), new Power()), factory);
     }
 
     [Fact]

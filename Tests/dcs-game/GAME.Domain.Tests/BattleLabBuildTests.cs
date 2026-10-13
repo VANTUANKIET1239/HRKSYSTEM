@@ -1,7 +1,8 @@
 using GAME.Application.DTOs;
+using Core.Common.Errors;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests;
@@ -62,9 +63,9 @@ public sealed class BattleLabBuildTests
     {
         var (resolver, _) = Setup();
         var build = Build(); build.Equipment.Add(build.Equipment[0]);
-        await Assert.ThrowsAsync<ArgumentException>(() => resolver.ResolveAsync(Hero(), build, 0, default));
+        Assert.Equal(BusinessErrorKind.Validation, (await Assert.ThrowsAsync<BusinessException>(() => resolver.ResolveAsync(Hero(), build, 0, default))).Kind);
         build = Build(); build.Level = 101;
-        await Assert.ThrowsAsync<ArgumentException>(() => resolver.ResolveAsync(Hero(), build, 0, default));
+        Assert.Equal(BusinessErrorKind.Validation, (await Assert.ThrowsAsync<BusinessException>(() => resolver.ResolveAsync(Hero(), build, 0, default))).Kind);
     }
 
     [Fact]

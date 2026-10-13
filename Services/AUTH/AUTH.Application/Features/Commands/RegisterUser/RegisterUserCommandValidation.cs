@@ -1,6 +1,6 @@
-using Core.Common.FluentValidation;
+using Core.Application.Validation;
 
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using FluentValidation;
 
 

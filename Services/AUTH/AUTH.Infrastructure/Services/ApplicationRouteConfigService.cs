@@ -1,7 +1,7 @@
 using AUTH.Application.Interfaces;
 using AUTH.Domain.Entities;
 using AUTH.Infrastructure.Data;
-using Core.Common.Repositories;
+using Core.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace AUTH.Infrastructure.Services;

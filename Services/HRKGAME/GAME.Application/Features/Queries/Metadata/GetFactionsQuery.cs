@@ -1,25 +1,28 @@
-using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
-using GAME.Application.Interfaces;
+using GAME.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Core.Application.CQRS;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 
-namespace GAME.Application.Features.Queries.Metadata
+namespace GAME.Application.Features.Queries.Metadata;
+
+public record GetFactionsQuery : IQuery<BaseResponse<List<HeroFactionDto>>>;
+
+public sealed class GetFactionsQueryHandler(IUnitOfWork unitOfWork) : IQueryHandler<GetFactionsQuery, BaseResponse<List<HeroFactionDto>>>
 {
-    public record GetFactionsQuery : IQuery<BaseResponse<List<HeroFactionDto>>>;
-
-    public class GetFactionsQueryHandler : IQueryHandler<GetFactionsQuery, BaseResponse<List<HeroFactionDto>>>
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    public async Task<BaseResponse<List<HeroFactionDto>>> Handle(GetFactionsQuery request, CancellationToken cancellationToken)
     {
-        private readonly IMetadataService _metadataService;
+        var factions = await ExecuteAsync(cancellationToken);
+        return BaseResponse<List<HeroFactionDto>>.SuccessResponse(factions, "Retrieved hero factions successfully.");
+    }
 
-        public GetFactionsQueryHandler(IMetadataService metadataService)
-        {
-            _metadataService = metadataService;
-        }
-
-        public async Task<BaseResponse<List<HeroFactionDto>>> Handle(GetFactionsQuery request, CancellationToken cancellationToken)
-        {
-            var factions = await _metadataService.GetFactionsAsync(cancellationToken);
-            return BaseResponse<List<HeroFactionDto>>.SuccessResponse(factions, "Retrieved hero factions successfully.");
-        }
+    private async Task<List<HeroFactionDto>> ExecuteAsync(CancellationToken cancellationToken = default)
+    {
+        return await _unitOfWork.ReadOnlyRepository<HrkHeroFaction>().Query()
+            .OrderBy(f => f.DisplayOrder)
+            .Select(f => new HeroFactionDto { Id = f.Id, Code = f.Code, Name = f.Name, Icon = f.Icon, DisplayOrder = f.DisplayOrder })
+            .ToListAsync(cancellationToken);
     }
 }

@@ -1,44 +1,44 @@
-using Core.Common.CQRS;
+using Core.Application.CQRS;
+using Core.Common.Errors;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
+using GAME.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
-namespace GAME.Application.Features.Commands.PlayerHeroes
+namespace GAME.Application.Features.Commands.PlayerHeroes;
+
+public record UpdatePlayerHeroFlagsRequest(bool? IsLocked, bool? IsFavorite);
+public record UpdatePlayerHeroFlagsCommand(long HeroId, UpdatePlayerHeroFlagsRequest Request) : ICommand<BaseResponse<PlayerHeroFlagsDto>>;
+public record PlayerHeroFlagsDto(
+
+    long HeroId,
+
+    bool IsLocked,
+
+    bool IsFavorite
+
+);
+
+public sealed class UpdatePlayerHeroFlagsCommandHandler(
+    IUnitOfWork unitOfWork,
+    IGamePlayerService players,
+    IGameRequestContext actor)
+    : ICommandHandler<UpdatePlayerHeroFlagsCommand, BaseResponse<PlayerHeroFlagsDto>>
 {
-    public record UpdatePlayerHeroFlagsRequest(bool? IsLocked, bool? IsFavorite);
-    public record UpdatePlayerHeroFlagsCommand(long HeroId, UpdatePlayerHeroFlagsRequest Request) : ICommand<BaseResponse<PlayerHeroFlagsDto>>;
-    public record PlayerHeroFlagsDto(long HeroId, bool IsLocked, bool IsFavorite);
-
-    public class UpdatePlayerHeroFlagsCommandHandler : HRKBaseCommand, ICommandHandler<UpdatePlayerHeroFlagsCommand, BaseResponse<PlayerHeroFlagsDto>>
+    public async Task<BaseResponse<PlayerHeroFlagsDto>> Handle(UpdatePlayerHeroFlagsCommand command, CancellationToken ct)
     {
-        private readonly IGamePlayerService _playerService;
-
-        public UpdatePlayerHeroFlagsCommandHandler(IGamePlayerService playerService, IHttpContextAccessor httpContextAccessor) : base(httpContextAccessor)
-        {
-            _playerService = playerService;
-        }
-
-        public async Task<BaseResponse<PlayerHeroFlagsDto>> Handle(UpdatePlayerHeroFlagsCommand request, CancellationToken cancellationToken)
-        {
-            if (request.Request.IsLocked is null && request.Request.IsFavorite is null)
-                return BaseResponse<PlayerHeroFlagsDto>.FailResponse("Can cung cap IsLocked hoac IsFavorite.", statusCode: 400);
-
-            try
-            {
-                var userId = GetUserId();
-                var detail = await _playerService.GetPlayerHeroDetailAsync(userId, request.HeroId, cancellationToken);
-                if (detail is null)
-                    return BaseResponse<PlayerHeroFlagsDto>.FailResponse("Khong tim thay vo tuong.", statusCode: 404);
-
-                var isLocked = request.Request.IsLocked is null ? detail.IsLocked : await _playerService.SetPlayerHeroLockAsync(userId, request.HeroId, request.Request.IsLocked.Value, cancellationToken);
-                var isFavorite = request.Request.IsFavorite is null ? detail.IsFavorite : await _playerService.SetPlayerHeroFavoriteAsync(userId, request.HeroId, request.Request.IsFavorite.Value, cancellationToken);
-                return BaseResponse<PlayerHeroFlagsDto>.SuccessResponse(new(request.HeroId, isLocked, isFavorite), "Cap nhat trang thai vo tuong thanh cong.");
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return BaseResponse<PlayerHeroFlagsDto>.FailResponse(ex.Message, statusCode: 404);
-            }
-        }
+        if (command.Request.IsLocked is null && command.Request.IsFavorite is null)
+            throw new BusinessException("INVALID_HERO_FLAGS", "Cần cung cấp IsLocked hoặc IsFavorite.", BusinessErrorKind.Validation);
+        var player = await players.GetPlayerByUserIdAsync(actor.UserId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
+        var hero = await unitOfWork.Repository<HrkPlayerHero>().Query()
+            .SingleOrDefaultAsync(x => x.Id == command.HeroId && x.PlayerId == player.Id && x.IsActive, ct) ?? throw new BusinessException("HERO_NOT_FOUND", "Không tìm thấy võ tướng.", BusinessErrorKind.NotFound);
+        if (command.Request.IsLocked is { } locked)
+            hero.IsLocked = locked;
+        if (command.Request.IsFavorite is { } favorite)
+            hero.IsFavorite = favorite;
+        hero.UpdatedOn = DateTime.UtcNow;
+        await unitOfWork.SaveChangesAsync(ct);
+        return BaseResponse<PlayerHeroFlagsDto>.SuccessResponse(new(hero.Id, hero.IsLocked, hero.IsFavorite));
     }
 }

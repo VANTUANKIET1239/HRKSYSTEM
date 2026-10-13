@@ -104,7 +104,7 @@ public sealed class MessagePublisher : IMessagePublisher
             _httpContext.HttpContext?.Items[CorrelationContext.HeaderName] as string ??
             Activity.Current?.GetTagItem("correlation.id") as string;
         using var activity = HrkTelemetry.Source.StartActivity("RabbitMQ Publish", ActivityKind.Producer);
-        activity?.SetTag("messaging.system", "rabbitmq");
+           activity?.SetTag("messaging.system", "rabbitmq");
         activity?.SetTag("messaging.destination.name", publisher.Exchange);
         using var messageScope = LogContext.PushProperty("MessageId", metadata.MessageId);
         await _publishGate.WaitAsync(ct);

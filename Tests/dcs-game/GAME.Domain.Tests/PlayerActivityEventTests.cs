@@ -1,4 +1,5 @@
 using Core.TransactionalMessaging.Outbox;
+using Core.Persistence.Repositories;
 using GAME.Application.Events;
 using GAME.Infrastructure.Data;
 using GAME.Infrastructure.Messaging;
@@ -30,7 +31,7 @@ public class PlayerActivityEventTests
     {
         using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=True").Options);
-        var events = new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(db), new(), db);
+        var events = new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(db), new(), new UnitOfWork<GameDbContext>(db));
         var activity = new ItemEnhancedEvent(1, "user", Guid.NewGuid(), 7, 2, 1, 2, true, 100);
         events.Raise(activity);
         events.Raise(activity);

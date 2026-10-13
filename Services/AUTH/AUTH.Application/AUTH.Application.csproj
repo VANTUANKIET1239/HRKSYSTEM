@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -8,11 +8,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AUTH.Domain\AUTH.Domain.csproj" />
-    <ProjectReference Include="..\..\..\CoreEngine\Core.Common\Core.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.Common/Core.Common.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Application/Core.Application.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Web/Core.Web.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.AUTH/Core.AUTH.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.6" />
+  </ItemGroup>
 </Project>

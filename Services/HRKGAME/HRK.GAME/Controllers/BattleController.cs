@@ -13,7 +13,6 @@ namespace HRK.GAME.Controllers
     public class BattleController : HRKControllerBase
     {
         private readonly IMediator _mediator;
-
         public BattleController(IMediator mediator)
         {
             _mediator = mediator;
@@ -22,23 +21,21 @@ namespace HRK.GAME.Controllers
         [HttpPost("start")]
         public async Task<IActionResult> Start([FromBody] StartBattleRequestDto request)
         {
-            if (request.BattleType.Equals("CAMPAIGN", StringComparison.OrdinalIgnoreCase) || request.StageId.HasValue)
-                return ErrorResponse("Phó bản phải được bắt đầu qua API dungeon để kiểm tra mở khóa và thể lực.");
-            var response = await _mediator.Send(new StartBattleCommand(request));
+            var response = await _mediator.Send(new StartBattleCommand(request), HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("initial-state")]
         public async Task<IActionResult> GetInitialState()
         {
-            var response = await _mediator.Send(new GetBattleInitialStateQuery());
+            var response = await _mediator.Send(new GetBattleInitialStateQuery(), HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("logs")]
         public async Task<IActionResult> GetBattleLogs([FromQuery] string battleId)
         {
-            var response = await _mediator.Send(new GetBattleLogsQuery(battleId));
+            var response = await _mediator.Send(new GetBattleLogsQuery(battleId), HttpContext.RequestAborted);
             return HrkOk(response);
         }
     }

@@ -1,5 +1,5 @@
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using FluentValidation;
 using System.ComponentModel.DataAnnotations;
 

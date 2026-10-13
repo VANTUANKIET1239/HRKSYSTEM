@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.9" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <ProjectReference Include="../../CoreEngine/Core.Common/Core.Common.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Persistence/Core.Persistence.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Application/Core.Application.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.AUTH/Core.AUTH.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Web/Core.Web.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Caching/Core.Caching.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Logging/Core.Logging.csproj" />
+  </ItemGroup>
+</Project>

@@ -8,9 +8,8 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Services/HRKREALTIME/HRK.REALTIME/HRK.REALTIME.csproj", "Services/HRKREALTIME/HRK.REALTIME/"]
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
-COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
-COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
 RUN dotnet restore "./Services/HRKREALTIME/HRK.REALTIME/HRK.REALTIME.csproj"
 COPY . .
 WORKDIR "/src/Services/HRKREALTIME/HRK.REALTIME"

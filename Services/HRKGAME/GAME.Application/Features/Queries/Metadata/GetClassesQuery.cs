@@ -1,25 +1,28 @@
-using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
-using GAME.Application.Interfaces;
+using GAME.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Core.Application.CQRS;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 
-namespace GAME.Application.Features.Queries.Metadata
+namespace GAME.Application.Features.Queries.Metadata;
+
+public record GetClassesQuery : IQuery<BaseResponse<List<HeroClassDto>>>;
+
+public sealed class GetClassesQueryHandler(IUnitOfWork unitOfWork) : IQueryHandler<GetClassesQuery, BaseResponse<List<HeroClassDto>>>
 {
-    public record GetClassesQuery : IQuery<BaseResponse<List<HeroClassDto>>>;
-
-    public class GetClassesQueryHandler : IQueryHandler<GetClassesQuery, BaseResponse<List<HeroClassDto>>>
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    public async Task<BaseResponse<List<HeroClassDto>>> Handle(GetClassesQuery request, CancellationToken cancellationToken)
     {
-        private readonly IMetadataService _metadataService;
+        var classes = await ExecuteAsync(cancellationToken);
+        return BaseResponse<List<HeroClassDto>>.SuccessResponse(classes, "Retrieved hero classes successfully.");
+    }
 
-        public GetClassesQueryHandler(IMetadataService metadataService)
-        {
-            _metadataService = metadataService;
-        }
-
-        public async Task<BaseResponse<List<HeroClassDto>>> Handle(GetClassesQuery request, CancellationToken cancellationToken)
-        {
-            var classes = await _metadataService.GetClassesAsync(cancellationToken);
-            return BaseResponse<List<HeroClassDto>>.SuccessResponse(classes, "Retrieved hero classes successfully.");
-        }
+    private async Task<List<HeroClassDto>> ExecuteAsync(CancellationToken cancellationToken = default)
+    {
+        return await _unitOfWork.ReadOnlyRepository<HrkHeroClass>().Query()
+            .OrderBy(c => c.DisplayOrder)
+            .Select(c => new HeroClassDto { Id = c.Id, Code = c.Code, Name = c.Name, Icon = c.Icon, DisplayOrder = c.DisplayOrder })
+            .ToListAsync(cancellationToken);
     }
 }

@@ -1,25 +1,28 @@
-using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
-using GAME.Application.Interfaces;
+using GAME.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Core.Application.CQRS;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 
-namespace GAME.Application.Features.Queries.Metadata
+namespace GAME.Application.Features.Queries.Metadata;
+
+public record GetItemCategoriesQuery : IQuery<BaseResponse<List<ItemCategoryDto>>>;
+
+public sealed class GetItemCategoriesQueryHandler(IUnitOfWork unitOfWork) : IQueryHandler<GetItemCategoriesQuery, BaseResponse<List<ItemCategoryDto>>>
 {
-    public record GetItemCategoriesQuery : IQuery<BaseResponse<List<ItemCategoryDto>>>;
-
-    public class GetItemCategoriesQueryHandler : IQueryHandler<GetItemCategoriesQuery, BaseResponse<List<ItemCategoryDto>>>
+    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    public async Task<BaseResponse<List<ItemCategoryDto>>> Handle(GetItemCategoriesQuery request, CancellationToken cancellationToken)
     {
-        private readonly IMetadataService _metadataService;
+        var categories = await ExecuteAsync(cancellationToken);
+        return BaseResponse<List<ItemCategoryDto>>.SuccessResponse(categories, "Retrieved item categories successfully.");
+    }
 
-        public GetItemCategoriesQueryHandler(IMetadataService metadataService)
-        {
-            _metadataService = metadataService;
-        }
-
-        public async Task<BaseResponse<List<ItemCategoryDto>>> Handle(GetItemCategoriesQuery request, CancellationToken cancellationToken)
-        {
-            var categories = await _metadataService.GetItemCategoriesAsync(cancellationToken);
-            return BaseResponse<List<ItemCategoryDto>>.SuccessResponse(categories, "Retrieved item categories successfully.");
-        }
+    private async Task<List<ItemCategoryDto>> ExecuteAsync(CancellationToken cancellationToken = default)
+    {
+        return await _unitOfWork.ReadOnlyRepository<HrkItemCategory>().Query()
+            .OrderBy(c => c.DisplayOrder)
+            .Select(c => new ItemCategoryDto { Id = c.Id, Code = c.Code, Name = c.Name, Icon = c.Icon, DisplayOrder = c.DisplayOrder, IsEquipment = c.IsEquipment, Description = c.Description })
+            .ToListAsync(cancellationToken);
     }
 }

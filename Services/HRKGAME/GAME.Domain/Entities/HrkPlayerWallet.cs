@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using System;
 
 namespace GAME.Domain.Entities
@@ -10,6 +11,7 @@ namespace GAME.Domain.Entities
         public int UpgradeMaterials { get; set; } = 0;
         public int MaxCapacity { get; set; } = 200;
         public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public virtual HrkPlayer Player { get; set; } = null!;
 
@@ -23,7 +25,7 @@ namespace GAME.Domain.Entities
                 throw new ArgumentOutOfRangeException(nameof(amount), "Số vàng cần trừ không được là số âm.");
 
             if (Gold < amount)
-                throw new InvalidOperationException($"Số dư Vàng không đủ. Cần: {amount:N0} Vàng (Hiện có: {Gold:N0} Vàng).");
+                throw new BusinessException("INSUFFICIENT_GOLD", $"Số dư Vàng không đủ. Cần: {amount:N0} Vàng (Hiện có: {Gold:N0} Vàng).", BusinessErrorKind.Conflict);
 
             Gold -= amount;
             UpdatedOn = DateTime.UtcNow;

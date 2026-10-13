@@ -16,10 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core.Common\Core.Common.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="../Oservability/Oservability.csproj" />
   </ItemGroup>
 </Project>

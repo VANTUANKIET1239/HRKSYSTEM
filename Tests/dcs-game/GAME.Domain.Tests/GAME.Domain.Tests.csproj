@@ -7,6 +7,7 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.9" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -15,11 +16,16 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../../Services/HRKGAME/HRK.GAME/HRK.GAME.csproj" />
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Domain/GAME.Domain.csproj" />
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Application/GAME.Application.csproj" />
     <ProjectReference Include="../../../Services/HRKGAME/GAME.Infrastructure/GAME.Infrastructure.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Persistence/Core.Persistence.csproj" />
   </ItemGroup>
 </Project>

@@ -1,10 +1,9 @@
-using GAME.Infrastructure.Data;
+using Core.Persistence.Repositories;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
 
 namespace HRK.GAME.Health;
 
-public sealed class GameDatabaseHealthCheck(GameDbContext db) : IHealthCheck
+public sealed class GameDatabaseHealthCheck(IUnitOfWork unitOfWork) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -12,7 +11,7 @@ public sealed class GameDatabaseHealthCheck(GameDbContext db) : IHealthCheck
     {
         try
         {
-            return await db.Database.CanConnectAsync(cancellationToken)
+            return await unitOfWork.CanConnectAsync(cancellationToken)
                 ? HealthCheckResult.Healthy("GAME database is reachable.")
                 : HealthCheckResult.Unhealthy("GAME database is unreachable.");
         }

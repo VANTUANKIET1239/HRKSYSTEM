@@ -1,7 +1,5 @@
-using System;
-using System.Collections.Generic;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests

@@ -3,20 +3,14 @@ using AUTH.Infrastructure.Configuration;
 using AUTH.Infrastructure.Data;
 using AUTH.Infrastructure.Identity;
 using AUTH.Infrastructure.Services;
-using Core.Common.Common;
-using Core.Common.Constants.Common;
-using Core.Common.Database.Extensions;
-using Core.Common.Database.Options;
-using Core.Common.Entity;
-using Core.Common.Extensions;
-using Core.Common.JwtHandler.Entities;
+using Core.Persistence.Database.Extensions;
+using Core.Persistence.Database.Options;
+using Core.AUTH.DependencyInjection;
+using Core.Web.DependencyInjection;
+using Core.Persistence.DependencyInjection;
+using Core.Application.DependencyInjection;
 using Core.RabbitMQ.DependencyInjection;
 using Core.RabbitMQ.Interfaces;
-using FluentValidation;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using System.Data;
-using System.Reflection;
 using Oservability;
 namespace HRK.AUTH.Configuration
 {
@@ -41,7 +35,6 @@ namespace HRK.AUTH.Configuration
             AddDbContexts(services, configuration);
 
 
-            AddOptions(services, configuration);
 
             AddServices(services, configuration);
 
@@ -49,11 +42,7 @@ namespace HRK.AUTH.Configuration
 
            
 
-            services.AddValidatorsFromAssembly(typeof(IIdentityService).Assembly);
-            services.AddMediatR(cfg =>
-            {
-                cfg.RegisterServicesFromAssemblies(typeof(IIdentityService).Assembly);
-            });
+            services.AddCoreApplication(typeof(IIdentityService).Assembly);
 
 
 
@@ -80,21 +69,14 @@ namespace HRK.AUTH.Configuration
         }   
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
-            services.AddCoreService(configuration);
+            services.AddCoreJwt(configuration);
+            services.AddCoreCookies(configuration);
 
             services.AddRepositoryUOW<ApplicationDbContext>();
 
             services.AddScoped<IIdentityService, IdentityService>();
             services.AddScoped<IRefreshTokenService, RefreshTokenService>();
             services.AddScoped<IApplicationRouteConfigService, ApplicationRouteConfigService>();
-        }
-
-        public static void AddOptions(IServiceCollection services, IConfiguration configuration)
-        {
-
-            services.Configure<HRKCookieOptions>(configuration.GetSection(Constants.Cookie.COOKIE_OPTONS));
-            services.AddOptions(configuration);
-
         }
 
         public static void AddDbContexts(IServiceCollection services, IConfiguration configuration)
@@ -113,8 +95,6 @@ namespace HRK.AUTH.Configuration
 
             services.AddDatabase<ApplicationDbContext>(configuration);
 
-            services.AddScoped<IDbConnection>(sp =>
-            new SqlConnection(configuration.GetConnectionString(Constants.CORE_CONSTANTS.DefaultConnection)));
 
 
         }

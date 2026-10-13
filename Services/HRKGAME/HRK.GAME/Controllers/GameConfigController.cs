@@ -1,33 +1,38 @@
-using Core.Common.Entity.MyCompany.Shared.Responses;
-using GAME.Application.DTOs;
-using GAME.Application.Interfaces;
 using HRK.GAME.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MediatR;
+using GAME.Application.Features.Queries.GameConfig;
 
-namespace HRK.GAME.Controllers
+namespace HRK.GAME.Controllers;
+
+[Authorize]
+[Route("api/game-config")]
+public sealed class GameConfigController : HRKControllerBase
 {
-    [Authorize]
-    [Route("api/game-config")]
-    public class GameConfigController : HRKControllerBase
+    private readonly IMediator _mediator;
+    private string UserId => RequireUserId();
+
+    public GameConfigController(IMediator mediator)
     {
-        private readonly IGameFeatureConfigService _featureConfigService;
-        private readonly ICombatPowerService _combatPowerService;
+        _mediator = mediator;
+    }
 
-        public GameConfigController(IGameFeatureConfigService featureConfigService, ICombatPowerService combatPowerService)
-        {
-            _featureConfigService = featureConfigService;
-            _combatPowerService = combatPowerService;
-        }
+    [HttpGet("features")]
+    public async Task<IActionResult> GetFeatures(CancellationToken cancellationToken)
+    {
+        return HrkOk(await _mediator.Send(new GetGameFeaturesQuery(), cancellationToken));
+    }
 
-        [HttpGet("features")]
-        public async Task<IActionResult> GetFeatures(CancellationToken cancellationToken) =>
-            HrkOk(BaseResponse<List<GameFeatureConfigDto>>.SuccessResponse(
-                await _featureConfigService.GetFeatureTreeAsync(cancellationToken)));
+    [HttpGet("combat-power")]
+    public async Task<IActionResult> GetCombatPowerConfigs(CancellationToken cancellationToken)
+    {
+        return HrkOk(await _mediator.Send(new GetCombatPowerConfigsQuery(), cancellationToken));
+    }
 
-        [HttpGet("combat-power")]
-        public async Task<IActionResult> GetCombatPowerConfigs(CancellationToken cancellationToken) =>
-            HrkOk(BaseResponse<List<CombatPowerConfigDto>>.SuccessResponse(
-                await _combatPowerService.GetConfigsAsync(cancellationToken)));
+    [HttpGet("modals")]
+    public async Task<IActionResult> GetModalConfigs(CancellationToken cancellationToken)
+    {
+        return HrkOk(await _mediator.Send(new GetModalConfigsQuery(), cancellationToken));
     }
 }

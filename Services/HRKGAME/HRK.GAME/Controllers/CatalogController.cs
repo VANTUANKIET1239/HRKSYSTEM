@@ -18,28 +18,28 @@ namespace HRK.GAME.Controllers
         [HttpGet("heroes")]
         public async Task<IActionResult> GetHeroTemplates()
         {
-            var response = await _mediator.Send(new GetHeroTemplatesQuery());
+            var response = await _mediator.Send(new GetHeroTemplatesQuery(),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("hero-detail")]
         public async Task<IActionResult> GetHeroTemplateById([FromQuery] int id)
         {
-            var response = await _mediator.Send(new GetHeroTemplateByIdQuery(id));
+            var response = await _mediator.Send(new GetHeroTemplateByIdQuery(id),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("skills")]
         public async Task<IActionResult> GetSkillTemplates()
         {
-            var response = await _mediator.Send(new GetSkillTemplatesQuery());
+            var response = await _mediator.Send(new GetSkillTemplatesQuery(),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("items")]
         public async Task<IActionResult> GetItemTemplates([FromQuery] int? categoryId, [FromQuery] int? rarityId)
         {
-            var response = await _mediator.Send(new GetItemTemplatesQuery(categoryId, rarityId));
+            var response = await _mediator.Send(new GetItemTemplatesQuery(categoryId, rarityId),HttpContext.RequestAborted);
             return HrkOk(response);
         }
     }

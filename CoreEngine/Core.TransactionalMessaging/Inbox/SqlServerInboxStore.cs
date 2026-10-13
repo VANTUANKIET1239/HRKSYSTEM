@@ -49,7 +49,7 @@ public sealed class SqlServerInboxStore<TDbContext> : IInboxStore
             );
             """;
         AddParameter(command, "@ConsumerName", consumerName);
-        AddParameter(command, "@MessageId", messageId);
+        AddParameter(command, "@MessageId",  messageId);
 
         return await command.ExecuteNonQueryAsync(ct) == 1;
     }

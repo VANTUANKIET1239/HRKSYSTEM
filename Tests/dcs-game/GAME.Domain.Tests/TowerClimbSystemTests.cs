@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using GAME.Application.DTOs;
-using GAME.Domain.Entities;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests

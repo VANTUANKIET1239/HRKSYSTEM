@@ -1,6 +1,6 @@
-using Core.Common.CQRS;
+using Core.Web.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 
 namespace AUTH.Application.Features.Commands.RefreshToken
 {

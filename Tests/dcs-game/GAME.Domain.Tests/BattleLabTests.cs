@@ -1,7 +1,8 @@
 using GAME.Application.DTOs;
+using Core.Common.Errors;
 using GAME.Domain.Battle;
 using GAME.Domain.Entities;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests;
@@ -10,31 +11,43 @@ public sealed class BattleLabTests
 {
     private static BattleLabRequestDto Request() => new()
     {
-        Count = 3, Seed = 12, MaxRounds = 2,
-        Left = [new() { HeroTemplateId = 1, Position = 1, Stats = new() { Hp = 1000, Atk = 100, Spd = 100 } }],
-        Right = [new() { HeroTemplateId = 1, Position = 1, Stats = new() { Hp = 1000, Atk = 100, Spd = 90 } }]
-    };
+        Count = 3,
+        Seed = 12,
+        MaxRounds = 2,
+        Left = [new()
+        {
+            HeroTemplateId = 1,
+            Position = 1,
+            Stats = new()
+            {
+                Hp = 1000,
+                Atk = 100,
+                Spd = 100
+            }
+        }
 
-    private static (BattleLabService service, TowerTestStore store) Setup()
+        ],
+        Right = [new()
+        {
+            HeroTemplateId = 1,
+            Position = 1,
+            Stats = new()
+            {
+                Hp = 1000,
+                Atk = 100,
+                Spd = 90
+            }
+        }
+
+        ]
+    };
+    private static (BattleLabHarness service, TowerTestStore store) Setup()
     {
         var store = new TowerTestStore();
         store.Data<HrkHeroTemplate>().Add(new() { Id = 1, Name = "Test", Avatar = "test.png" });
-        store.Data<HrkHeroSkill>().Add(new()
-        {
-            HeroTemplateId = 1,
-            Skill = new()
-            {
-                Id = "TEST", Name = "Test", SkillTypeCode = "NORMAL", IsActive = true,
-                Effects = [new()
-                {
-                    EffectType = new() { Code = "Damage", Name = "Damage" },
-                    TargetType = new() { Code = "ENEMY_SINGLE", Name = "Enemy" },
-                    DamageSchoolCode = "PHYSICAL", BaseValue = 100
-                }]
-            }
-        });
+        store.Data<HrkHeroSkill>().Add(new() { HeroTemplateId = 1, Skill = new() { Id = "TEST", Name = "Test", SkillTypeCode = "NORMAL", IsActive = true, Effects = [new() { EffectType = new() { Code = "Damage", Name = "Damage" }, TargetType = new() { Code = "ENEMY_SINGLE", Name = "Enemy" }, DamageSchoolCode = "PHYSICAL", BaseValue = 100 }] } });
         store.Data<HrkBattleConfig>().Add(new() { Code = BattleMitigationConfig.Code, Value = 1000, IsEnabled = true });
-        return (new BattleLabService(store, new BattleSimulationEngine()), store);
+        return (new BattleLabHarness(store), store);
     }
 
     [Fact]
@@ -64,35 +77,45 @@ public sealed class BattleLabTests
     {
         var request = Request();
         request.Left.Add(request.Left[0]);
-        Assert.Throws<ArgumentException>(() => BattleLabService.Validate(request));
-        request = Request(); request.Count = 301;
-        Assert.Throws<ArgumentException>(() => BattleLabService.Validate(request));
+        Assert.Equal("DUPLICATE_HERO", Assert.Throws<BusinessException>(() => BattleLabPolicy.Validate(request)).Code);
+        request = Request();
+        request.Count = 301;
+        Assert.Equal(BusinessErrorKind.Validation, Assert.Throws<BusinessException>(() => BattleLabPolicy.Validate(request)).Kind);
     }
 
     [Fact]
     public void Rejects_mixed_modes_to_prevent_double_counting()
     {
-        var request = Request(); request.Left[0].Mode = "BUILD"; request.Left[0].Build = new();
-        Assert.Throws<ArgumentException>(() => BattleLabService.Validate(request));
+        var request = Request();
+        request.Left[0].Mode = "BUILD";
+        request.Left[0].Build = new();
+        Assert.Equal(BusinessErrorKind.Validation, Assert.Throws<BusinessException>(() => BattleLabPolicy.Validate(request)).Kind);
         request.Left[0].Stats = null;
-        BattleLabService.Validate(request);
+        BattleLabPolicy.Validate(request);
         request.Left[0].Mode = "CUSTOM";
-        Assert.Throws<ArgumentException>(() => BattleLabService.Validate(request));
+        Assert.Equal(BusinessErrorKind.Validation, Assert.Throws<BusinessException>(() => BattleLabPolicy.Validate(request)).Kind);
     }
 
     [Fact]
     public async Task Rejects_unknown_template()
     {
         var (service, _) = Setup();
-        var request = Request(); request.Left[0].HeroTemplateId = 999;
-        await Assert.ThrowsAsync<ArgumentException>(() => service.RunAsync(request, default));
+        var request = Request();
+        request.Left[0].HeroTemplateId = 999;
+        Assert.Equal(BusinessErrorKind.Validation, (await Assert.ThrowsAsync<BusinessException>(() => service.RunAsync(request, default))).Kind);
     }
 
     [Fact]
     public async Task Cancellation_stops_batch()
     {
         var (service, _) = Setup();
-        using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.RunAsync(Request(), cancellation.Token));
     }
+}
+
+internal sealed class BattleLabHarness(TowerTestStore store)
+{
+    public async Task<BattleLabReportDto> RunAsync(BattleLabRequestDto request, CancellationToken ct) => (await new GAME.Application.Features.Commands.BattleLab.RunBattleLabCommandHandler(store, new BattleSimulationEngine(), null).Handle(new(request), ct)).Data!;
 }

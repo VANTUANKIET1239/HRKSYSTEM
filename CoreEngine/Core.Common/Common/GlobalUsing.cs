@@ -1,12 +1,1 @@
-﻿global using MediatR;
-global using Core.Common.Logging;
-global using Core.Common.Repositories;
-global using Microsoft.Extensions.DependencyInjection;
-global using Microsoft.Extensions.Logging;
-global using Microsoft.Extensions.Caching.Distributed;
-global using System.Linq.Expressions;
-global using Microsoft.EntityFrameworkCore;
-global using Microsoft.EntityFrameworkCore.Storage;
-global using System.Data.Entity.Validation;
-global using System.Data;
-global using Dapper;
+// Core.Common intentionally has no framework or package dependencies.

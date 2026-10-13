@@ -1,9 +1,10 @@
+using Core.Common.Errors;
 using AUTH.Domain.Entities;
 using AUTH.Infrastructure.Data;
-using Core.Common.Helpers;
-using Core.Common.JwtHandler;
-using Core.Common.JwtHandler.Entities;
-using Core.Common.Repositories;
+using Core.AUTH.Tokens;
+using Core.AUTH.Jwt;
+using Core.AUTH.Jwt.Entities;
+using Core.Persistence.Repositories;
 using AUTH.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -67,23 +68,23 @@ namespace AUTH.Infrastructure.Services
                 rt = legacyCandidates.FirstOrDefault(t => TokenHelper.VerifyToken(refreshTokenRaw, t.TokenHash));
             }
 
-            if (rt is null) throw new SecurityException("Invalid refresh token.");
+            if (rt is null) throw new BusinessException("INVALID_REFRESH_TOKEN", "Invalid refresh token.", BusinessErrorKind.Unauthorized);
 
             // 2) Basic checks
             if (rt.ExpiresAt <= DateTime.UtcNow)
-                throw new SecurityException("Refresh token expired.");
+                throw new BusinessException("INVALID_REFRESH_TOKEN", "Refresh token expired.", BusinessErrorKind.Unauthorized);
 
 
             if (!rt.IsActive)
             {
-                throw new SecurityException("Invalid or expired refresh token.");
+                throw new BusinessException("INVALID_REFRESH_TOKEN", "Invalid or expired refresh token.", BusinessErrorKind.Unauthorized);
             }
 
 
             var session = await _unitOfWork.Repository<HRK_LoginSession>().Query().FirstOrDefaultAsync(s => s.SessionId == rt.SessionId);
             if (session is null || !session.IsActive)
             {
-                throw new SecurityException("Invalid Session");
+                throw new BusinessException("INVALID_REFRESH_TOKEN", "Invalid Session", BusinessErrorKind.Unauthorized);
             }
 
 
@@ -98,7 +99,7 @@ namespace AUTH.Infrastructure.Services
                     s.RevokedByIp = ip;
                 });
 
-                throw new SecurityException("Refresh token reuse detected; session revoked.");
+                throw new BusinessException("INVALID_REFRESH_TOKEN", "Refresh token reuse detected; session revoked.", BusinessErrorKind.Unauthorized);
             }
 
             // 4) Rotate: create new refresh token, revoke the presented one and link

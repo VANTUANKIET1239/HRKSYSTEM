@@ -6,13 +6,16 @@ using Microsoft.IdentityModel.Tokens;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text;
+using Core.Web.Responses;
+using Core.Web.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddCustomDependency();
 
 // Add services to the container.
 builder.Services.AddSwaggerGen();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.AddHrkApiFilters());
+builder.Services.AddHrkApiResponses();
 
 builder.Services
     .AddAuthentication("Bearer")
@@ -48,6 +51,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 app.UseHrkCorrelation();
+app.UseHrkApiResponses();
 
 if (app.Environment.IsDevelopment())
 {

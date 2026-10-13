@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +44,7 @@ namespace GAME.Domain.ValueObjects
 
             if (totalStones > maxStoneSlots)
             {
-                throw new InvalidOperationException($"Số lượng đá cường hóa vượt quá giới hạn cho phép ({totalStones}/{maxStoneSlots}).");
+                throw new BusinessException("TOO_MANY_ENHANCEMENT_STONES", $"Số lượng đá cường hóa vượt quá giới hạn cho phép ({totalStones}/{maxStoneSlots}).", BusinessErrorKind.Validation);
             }
 
             Stones = stoneList.AsReadOnly();

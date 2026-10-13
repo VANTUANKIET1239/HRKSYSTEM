@@ -1,5 +1,5 @@
 using GAME.Domain.Battle;
-using GAME.Infrastructure.Services;
+using GAME.Application.Services;
 using Xunit;
 
 namespace GAME.Domain.Tests.Battle;

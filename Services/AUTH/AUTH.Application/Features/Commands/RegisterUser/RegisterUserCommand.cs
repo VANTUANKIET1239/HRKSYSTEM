@@ -1,5 +1,5 @@
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using FluentValidation;
 
 namespace AUTH.Application.Features.Commands.RegisterUser

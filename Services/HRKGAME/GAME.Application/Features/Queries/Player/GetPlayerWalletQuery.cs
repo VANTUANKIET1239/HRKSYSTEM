@@ -1,20 +1,16 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
 
 namespace GAME.Application.Features.Queries.Player
 {
     public record GetPlayerWalletQuery : IQuery<BaseResponse<PlayerWalletDto>>;
-
-    public class GetPlayerWalletQueryHandler : HRKBaseQuery, IQueryHandler<GetPlayerWalletQuery, BaseResponse<PlayerWalletDto>>
+    public class GetPlayerWalletQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetPlayerWalletQuery, BaseResponse<PlayerWalletDto>>
     {
-        private readonly IGamePlayerService _playerService;
-
-        public GetPlayerWalletQueryHandler(IGamePlayerService playerService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        private readonly IPlayerReadModels _playerService;
+        public GetPlayerWalletQueryHandler(IPlayerReadModels playerService, IGameRequestContext requestContext) : base(requestContext)
         {
             _playerService = playerService;
         }
@@ -27,6 +23,7 @@ namespace GAME.Application.Features.Queries.Player
             {
                 return BaseResponse<PlayerWalletDto>.FailResponse("Player wallet not found.", statusCode: 404);
             }
+
             return BaseResponse<PlayerWalletDto>.SuccessResponse(wallet, "Retrieved player wallet successfully.");
         }
     }

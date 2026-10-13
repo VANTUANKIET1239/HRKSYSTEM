@@ -1,20 +1,16 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
 
 namespace GAME.Application.Features.Queries.Battle
 {
     public record GetBattleInitialStateQuery : IQuery<BaseResponse<BattleInitialStateDto>>;
-
-    public class GetBattleInitialStateQueryHandler : HRKBaseQuery, IQueryHandler<GetBattleInitialStateQuery, BaseResponse<BattleInitialStateDto>>
+    public class GetBattleInitialStateQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetBattleInitialStateQuery, BaseResponse<BattleInitialStateDto>>
     {
-        private readonly IBattleService _battleService;
-
-        public GetBattleInitialStateQueryHandler(IBattleService battleService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        private readonly IBattleExecutor _battleService;
+        public GetBattleInitialStateQueryHandler(IBattleExecutor battleService, IGameRequestContext requestContext) : base(requestContext)
         {
             _battleService = battleService;
         }
@@ -22,7 +18,7 @@ namespace GAME.Application.Features.Queries.Battle
         public async Task<BaseResponse<BattleInitialStateDto>> Handle(GetBattleInitialStateQuery request, CancellationToken cancellationToken)
         {
             var userId = GetUserId();
-            var state = await _battleService.GetBattleInitialStateAsync(userId, cancellationToken);
+            var state = await _battleService.BuildInitialStateAsync(userId, cancellationToken);
             return BaseResponse<BattleInitialStateDto>.SuccessResponse(state, "Retrieved battle initial state successfully.");
         }
     }

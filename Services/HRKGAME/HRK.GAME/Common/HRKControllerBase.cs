@@ -10,12 +10,14 @@ namespace HRK.GAME.Common
     {
         protected string GetUserId()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) 
-                         ?? User.FindFirstValue("sub") 
-                         ?? User.FindFirstValue("UserId")
-                         ?? User.FindFirstValue("id");
-
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? User.FindFirstValue("UserId") ?? User.FindFirstValue("id");
             return userId ?? string.Empty;
+        }
+
+        protected string RequireUserId()
+        {
+            var userId = GetUserId();
+            return string.IsNullOrWhiteSpace(userId) ? throw new UnauthorizedAccessException() : userId;
         }
 
         protected IActionResult OkResponse<T>(T data, string? message = null)
@@ -38,7 +40,7 @@ namespace HRK.GAME.Common
 
         protected IActionResult NotFoundResponse(string message = "Resource not found.")
         {
-            var response = BaseResponse<string>.FailResponse(message);
+            var response = BaseResponse<string>.FailResponse(message, statusCode: 404);
             return NotFound(response);
         }
 
@@ -48,6 +50,7 @@ namespace HRK.GAME.Common
             {
                 return StatusCode(response.StatusCode > 0 ? response.StatusCode : 400, response);
             }
+
             return Ok(response);
         }
     }

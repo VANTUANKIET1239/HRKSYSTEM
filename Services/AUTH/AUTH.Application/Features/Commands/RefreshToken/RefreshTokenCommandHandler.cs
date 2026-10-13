@@ -2,14 +2,14 @@ using AUTH.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Core.Common.Constants.Common;
-using Core.Common.Cookie;
-using Core.Common.CQRS;
+using Core.Web.Cookies;
+using Core.Web.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using Core.Common.Helpers;
-using Core.Common.JwtHandler;
-using Core.Common.JwtHandler.Entities;
-using Core.Common.Repositories;
-using CoreEngine.CQRS;
+using Core.AUTH.Tokens;
+using Core.AUTH.Jwt;
+using Core.AUTH.Jwt.Entities;
+using Core.Persistence.Repositories;
+using Core.Application.CQRS;
 using AUTH.Application.Interfaces;
 using Microsoft.Extensions.Options;
 using System.Security;
@@ -49,11 +49,11 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             var httpContext = _httpContextAccessor.HttpContext;
 
             if (httpContext == null || !httpContext.Request.Cookies.TryGetValue(Constants.JSON_WEB_TOKEN.REFRESHTOKEN, out var presentedRaw))
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid or expired refresh token.", statusCode: 401);
+                return BaseResponse<RefreshTokenResponse>.FailResponse("Invalid or expired refresh token.", statusCode: 401, code: "INVALID_REFRESH_TOKEN");
 
             if (!await _applicationRouteConfigs.IsAudienceAllowedAsync(request.Audience, cancellationToken))
             {
-                return BaseResponse<RefreshTokenResponse>.FailResponse("Unauthorized", statusCode: 401);
+                return BaseResponse<RefreshTokenResponse>.FailResponse("Unauthorized", statusCode: 401, code: "INVALID_AUDIENCE");
             };
 
             RotatedSession? rotatedSession = null;
@@ -62,7 +62,7 @@ namespace AUTH.Application.Features.Commands.RefreshToken
             {
                 await _unitOfWork.ExecuteStrategyAsync(async () =>
                 {
-                    await _unitOfWork.BeginTransactionAsync();
+                    await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
                     rotatedSession = await _refreshTokenService.RotateRefreshAsync(
                         presentedRaw,
@@ -70,12 +70,12 @@ namespace AUTH.Application.Features.Commands.RefreshToken
                         _jwtOptions.Value.GetRefreshTokenLifetime(),
                         cancellationToken);
 
-                    await _unitOfWork.CommitTransactionAsync();
-                });
+                    await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                }, cancellationToken);
 
                 if (rotatedSession == null)
                 {
-                    return BaseResponse<RefreshTokenResponse>.FailResponse("Failed to rotate refresh token.");
+                    throw new InvalidOperationException("Failed to rotate refresh token.");
                 }
 
                 var claims = new List<Claim>
@@ -89,7 +89,7 @@ namespace AUTH.Application.Features.Commands.RefreshToken
                 var newAccessToken = _jwtCoreService.GenerateToken(claims, request.Audience);
                 if (string.IsNullOrEmpty(newAccessToken.AccessToken))
                 {
-                    return BaseResponse<RefreshTokenResponse>.FailResponse("Failed to generate new access token.");
+                    throw new InvalidOperationException("Failed to generate new access token.");
                 }
 
                 var refreshCookieUsesMinutes = _jwtOptions.Value.RefreshTokenExpiryMinutes is > 0;
@@ -108,10 +108,10 @@ namespace AUTH.Application.Features.Commands.RefreshToken
                     AccessTokenExpiresAt = newAccessToken.ExpiresAt,
                 });
             }
-            catch (Exception ex)
+            catch
             {
                 await _unitOfWork.RollbackTransactionAsync();
-                return BaseResponse<RefreshTokenResponse>.FailResponse(ex.Message);
+                throw;
             }
         }
     }

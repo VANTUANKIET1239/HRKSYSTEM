@@ -1,7 +1,7 @@
 using FluentValidation;
 
-using CoreEngine.CQRS;
-using Core.Common.FluentValidation;
+using Core.Application.CQRS;
+using Core.Application.Validation;
 
 namespace AUTH.Application.Features.Commands.LoginUser
 {

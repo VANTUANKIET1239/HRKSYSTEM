@@ -47,6 +47,7 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkEnhancementMaterial> EnhancementMaterials { get; set; } = null!;
         public DbSet<HrkEquipmentEnhancementHistory> EquipmentEnhancementHistories { get; set; } = null!;
         public DbSet<HrkGameFeatureConfig> GameFeatureConfigs { get; set; } = null!;
+        public DbSet<HrkModalConfig> ModalConfigs { get; set; } = null!;
         public DbSet<HrkCombatPowerConfig> CombatPowerConfigs { get; set; } = null!;
         public DbSet<HrkHeroRarityUpgradeConfig> HeroRarityUpgradeConfigs { get; set; } = null!;
         public DbSet<HrkHeroStarAuraConfig> HeroStarAuraConfigs { get; set; } = null!;
@@ -58,6 +59,10 @@ namespace GAME.Infrastructure.Data
         public DbSet<HrkHeroStarAttributePool> HeroStarAttributePools { get; set; } = null!;
         public DbSet<HrkHeroStarUpgradeHistory> HeroStarUpgradeHistories { get; set; } = null!;
         public DbSet<HrkHeroAcquisitionHistory> HeroAcquisitionHistories { get; set; } = null!;
+        public DbSet<HrkSummonPool> SummonPools { get; set; } = null!;
+        public DbSet<HrkSummonPoolEntry> SummonPoolEntries { get; set; } = null!;
+        public DbSet<HrkSummonBatch> SummonBatches { get; set; } = null!;
+        public DbSet<HrkSummonResultItem> SummonResultItems { get; set; } = null!;
         public DbSet<HrkAvatarTemplate> AvatarTemplates { get; set; } = null!;
         public DbSet<HrkPlayerCustomAvatar> PlayerCustomAvatars { get; set; } = null!;
         public DbSet<HrkDungeonMap> DungeonMaps { get; set; } = null!;
@@ -618,6 +623,7 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_PlayerWallets");
                 entity.HasKey(e => e.PlayerId);
+                entity.Property(e => e.RowVersion).IsRowVersion();
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
 
                 entity.HasOne(d => d.Player)
@@ -984,6 +990,28 @@ namespace GAME.Infrastructure.Data
                     .HasForeignKey(e => e.ParentFeatureId).OnDelete(DeleteBehavior.Restrict);
             });
 
+            modelBuilder.Entity<HrkModalConfig>(entity =>
+            {
+                entity.ToTable("HRK_ModalConfigs", table =>
+                {
+                    table.HasCheckConstraint("CK_HRK_ModalConfigs_Kind", "Kind IN ('CONFIRMATION','CONTENT','NOTICE')");
+                    table.HasCheckConstraint("CK_HRK_ModalConfigs_Size", "Size IN ('SM','MD','LG','FULLSCREEN')");
+                    table.HasCheckConstraint("CK_HRK_ModalConfigs_Tone", "Tone IN ('DEFAULT','WARNING','DANGER','SUCCESS')");
+                    table.HasCheckConstraint("CK_HRK_ModalConfigs_Revision", "Revision > 0");
+                });
+                entity.HasKey(config => config.Id);
+                entity.HasIndex(config => config.Code).IsUnique();
+                entity.Property(config => config.Code).HasMaxLength(100).IsRequired();
+                entity.Property(config => config.Kind).HasMaxLength(20).IsRequired();
+                entity.Property(config => config.Title).HasMaxLength(200).IsRequired();
+                entity.Property(config => config.MessageTemplate).HasMaxLength(2000);
+                entity.Property(config => config.ConfirmText).HasMaxLength(60).IsRequired();
+                entity.Property(config => config.CancelText).HasMaxLength(60).IsRequired();
+                entity.Property(config => config.IconKey).HasMaxLength(60);
+                entity.Property(config => config.Size).HasMaxLength(20).IsRequired();
+                entity.Property(config => config.Tone).HasMaxLength(20).IsRequired();
+            });
+
             modelBuilder.Entity<HrkCombatPowerConfig>(entity =>
             {
                 entity.ToTable("HRK_CombatPowerConfigs");
@@ -1071,6 +1099,7 @@ namespace GAME.Infrastructure.Data
             {
                 entity.ToTable("HRK_PlayerHeroBonusAttributes");
                 entity.HasKey(x => x.Id);
+                entity.HasOne(x => x.PlayerHero).WithMany().HasForeignKey(x => x.PlayerHeroId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(x => new
                 {
                     x.PlayerHeroId,
@@ -1108,6 +1137,41 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(x => new { x.PlayerId, x.HeroTemplateId });
                 entity.Property(x => x.SourceType).HasMaxLength(50);
                 entity.Property(x => x.SourceReferenceId).HasMaxLength(150);
+            });
+
+            modelBuilder.Entity<HrkSummonPool>(entity =>
+            {
+                entity.ToTable("HRK_SummonPools");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.Code).IsUnique();
+                entity.Property(x => x.Code).HasMaxLength(30);
+                entity.Property(x => x.Name).HasMaxLength(150);
+                entity.Property(x => x.Currency).HasMaxLength(20);
+            });
+            modelBuilder.Entity<HrkSummonPoolEntry>(entity =>
+            {
+                entity.ToTable("HRK_SummonPoolEntries");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PoolId, x.HeroTemplateId }).IsUnique();
+                entity.HasOne(x => x.Pool).WithMany(x => x.Entries).HasForeignKey(x => x.PoolId);
+                entity.HasOne(x => x.HeroTemplate).WithMany().HasForeignKey(x => x.HeroTemplateId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkSummonBatch>(entity =>
+            {
+                entity.ToTable("HRK_SummonBatches");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.PlayerId, x.RequestId }).IsUnique();
+                entity.Property(x => x.PoolCode).HasMaxLength(30);
+                entity.Property(x => x.Currency).HasMaxLength(20);
+                entity.HasOne<HrkPlayer>().WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<HrkSummonResultItem>(entity =>
+            {
+                entity.ToTable("HRK_SummonResultItems");
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => new { x.BatchId, x.DrawIndex }).IsUnique();
+                entity.HasOne(x => x.Batch).WithMany(x => x.Items).HasForeignKey(x => x.BatchId);
+                entity.HasOne<HrkHeroTemplate>().WithMany().HasForeignKey(x => x.HeroTemplateId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Campaign Events & Tower Climb System

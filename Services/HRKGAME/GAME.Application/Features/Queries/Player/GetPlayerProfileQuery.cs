@@ -1,20 +1,16 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using CoreEngine.CQRS;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
-using Microsoft.AspNetCore.Http;
 
 namespace GAME.Application.Features.Queries.Player
 {
     public record GetPlayerProfileQuery : IQuery<BaseResponse<PlayerProfileDto>>;
-
-    public class GetPlayerProfileQueryHandler : HRKBaseQuery, IQueryHandler<GetPlayerProfileQuery, BaseResponse<PlayerProfileDto>>
+    public class GetPlayerProfileQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetPlayerProfileQuery, BaseResponse<PlayerProfileDto>>
     {
-        private readonly IGamePlayerService _playerService;
-
-        public GetPlayerProfileQueryHandler(IGamePlayerService playerService, IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        private readonly IPlayerReadModels _playerService;
+        public GetPlayerProfileQueryHandler(IPlayerReadModels playerService, IGameRequestContext requestContext) : base(requestContext)
         {
             _playerService = playerService;
         }
@@ -27,6 +23,7 @@ namespace GAME.Application.Features.Queries.Player
             {
                 return BaseResponse<PlayerProfileDto>.FailResponse("Player profile not found for this user.", statusCode: 404);
             }
+
             return BaseResponse<PlayerProfileDto>.SuccessResponse(profile, "Retrieved player profile successfully.");
         }
     }

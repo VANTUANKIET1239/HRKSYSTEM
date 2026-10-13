@@ -12,7 +12,17 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Services/AUTH/HRK.AUTH/HRK.AUTH.csproj", "Services/AUTH/HRK.AUTH/"]
+COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["Services/AUTH/AUTH.Application/AUTH.Application.csproj", "Services/AUTH/AUTH.Application/"]
+COPY ["Services/AUTH/AUTH.Domain/AUTH.Domain.csproj", "Services/AUTH/AUTH.Domain/"]
+COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
+COPY ["CoreEngine/Core.Application/Core.Application.csproj", "CoreEngine/Core.Application/"]
+COPY ["CoreEngine/Core.Web/Core.Web.csproj", "CoreEngine/Core.Web/"]
+COPY ["CoreEngine/Core.AUTH/Core.AUTH.csproj", "CoreEngine/Core.AUTH/"]
+COPY ["CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj", "CoreEngine/Core.Persistence.Abstractions/"]
+COPY ["Services/AUTH/AUTH.Infrastructure/AUTH.Infrastructure.csproj", "Services/AUTH/AUTH.Infrastructure/"]
+COPY ["CoreEngine/Core.Persistence/Core.Persistence.csproj", "CoreEngine/Core.Persistence/"]
 RUN dotnet restore "./Services/AUTH/HRK.AUTH/HRK.AUTH.csproj"
 COPY . .
 WORKDIR "/src/Services/AUTH/HRK.AUTH"

@@ -1,15 +1,18 @@
 using Oservability;
 
 using HRK.GAME.Configuration;
+using HRK.GAME.Filters;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Core.Web.Responses;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddCustomDependency();
 
 // Add services to container
 builder.Services.AddSwaggerGen();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.AddGameApiFilters());
+builder.Services.AddHrkApiResponses();
 
 builder.Services
     .AddAuthentication("Bearer")
@@ -38,6 +41,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 app.UseHrkCorrelation();
+app.UseHrkApiResponses();
 
 if (app.Environment.IsDevelopment())
 {

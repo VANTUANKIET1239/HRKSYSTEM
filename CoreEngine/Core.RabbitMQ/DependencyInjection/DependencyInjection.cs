@@ -1,4 +1,4 @@
-﻿using Core.Common.Constants;
+
 using Core.RabbitMQ.Channel;
 using Core.RabbitMQ.Consumer;
 using Core.RabbitMQ.Connection;
@@ -27,7 +27,7 @@ namespace Core.RabbitMQ.DependencyInjection
             services.TryAddScoped<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
             services.AddScoped<MessageContext>();
             services.Configure<RabbitMqOptions>(
-                configuration.GetSection(Common.Constants.Common.Constants.RABBITMQ.RABBITMQ_OPTIONS));
+                configuration.GetSection("RabbitMq"));
             services.AddSingleton<IRabbitMqConnection, RabbitMqConnection>();
             services.AddSingleton<IRabbitMqChannel, RabbitMqChannel>();
             services.AddSingleton<IRabbitMqTopology, RabbitMqTopology>();

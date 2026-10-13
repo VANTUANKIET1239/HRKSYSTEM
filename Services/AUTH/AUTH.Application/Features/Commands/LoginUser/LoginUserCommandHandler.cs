@@ -3,14 +3,14 @@ using AUTH.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Core.Common.Constants.Common;
-using Core.Common.Cookie;
-using Core.Common.CQRS;
+using Core.Web.Cookies;
+using Core.Web.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using Core.Common.Helpers;
-using Core.Common.JwtHandler;
-using Core.Common.JwtHandler.Entities;
-using Core.Common.Repositories;
-using CoreEngine.CQRS;
+using Core.AUTH.Tokens;
+using Core.AUTH.Jwt;
+using Core.AUTH.Jwt.Entities;
+using Core.Persistence.Repositories;
+using Core.Application.CQRS;
 using MediatR;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
@@ -58,7 +58,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
                     : _jwtOptions.Value.Audience;
                 if (!await _applicationRouteConfigs.IsAudienceAllowedAsync(audience, cancellationToken))
                 {
-                    return BaseResponse<LoginUserResponse>.FailResponse("Unsupported application audience.", statusCode: 401);
+                    return BaseResponse<LoginUserResponse>.FailResponse("Unsupported application audience.", statusCode: 401, code: "INVALID_AUDIENCE");
                 }
 
                 var user = await _identityService.FindByNameOrEmailAsync(request.Email);
@@ -86,7 +86,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
 
                 await _unitOfWork.ExecuteStrategyAsync(async () =>
                 {
-                    await _unitOfWork.BeginTransactionAsync();
+                    await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
                     var now = DateTime.UtcNow;
                     var refreshTokenLifetime = _jwtOptions.Value.GetRefreshTokenLifetime();
@@ -134,8 +134,8 @@ namespace AUTH.Application.Features.Commands.LoginUser
 
                     await _identityService.ResetAccessFailedCountAsync(user.Id);
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
-                    await _unitOfWork.CommitTransactionAsync();
-                });
+                    await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                }, cancellationToken);
 
                 var refreshCookieUsesMinutes = _jwtOptions.Value.RefreshTokenExpiryMinutes is > 0;
                 _coreCookieService.SetCookie(
@@ -163,17 +163,11 @@ namespace AUTH.Application.Features.Commands.LoginUser
                     StatusCode = 200
                 };
             }
-            catch (Exception ex)
+            catch
             {
                 await _unitOfWork.RollbackTransactionAsync();
 
-                return new BaseResponse<LoginUserResponse>
-                {
-                    Data = new LoginUserResponse(),
-                    Success = false,
-                    StatusCode = 500,
-                    Message = ex.Message
-                };
+                throw;
             }
         }
 
@@ -182,7 +176,7 @@ namespace AUTH.Application.Features.Commands.LoginUser
             BaseResponse<LoginUserResponse> response = new() { Success = true };   
             if (user == null)
             {
-                response = new BaseResponse<LoginUserResponse> { Data = new LoginUserResponse(), Success = false, StatusCode = 404, Message = "User not found." };
+                response = BaseResponse<LoginUserResponse>.FailResponse("Invalid credentials.", statusCode: 401, code: "INVALID_CREDENTIALS");
                 return response;
             }
 
@@ -190,19 +184,19 @@ namespace AUTH.Application.Features.Commands.LoginUser
 
             if (result.IsLockedOut)
             {
-                response = new BaseResponse<LoginUserResponse> { Data = new LoginUserResponse(), Success = false, StatusCode = 403, Message = "Account locked. Try again later." };
+                response = BaseResponse<LoginUserResponse>.FailResponse("Account locked. Try again later.", statusCode: 403, code: "ACCOUNT_LOCKED");
                 return response;
             }
 
             if (result.RequiresTwoFactor)
             {
-                response = new BaseResponse<LoginUserResponse> { Data = new LoginUserResponse(), Success = false, StatusCode = 401, Message = "Two-factor required." };
+                response = BaseResponse<LoginUserResponse>.FailResponse("Two-factor required.", statusCode: 401, code: "TWO_FACTOR_REQUIRED");
                 return response;
             }
 
             if (!result.Succeeded)
             {
-                response = new BaseResponse<LoginUserResponse> { Data = new LoginUserResponse(), Success = false, StatusCode = 401, Message = "Invalid credentials." };
+                response = BaseResponse<LoginUserResponse>.FailResponse("Invalid credentials.", statusCode: 401, code: "INVALID_CREDENTIALS");
                 return response;
             }
 

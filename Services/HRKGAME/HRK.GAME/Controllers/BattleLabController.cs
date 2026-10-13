@@ -1,5 +1,8 @@
+using MediatR;
+using GAME.Application.Features.Commands.BattleLab;
+using GAME.Application.Features.Queries.BattleLab;
 using GAME.Application.DTOs;
-using GAME.Application.Interfaces;
+using Core.Common.Entity.MyCompany.Shared.Responses;
 using HRK.GAME.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,35 +11,45 @@ namespace HRK.GAME.Controllers;
 
 [Authorize]
 [Route("api/battle/lab")]
-public sealed class BattleLabController(IBattleLabService lab, IWebHostEnvironment environment,
-    IConfiguration configuration) : HRKControllerBase
+public sealed class BattleLabController(
+    IMediator mediator,
+    IWebHostEnvironment environment,
+    IConfiguration configuration)
+    : HRKControllerBase
 {
     private static readonly SemaphoreSlim RunGate = new(1, 1);
     // Disabled outside Development unless explicitly enabled AND the caller is Admin.
-    private bool CanUseLab => environment.IsDevelopment() ||
-        (configuration.GetValue<bool>("BattleLab:Enabled") && User.IsInRole("Admin"));
+    private bool CanUseLab => environment.IsDevelopment() || (configuration.GetValue<bool>("BattleLab:Enabled") && User.IsInRole("Admin"));
 
     [HttpGet("catalog")]
     public async Task<IActionResult> Catalog(CancellationToken ct)
     {
-        if (!CanUseLab) return NotFound();
-        return OkResponse(await lab.GetCatalogAsync(ct));
+        if (!CanUseLab)
+            return NotFound();
+        return HrkOk(await mediator.Send(new GetBattleLabCatalogQuery(), ct));
     }
 
     [HttpPost("run")]
     [RequestSizeLimit(65536)]
     public async Task<IActionResult> Run(BattleLabRequestDto request, CancellationToken ct)
     {
-        if (!CanUseLab) return NotFound();
+        if (!CanUseLab)
+            return NotFound();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         if (!await RunGate.WaitAsync(0, ct))
-            return StatusCode(429, new { success = false, message = "Another lab batch is running. Please retry." });
+            return StatusCode(429, BaseResponse<object>.FailResponse("Another lab batch is running. Please retry.", statusCode: 429, code: "LAB_BUSY"));
         timeout.CancelAfter(TimeSpan.FromSeconds(45));
-        try { return OkResponse(await lab.RunAsync(request, timeout.Token)); }
-        catch (ArgumentException ex) { return BadRequest(new { success = false, message = ex.Message }); }
-        catch (InvalidOperationException ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        try
+        {
+            return HrkOk(await mediator.Send(new RunBattleLabCommand(request), timeout.Token));
+        }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        { return StatusCode(408, new { success = false, message = "Lab timed out. Reduce battle count or rounds." }); }
-        finally { RunGate.Release(); }
+        {
+            return StatusCode(408, BaseResponse<object>.FailResponse("Lab timed out. Reduce battle count or rounds.", statusCode: 408, code: "LAB_TIMEOUT"));
+        }
+        finally
+        {
+            RunGate.Release();
+        }
     }
 }

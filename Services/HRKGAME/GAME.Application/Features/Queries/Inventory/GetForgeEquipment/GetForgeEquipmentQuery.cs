@@ -1,31 +1,20 @@
-using Core.Common.CQRS;
+using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
-using Core.Common.Repositories;
-using CoreEngine.CQRS;
+using Core.Persistence.Repositories;
+using Core.Application.CQRS;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace GAME.Application.Features.Queries.Inventory.GetForgeEquipment
 {
     public record GetForgeEquipmentQuery() : IQuery<BaseResponse<List<ForgeEquipmentItemDto>>>;
-
-    public class GetForgeEquipmentQueryHandler : HRKBaseQuery, IQueryHandler<GetForgeEquipmentQuery, BaseResponse<List<ForgeEquipmentItemDto>>>
+    public class GetForgeEquipmentQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetForgeEquipmentQuery, BaseResponse<List<ForgeEquipmentItemDto>>>
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
-
-        public GetForgeEquipmentQueryHandler(
-            IUnitOfWork unitOfWork,
-            IGamePlayerService gamePlayerService,
-            IHttpContextAccessor httpContextAccessor)
-            : base(httpContextAccessor)
+        public GetForgeEquipmentQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IGameRequestContext requestContext) : base(requestContext)
         {
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
@@ -42,20 +31,14 @@ namespace GAME.Application.Features.Queries.Inventory.GetForgeEquipment
 
             // Truy vấn các trang bị còn active của người chơi (Category.IsEquipment == true)
             var inventories = await _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-                .Where(i => i.PlayerId == player.Id 
-                         && i.IsActive 
-                         && i.ItemTemplate.Category != null 
-                         && i.ItemTemplate.Category.IsEquipment)
+                .Where(i => i.PlayerId == player.Id && i.IsActive && i.ItemTemplate.Category != null && i.ItemTemplate.Category.IsEquipment)
                 .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
                 .Include(i => i.ItemTemplate).ThenInclude(t => t.Rarity)
-                .OrderByDescending(i => i.Enhancement)
-                .ThenByDescending(i => i.ItemTemplate.Rarity.DisplayOrder)
+                .OrderByDescending(i => i.Enhancement).ThenByDescending(i => i.ItemTemplate.Rarity.DisplayOrder)
                 .ToListAsync(cancellationToken);
-
             var dtos = inventories.Select(item =>
             {
                 var eligibility = item.CheckEnhancementEligibility();
-
                 return new ForgeEquipmentItemDto
                 {
                     InventoryItemId = item.Id,
@@ -80,7 +63,6 @@ namespace GAME.Application.Features.Queries.Inventory.GetForgeEquipment
                     EnhancementBlockedMessage = eligibility.CanEnhance ? null : eligibility.Message
                 };
             }).ToList();
-
             return BaseResponse<List<ForgeEquipmentItemDto>>.SuccessResponse(dtos, "Tải danh sách trang bị cho Lò Rèn thành công.");
         }
     }
