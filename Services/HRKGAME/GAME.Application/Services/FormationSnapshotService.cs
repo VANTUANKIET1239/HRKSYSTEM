@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
@@ -10,12 +11,14 @@ namespace GAME.Application.Services
 {
     public class FormationSnapshotService : IFormationSnapshotService
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHeroStatCalculationService _heroStatCalculationService;
         private readonly IFormationStatService _formationStatService;
         private readonly ICombatPowerService _combatPowerService;
-        public FormationSnapshotService(IUnitOfWork unitOfWork, IHeroStatCalculationService heroStatCalculationService, IFormationStatService formationStatService, ICombatPowerService combatPowerService)
+        public FormationSnapshotService(IUnitOfWork unitOfWork, IHeroStatCalculationService heroStatCalculationService, IFormationStatService formationStatService, ICombatPowerService combatPowerService, IGameTemplateCatalog? templates = null)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _heroStatCalculationService = heroStatCalculationService;
             _formationStatService = formationStatService;
@@ -25,36 +28,19 @@ namespace GAME.Application.Services
         public async Task<FormationBattleSnapshot> BuildAsync(long playerId, string? formationCode, IReadOnlyCollection<FormationPositionRequestDto>? positions, CancellationToken cancellationToken = default)
         {
             // 1. Resolve Formation Template & Player Formation
-            HrkPlayerFormation? playerFormation = null;
-            if (string.IsNullOrWhiteSpace(formationCode))
-            {
-                playerFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                    .Include(f => f.FormationTemplate)
-                    .Where(f => f.PlayerId == playerId && f.IsActive && f.IsSelected)
-                    .FirstOrDefaultAsync(cancellationToken);
-                formationCode = playerFormation?.FormationTemplate?.Code ?? "LUC_DO";
-            }
-            else
-            {
-                playerFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                    .Include(f => f.FormationTemplate)
-                    .Where(f => f.PlayerId == playerId && f.IsActive && f.FormationTemplate.Code == formationCode)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
+            var playerFormation = await TemplateHydration.FindPlayerFormationAsync(_unitOfWork, _templates, playerId, formationCode, cancellationToken);
+            formationCode = string.IsNullOrWhiteSpace(formationCode) ? playerFormation?.FormationTemplate?.Code ?? "LUC_DO" : formationCode;
 
-            var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
+            var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
                 .Where(t => t.Code == formationCode && t.IsEnabled)
-                .Include(t => t.Slots.OrderBy(s => s.Slot))
-                .Include(t => t.LevelConfigs.OrderBy(c => c.Level))
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefault();
             if (tmpl == null)
             {
                 throw new KeyNotFoundException($"Không tìm thấy cấu hình trận pháp '{formationCode}'.");
             }
 
             int level = playerFormation?.Level ?? 1;
-            var levelCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == level) ?? tmpl.LevelConfigs.FirstOrDefault();
+            var levelCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == level) ?? tmpl.LevelConfigs.OrderBy(c => c.Level).FirstOrDefault();
             var formationBonus = _formationStatService.ParseBonus(levelCfg?.StatBonusJson);
             // 2. Resolve Positions
             var resolvedPositions = new List<FormationPositionRequestDto>();
@@ -239,18 +225,11 @@ namespace GAME.Application.Services
                 return (new Dictionary<long, HrkPlayerHero>(), new Dictionary<long, HrkPlayerEquipment>());
             var heroes = await _unitOfWork.ReadOnlyRepository<HrkPlayerHero>().Query()
                 .Where(h => h.PlayerId == playerId && h.IsActive && heroIds.Contains(h.Id))
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Faction)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Class)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Rarity)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-                .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
                 .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
-            var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, heroIds, cancellationToken);
+            await TemplateHydration.HeroesAsync(_templates, heroes, cancellationToken);
+            var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, heroIds, cancellationToken, _templates);
             return (heroes.ToDictionary(h => h.Id), equipments);
         }
     }

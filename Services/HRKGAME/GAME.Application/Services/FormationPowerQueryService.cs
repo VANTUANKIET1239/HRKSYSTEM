@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -8,12 +9,14 @@ namespace GAME.Application.Services
 {
     public class FormationPowerQueryService : IFormationPowerQueryService
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHeroStatCalculationService _heroStatCalculationService;
         private readonly IFormationStatService _formationStatService;
         private readonly ICombatPowerService _combatPowerService;
-        public FormationPowerQueryService(IUnitOfWork unitOfWork, IHeroStatCalculationService heroStatCalculationService, IFormationStatService formationStatService, ICombatPowerService combatPowerService)
+        public FormationPowerQueryService(IUnitOfWork unitOfWork, IHeroStatCalculationService heroStatCalculationService, IFormationStatService formationStatService, ICombatPowerService combatPowerService, IGameTemplateCatalog? templates = null)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _heroStatCalculationService = heroStatCalculationService;
             _formationStatService = formationStatService;
@@ -22,10 +25,7 @@ namespace GAME.Application.Services
 
         public async Task<FormationPowerResultDto> GetDefaultFormationPowerAsync(long playerId, CancellationToken cancellationToken = default)
         {
-            var selectedFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                .Include(f => f.FormationTemplate)
-                .Where(f => f.PlayerId == playerId && f.IsActive && f.IsSelected)
-                .FirstOrDefaultAsync(cancellationToken);
+            var selectedFormation = await TemplateHydration.FindPlayerFormationAsync(_unitOfWork, _templates, playerId, null, cancellationToken);
             if (selectedFormation == null)
             {
                 return new FormationPowerResultDto();
@@ -64,34 +64,19 @@ namespace GAME.Application.Services
 
         public async Task<FormationPowerResultDto> CalculateFormationPowerAsync(long playerId, string? formationCode, IReadOnlyCollection<FormationPositionRequestDto>? positions, CancellationToken cancellationToken = default)
         {
-            HrkPlayerFormation? playerFormation = null;
-            if (string.IsNullOrWhiteSpace(formationCode))
-            {
-                playerFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                    .Include(f => f.FormationTemplate)
-                    .Where(f => f.PlayerId == playerId && f.IsActive && f.IsSelected)
-                    .FirstOrDefaultAsync(cancellationToken);
-                formationCode = playerFormation?.FormationTemplate?.Code ?? "LUC_DO";
-            }
-            else
-            {
-                playerFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                    .Include(f => f.FormationTemplate)
-                    .Where(f => f.PlayerId == playerId && f.IsActive && f.FormationTemplate.Code == formationCode)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
+            var playerFormation = await TemplateHydration.FindPlayerFormationAsync(_unitOfWork, _templates, playerId, formationCode, cancellationToken);
+            formationCode = string.IsNullOrWhiteSpace(formationCode) ? playerFormation?.FormationTemplate?.Code ?? "LUC_DO" : formationCode;
 
-            var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
+            var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
                 .Where(t => t.Code == formationCode && t.IsEnabled)
-                .Include(t => t.LevelConfigs)
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefault();
             if (tmpl == null)
             {
                 return new FormationPowerResultDto();
             }
 
             int level = playerFormation?.Level ?? 1;
-            var levelCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == level) ?? tmpl.LevelConfigs.FirstOrDefault();
+            var levelCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == level) ?? tmpl.LevelConfigs.OrderBy(c => c.Level).FirstOrDefault();
             var formationBonus = _formationStatService.ParseBonus(levelCfg?.StatBonusJson);
             var resolvedPositions = new List<FormationPositionRequestDto>();
             if (positions != null && positions.Count > 0)
@@ -150,11 +135,11 @@ namespace GAME.Application.Services
             // High performance query: Only load Hero + HeroTemplate and equipment with attributes (no skills/effects/parameters)
             var heroes = await _unitOfWork.ReadOnlyRepository<HrkPlayerHero>().Query()
                 .Where(h => h.PlayerId == playerId && h.IsActive && placedHeroIds.Contains(h.Id))
-                .Include(h => h.HeroTemplate)
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
+            await TemplateHydration.HeroesAsync(_templates, heroes, cancellationToken);
             var heroDict = heroes.ToDictionary(h => h.Id);
-            var eqDict = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, placedHeroIds, cancellationToken);
+            var eqDict = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, placedHeroIds, cancellationToken, _templates);
             var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
             var heroEquipmentList = placedHeroIds.Where(id => heroDict.ContainsKey(id))
                 .Select(id => (heroDict[id], eqDict.GetValueOrDefault(id))).ToList();

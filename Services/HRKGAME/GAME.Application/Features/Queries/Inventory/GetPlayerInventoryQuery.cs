@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
@@ -14,9 +15,10 @@ public record GetPlayerInventoryQuery(string? CategoryCode = null) : IQuery<Base
 public sealed class GetPlayerInventoryQueryHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
-    IGameRequestContext actor)
+    IGameRequestContext actor, IGameTemplateCatalog? templates = null)
     : IQueryHandler<GetPlayerInventoryQuery, BaseResponse<List<InventoryItemDto>>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IGameRequestContext _actor = actor;
@@ -32,26 +34,24 @@ public sealed class GetPlayerInventoryQueryHandler(
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken);
         if (player == null)
             return new List<InventoryItemDto>();
+        var itemTemplates = (await _templates.GetAllAsync<HrkItemTemplate>(cancellationToken)).ToList();
+        var allowedIds = itemTemplates.Where(t => string.IsNullOrWhiteSpace(categoryCode) ||
+            categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase) || t.Category.Code == categoryCode)
+            .Select(t => t.Id).ToArray();
         var query = _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
             .Where(inv => inv.PlayerId == player.Id && inv.IsActive)
-            .Include(inv => inv.Attributes).ThenInclude(a => a.AttributeType)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Category)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Rarity)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Attributes).ThenInclude(a => a.AttributeType)
-            .Include(inv => inv.EquippedHero).ThenInclude(hero => hero!.HeroTemplate)
-            .OrderByDescending(x => x.ItemTemplate.RarityId)
+            .Where(inv => allowedIds.Contains(inv.ItemTemplateId))
+            .Include(inv => inv.Attributes)
+            .Include(inv => inv.EquippedHero)
             .AsSplitQuery().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(categoryCode) && !categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(inv => inv.ItemTemplate.Category.Code == categoryCode);
-        }
-
         var items = await query.ToListAsync(cancellationToken);
-        var result = items.Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
+        await TemplateHydration.InventoryAsync(_templates, items, cancellationToken);
+        await TemplateHydration.HeroesAsync(_templates, items.Select(i => i.EquippedHero).OfType<HrkPlayerHero>(), cancellationToken);
+        var result = items.OrderByDescending(i => i.ItemTemplate.RarityId).Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
         var templateIds = items.Select(x => x.ItemTemplateId).Distinct().ToList();
-        var stonePortraits = await (
-            from stone in _unitOfWork.ReadOnlyRepository<HrkHeroStoneConfig>().Query()
-            join hero in _unitOfWork.ReadOnlyRepository<HrkHeroTemplate>().Query() on stone.HeroTemplateId equals hero.Id
+        var stonePortraits = (
+            from stone in (await _templates.GetAllAsync<HrkHeroStoneConfig>(cancellationToken))
+            join hero in (await _templates.GetAllAsync<HrkHeroTemplate>(cancellationToken)) on stone.HeroTemplateId equals hero.Id
             where stone.IsActive && templateIds.Contains(stone.ItemTemplateId)
             select new
             {
@@ -59,7 +59,7 @@ public sealed class GetPlayerInventoryQueryHandler(
                 hero.Avatar
             }
 
-        ).ToDictionaryAsync(x => x.ItemTemplateId, x => x.Avatar, cancellationToken);
+        ).ToDictionary(x => x.ItemTemplateId, x => x.Avatar);
         foreach (var item in result)
         {
             if (stonePortraits.TryGetValue(item.ItemTemplateId, out var portrait))

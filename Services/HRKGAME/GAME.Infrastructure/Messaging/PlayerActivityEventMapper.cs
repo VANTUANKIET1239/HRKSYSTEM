@@ -14,6 +14,11 @@ public sealed class PlayerActivityEventMapper
     {
         return activity switch
         {
+            CheckInClaimedEvent e => Create(e, "CheckInClaimed", "CheckInCalendar", e.CalendarId.ToString(),
+                FormattableString.Invariant($"checkin:{e.PlayerId}:{e.CalendarId}:{e.CheckInDate:yyyy-MM-dd}"),
+                new { e.CalendarId, e.MonthKey, e.CheckInDate, e.RequestId, e.ConfigVersion, e.Rewards }),
+            GameEventActivityEvent e => Create(e, e.ActivityType, "GameEvent", e.GameEventId?.ToString() ?? "",
+                $"event:{e.PlayerId}:{e.ActivityType}:{e.SourceId}", e.Metadata),
             ItemEnhancedEvent e => Create(e, "ItemEnhanced", "Item", e.ItemId.ToString(),
                 $"enhance:{e.PlayerId}:{e.RequestId:N}", new
                 {
@@ -49,6 +54,7 @@ public sealed class PlayerActivityEventMapper
         // Namespaced identity survives execution-strategy retries for the same business event.
         var id = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("HRK.GAME.activity.v1:" + key)).AsSpan(0, 16));
         return new(new(id, type, e.PlayerId, e.UserId, entityType, entityId, "HRK.GAME",
-            DateTimeOffset.UtcNow, JsonSerializer.SerializeToElement(payload)), partition, sequence);
+            e.OccurredAt ?? DateTimeOffset.UtcNow, JsonSerializer.SerializeToElement(payload),
+            e.GameEventId, e.EventPeriodId, e.PeriodKey, e.JobExecutionId), partition, sequence);
     }
 }

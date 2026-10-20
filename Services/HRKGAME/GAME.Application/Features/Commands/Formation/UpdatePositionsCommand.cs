@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -27,16 +28,16 @@ public sealed class UpdatePositionsCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationStatService formationStatService,
     ICombatPowerService combatPowerService,
-    IHeroStatCalculationService heroStatCalculationService)
-    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService), ICommandHandler<UpdatePositionsCommand, BaseResponse<FormationDetailDto>>
+    IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
+    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), ICommandHandler<UpdatePositionsCommand, BaseResponse<FormationDetailDto>>
 {
     public async Task<BaseResponse<FormationDetailDto>> Handle(UpdatePositionsCommand message, CancellationToken ct) => BaseResponse<FormationDetailDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, message.Request, ct));
     private async Task<FormationDetailDto> ExecuteAsync(string userId, string formationCode, UpdateFormationPositionsRequest request, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
-        var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
-            .FirstOrDefaultAsync(t => t.Code == formationCode && t.IsEnabled, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+        var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var pf = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
             .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy bản ghi đội hình cho trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         // Validate slots 1 to 5
@@ -66,8 +67,8 @@ public sealed class UpdatePositionsCommandHandler(
         pf.Position5 = positions.FirstOrDefault(p => p.Slot == 5)?.HeroId;
         pf.UpdatedOn = DateTime.UtcNow;
         // Tính toán lại power
-        var currentLevelCfg = await _unitOfWork.ReadOnlyRepository<HrkFormationLevelConfig>().Query()
-            .FirstOrDefaultAsync(c => c.FormationTemplateId == tmpl.Id && c.Level == pf.Level, cancellationToken);
+        var currentLevelCfg = (await _templates.GetAllAsync<HrkFormationLevelConfig>(cancellationToken))
+            .FirstOrDefault(c => c.FormationTemplateId == tmpl.Id && c.Level == pf.Level);
         var currentBonus = _formationStatService.ParseBonus(currentLevelCfg?.StatBonusJson);
         var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
         var placedHeroIds = GetPlacedHeroIds(pf);

@@ -10,6 +10,7 @@ using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using GAME.Application.Services;
 using GAME.Application.Features.Shared.Tower;
+using GAME.Application.Events;
 
 namespace GAME.Application.Features.Commands.Tower;
 
@@ -31,10 +32,11 @@ public sealed class StartFloorBattleCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService,
+    ITowerEventService towerEvents,
     TowerOperationRunner runner,
-    TowerRewardService rewards)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), ICommandHandler<StartFloorBattleCommand, BaseResponse<StartTowerBattleResultDto>>
+    TowerRewardService rewards,
+    IPlayerActivityEvents activityEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), ICommandHandler<StartFloorBattleCommand, BaseResponse<StartTowerBattleResultDto>>
 {
     private readonly TowerOperationRunner _runner = runner;
     private readonly TowerRewardService _rewards = rewards;
@@ -51,12 +53,12 @@ public sealed class StartFloorBattleCommandHandler(
             return await GetBattleDetailAsync(userId, request.ClientRequestId, ct) ?? throw new InvalidOperationException("Không đọc được kết quả trận đã xử lý.");
         var ev = await GetTowerEventAsync(ct);
         EventAccessPolicy.EnsureCanEnter(ev, player.Level, DateTime.UtcNow);
+        var currentPeriod = await _towerEvents.GetOrCreateCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, currentPeriod, ct);
         // Check active quick climb job: cannot do manual battle while quick climb is active
         var activeQuickClimb = await _unitOfWork.ReadOnlyRepository<HrkTowerQuickClimbJob>().Query().AnyAsync(j => j.PlayerId == player.Id && (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct);
         if (activeQuickClimb)
             throw new BusinessException("QUICK_CLIMB_ACTIVE", "Đang có phiên leo nhanh hoạt động. Vui lòng dừng leo nhanh trước khi khiêu chiến thủ công.", BusinessErrorKind.Conflict);
-        var currentPeriod = await _eventPeriodService.GetOrCreateCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, currentPeriod, ct);
         // Validate floor progression (no skipping)
         if (progress.RemainingLives <= 0)
             throw new BusinessException("NO_REMAINING_LIVES", "Đã hết mạng trong lượt leo hiện tại. Vui lòng bắt đầu lượt mới.", BusinessErrorKind.Conflict);
@@ -71,7 +73,7 @@ public sealed class StartFloorBattleCommandHandler(
         // Load floor & enemies
         var floor = await _unitOfWork.ReadOnlyRepository<HrkTowerFloor>().Query()
             .Where(f => f.EventId == ev.Id && f.FloorNumber == floorNumber && f.IsActive)
-            .Include(f => f.Enemies).ThenInclude(e => e.HeroTemplate)
+            .Include(f => f.Enemies)
             .FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException($"Không tìm thấy cấu hình tầng {floorNumber}.");
         StartTowerBattleResultDto? completedResult = null;
         {
@@ -136,8 +138,7 @@ public sealed class StartFloorBattleCommandHandler(
                 }
 
                 // Check milestone chest unlocked at floors 15, 30, 45, 60
-                var chest = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
-                    .FirstOrDefaultAsync(c => c.EventId == ev.Id && c.FloorNumber == floorNumber && c.IsActive, ct);
+                var chest = (await GetPeriodChestsAsync(currentPeriod, ct)).FirstOrDefault(c => c.FloorNumber == floorNumber);
                 if (chest != null)
                 {
                     milestoneUnlocked = true;
@@ -230,6 +231,8 @@ public sealed class StartFloorBattleCommandHandler(
                 Heroes = heroExpResults
             };
             battleRecord.ResultJson = JsonSerializer.Serialize(completedResult);
+            activityEvents.RaiseEvent(player, currentPeriod, "TowerBattleCompleted", battleRecord.BattleId,
+                new { battleRecord.BattleId, battleRecord.FloorNumber, battleRecord.Result, battleRecord.LivesBefore, battleRecord.LivesAfter }, battleRecord.CreatedOnUtc);
             await _executor.UpdateRunAsync(txProgress, floorNumber, ct);
         }
 

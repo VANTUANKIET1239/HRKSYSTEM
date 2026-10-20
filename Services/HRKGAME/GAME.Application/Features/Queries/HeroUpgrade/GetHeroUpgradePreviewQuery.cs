@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -13,23 +14,23 @@ public sealed record GetHeroUpgradePreviewQuery(string UserId, long HeroId) : IQ
 public sealed class GetHeroUpgradePreviewQueryHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
-    IHeroProgressionStatService progressionStats)
-    : HeroUpgradeHandlerSupport(unitOfWork, gamePlayerService), IQueryHandler<GetHeroUpgradePreviewQuery, BaseResponse<HeroUpgradePreviewDto>>
+    IHeroProgressionStatService progressionStats, IGameTemplateCatalog? templates = null)
+    : HeroUpgradeHandlerSupport(unitOfWork, gamePlayerService, templates), IQueryHandler<GetHeroUpgradePreviewQuery, BaseResponse<HeroUpgradePreviewDto>>
 {
     private readonly IHeroProgressionStatService _progressionStats = progressionStats;
     public async Task<BaseResponse<HeroUpgradePreviewDto>> Handle(GetHeroUpgradePreviewQuery message, CancellationToken ct) => BaseResponse<HeroUpgradePreviewDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.HeroId, ct));
     private async Task<HeroUpgradePreviewDto> ExecuteAsync(string userId, long heroId, CancellationToken cancellationToken = default)
     {
-        var (_, hero, config) = await LoadHeroAsync(userId, heroId, cancellationToken);
-        var starBonus = await GetStarBonusAsync(hero, cancellationToken);
-        return BuildPreview(hero, config, starBonus);
+        var (_, hero, config, template) = await LoadHeroAsync(userId, heroId, cancellationToken);
+        var starBonus = await GetStarBonusAsync(hero, template, cancellationToken);
+        return BuildPreview(hero, template, config, starBonus);
     }
 
-    private HeroUpgradePreviewDto BuildPreview(HrkPlayerHero hero, HrkHeroRarityUpgradeConfig config, decimal starBonus)
+    private HeroUpgradePreviewDto BuildPreview(HrkPlayerHero hero, HrkHeroTemplate template, HrkHeroRarityUpgradeConfig config, decimal starBonus)
     {
         var nextLevel = Math.Min(hero.Level + 1, config.MaxLevel);
-        var current = _progressionStats.Calculate(hero.HeroTemplate, hero.Level, config.StatGrowthRate, starBonus);
-        var next = _progressionStats.Calculate(hero.HeroTemplate, nextLevel, config.StatGrowthRate, starBonus);
+        var current = _progressionStats.Calculate(template, hero.Level, config.StatGrowthRate, starBonus);
+        var next = _progressionStats.Calculate(template, nextLevel, config.StatGrowthRate, starBonus);
         return new HeroUpgradePreviewDto
         {
             HeroId = hero.Id,

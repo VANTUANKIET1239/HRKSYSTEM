@@ -16,6 +16,7 @@ using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using GAME.Application.Services;
 using GAME.Application.Features.Shared.QuickClimb;
+using GAME.Application.Events;
 
 namespace GAME.Application.Features.Commands.QuickClimb;
 
@@ -76,7 +77,7 @@ public sealed class ProcessQuickClimbFloorCommandHandler(
                 var execution = await _inbox.ExecuteInCurrentTransactionAsync(consumerName, messageKey, async token =>
                 {
                     var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
-                        .SingleAsync(x => x.JobId == jobId, token);
+                        .Include(x => x.EventPeriod).SingleAsync(x => x.JobId == jobId, token);
                     if (job.CurrentFloor != expectedFloor || job.Version != expectedVersion || (job.Status != "QUEUED" && job.Status != "PROCESSING"))
                     {
                         return false;
@@ -138,7 +139,7 @@ public sealed class ProcessQuickClimbFloorCommandHandler(
                 var execution = await _inbox.ExecuteInCurrentTransactionAsync(consumerName, messageKey, async token =>
                 {
                     var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
-                        .SingleAsync(x => x.JobId == jobId, token);
+                        .Include(x => x.EventPeriod).SingleAsync(x => x.JobId == jobId, token);
                     if (job.CurrentFloor == expectedFloor && job.Version == expectedVersion && job.Status is "QUEUED" or "PROCESSING")
                     {
                         job.Status = "ERROR";
@@ -229,7 +230,7 @@ public sealed class ProcessQuickClimbFloorCommandHandler(
         // 5. Load floor & enemies
         var floor = await _unitOfWork.ReadOnlyRepository<HrkTowerFloor>().Query()
             .Where(f => f.EventId == progress.EventId && f.FloorNumber == currentFloor && f.IsActive)
-            .Include(f => f.Enemies).ThenInclude(e => e.HeroTemplate)
+            .Include(f => f.Enemies)
             .FirstOrDefaultAsync(ct);
         if (floor == null)
         {
@@ -333,6 +334,9 @@ public sealed class ProcessQuickClimbFloorCommandHandler(
                 HeroStatisticsJson = JsonSerializer.Serialize(heroStats),
                 CreatedOnUtc = DateTime.UtcNow
             };
+            _activityEvents.RaiseEvent(player, period, "TowerBattleCompleted", battleRecord.BattleId,
+                new { battleRecord.BattleId, battleRecord.FloorNumber, battleRecord.Result, battleRecord.LivesBefore,
+                    battleRecord.LivesAfter, QuickClimbJobId = job.JobId }, battleRecord.CreatedOnUtc);
             var result = new StartTowerBattleResultDto
             {
                 Battle = TowerBattleExecutor.ToBattleResult(battleId, initialState, simulation, randomSeed, heroStats),

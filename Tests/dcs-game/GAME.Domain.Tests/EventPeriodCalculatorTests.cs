@@ -1,18 +1,10 @@
-using GAME.Application.Services;
+using GAME.Application.Common;
 using Xunit;
 
 namespace GAME.Domain.Tests
 {
-    public class TowerClimbSystemTests
+    public class EventPeriodCalculatorTests
     {
-        private readonly EventPeriodService _periodService;
-
-        public TowerClimbSystemTests()
-        {
-            // UnitOfWork is not needed for pure calculation tests
-            _periodService = new EventPeriodService(null!);
-        }
-
         #region 1. Reset Period & TimeZone Tests
 
         [Fact]
@@ -20,7 +12,7 @@ namespace GAME.Domain.Tests
         {
             // 2026-10-02 04:59:59 UTC = 2026-10-02 11:59:59 Vietnam Time (UTC+7)
             var utcNow = new DateTime(2026, 10, 2, 4, 59, 59, DateTimeKind.Utc);
-            var (startUtc, endUtc, periodKey) = _periodService.CalculatePeriodBoundaries(
+            var (startUtc, endUtc, periodKey) = EventPeriodCalculator.CalculatePeriodBoundaries(
                 utcNow, "Asia/Ho_Chi_Minh", TimeSpan.FromHours(12));
 
             // Period should start at 12:00 PM on 2026-10-01 (05:00:00 UTC)
@@ -38,7 +30,7 @@ namespace GAME.Domain.Tests
         {
             // 2026-10-02 05:00:00 UTC = 2026-10-02 12:00:00 Vietnam Time (UTC+7)
             var utcNow = new DateTime(2026, 10, 2, 5, 0, 0, DateTimeKind.Utc);
-            var (startUtc, endUtc, periodKey) = _periodService.CalculatePeriodBoundaries(
+            var (startUtc, endUtc, periodKey) = EventPeriodCalculator.CalculatePeriodBoundaries(
                 utcNow, "Asia/Ho_Chi_Minh", TimeSpan.FromHours(12));
 
             // Period should start at 12:00 PM on 2026-10-02 (05:00:00 UTC)
@@ -56,7 +48,7 @@ namespace GAME.Domain.Tests
         {
             // 2026-10-02 05:00:01 UTC = 2026-10-02 12:00:01 Vietnam Time (UTC+7)
             var utcNow = new DateTime(2026, 10, 2, 5, 0, 1, DateTimeKind.Utc);
-            var (startUtc, endUtc, periodKey) = _periodService.CalculatePeriodBoundaries(
+            var (startUtc, endUtc, periodKey) = EventPeriodCalculator.CalculatePeriodBoundaries(
                 utcNow, "Asia/Ho_Chi_Minh", TimeSpan.FromHours(12));
 
             Assert.Equal("2026-10-02", periodKey);
@@ -72,7 +64,7 @@ namespace GAME.Domain.Tests
         public void ResetTime_IsConfigurable()
         {
             var now = new DateTime(2026, 10, 2, 10, 0, 0, DateTimeKind.Utc);
-            var (_, end, _) = _periodService.CalculatePeriodBoundaries(
+            var (_, end, _) = EventPeriodCalculator.CalculatePeriodBoundaries(
                 now, "Asia/Ho_Chi_Minh", TimeSpan.FromHours(18));
             Assert.Equal(new DateTime(2026, 10, 2, 11, 0, 0, DateTimeKind.Utc), end);
         }
@@ -80,7 +72,25 @@ namespace GAME.Domain.Tests
         [Fact]
         public void InvalidTimeZone_DoesNotSilentlyUseUtc()
         {
-            Assert.Throws<InvalidOperationException>(() => _periodService.GetEventTimeZone("invalid/timezone"));
+            Assert.Throws<InvalidOperationException>(() => EventPeriodCalculator.GetEventTimeZone("invalid/timezone"));
+        }
+
+        [Theory]
+        [InlineData(-1)]
+        [InlineData(24)]
+        public void DailyReset_RejectsTimesOutsideOneDay(int resetHour)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => EventPeriodCalculator.CalculatePeriodBoundaries(
+                DateTime.UtcNow, "UTC", TimeSpan.FromHours(resetHour)));
+        }
+
+        [Fact]
+        public void Countdown_UsesUtcEndAndStaysAtZeroAfterReset()
+        {
+            var end = new DateTime(2026, 10, 20, 5, 0, 0, DateTimeKind.Utc);
+            Assert.Equal(60, EventPeriodCalculator.CalculateRemainingSecondsToReset(end, end.AddMinutes(-1)));
+            Assert.Equal(0, EventPeriodCalculator.CalculateRemainingSecondsToReset(end, end));
+            Assert.Equal(0, EventPeriodCalculator.CalculateRemainingSecondsToReset(end, end.AddMinutes(1)));
         }
     }
 }

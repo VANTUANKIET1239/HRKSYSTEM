@@ -1,4 +1,5 @@
 using GAME.Application.Features.Queries.Battle;
+using Core.Web.Compression;
 using GAME.Application.DTOs;
 using GAME.Application.Features.Commands.Battle;
 using HRK.GAME.Common;
@@ -19,6 +20,7 @@ namespace HRK.GAME.Controllers
         }
 
         [HttpPost("start")]
+        [HrkResponseCompression("BattleReplay")]
         public async Task<IActionResult> Start([FromBody] StartBattleRequestDto request)
         {
             var response = await _mediator.Send(new StartBattleCommand(request), HttpContext.RequestAborted);
@@ -33,6 +35,7 @@ namespace HRK.GAME.Controllers
         }
 
         [HttpGet("logs")]
+        [HrkResponseCompression("BattleReplay")]
         public async Task<IActionResult> GetBattleLogs([FromQuery] string battleId)
         {
             var response = await _mediator.Send(new GetBattleLogsQuery(battleId), HttpContext.RequestAborted);

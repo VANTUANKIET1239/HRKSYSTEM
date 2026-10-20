@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediatR;
 using GAME.Application.Features.Queries.GameConfig;
+using GAME.Application.Features.Commands.GameConfig;
 
 namespace HRK.GAME.Controllers;
 
@@ -23,6 +24,14 @@ public sealed class GameConfigController : HRKControllerBase
     {
         return HrkOk(await _mediator.Send(new GetGameFeaturesQuery(), cancellationToken));
     }
+
+    [HttpGet("templates/capabilities")]
+    public async Task<IActionResult> GetTemplateCacheCapabilities(CancellationToken cancellationToken) =>
+        HrkOk(await _mediator.Send(new GetTemplateCacheCapabilitiesQuery(), cancellationToken));
+
+    [HttpPost("templates/refresh")]
+    public async Task<IActionResult> RefreshTemplates(CancellationToken cancellationToken) =>
+        HrkOk(await _mediator.Send(new RefreshTemplateCacheCommand(), cancellationToken));
 
     [HttpGet("combat-power")]
     public async Task<IActionResult> GetCombatPowerConfigs(CancellationToken cancellationToken)

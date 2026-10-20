@@ -16,8 +16,8 @@ public sealed class GetPlayerProgressQueryHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), IQueryHandler<GetPlayerProgressQuery, BaseResponse<PlayerEventProgressDto>>
+    ITowerEventService towerEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetPlayerProgressQuery, BaseResponse<PlayerEventProgressDto>>
 {
     public async Task<BaseResponse<PlayerEventProgressDto>> Handle(GetPlayerProgressQuery message, CancellationToken ct) => BaseResponse<PlayerEventProgressDto>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
     private Task<PlayerEventProgressDto> ExecuteAsync(string userId, CancellationToken ct = default) => GetPlayerProgressAsync(userId, ct);

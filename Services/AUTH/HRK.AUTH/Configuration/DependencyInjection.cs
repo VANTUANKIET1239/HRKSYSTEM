@@ -69,6 +69,7 @@ namespace HRK.AUTH.Configuration
         }   
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
+            services.AddHrkInternalApi(configuration);
             services.AddCoreJwt(configuration);
             services.AddCoreCookies(configuration);
 

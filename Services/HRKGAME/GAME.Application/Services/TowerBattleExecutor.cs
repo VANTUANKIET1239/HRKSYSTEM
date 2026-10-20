@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
@@ -10,12 +11,14 @@ namespace GAME.Application.Services;
 
 public sealed class TowerBattleExecutor
 {
+    private readonly IGameTemplateCatalog _templates;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBattleSimulationEngine _simulationEngine;
     private readonly IRandomService _randomService;
     private readonly ICombatPowerService _combatPowerService;
-    public TowerBattleExecutor(IUnitOfWork unitOfWork, IBattleSimulationEngine simulationEngine, IRandomService randomService, ICombatPowerService combatPowerService)
+    public TowerBattleExecutor(IUnitOfWork unitOfWork, IBattleSimulationEngine simulationEngine, IRandomService randomService, ICombatPowerService combatPowerService, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _unitOfWork = unitOfWork;
         _simulationEngine = simulationEngine;
         _randomService = randomService;
@@ -29,24 +32,10 @@ public sealed class TowerBattleExecutor
         var rules = TowerRules.Parse(ev.RulesJson);
         var floorEnemies = floor.Enemies.OrderBy(e => e.Position).ToList();
         var enemyTemplateIds = floorEnemies.Select(e => e.HeroTemplateId).Distinct().ToList();
-        var templateQuery = _unitOfWork.ReadOnlyRepository<HrkHeroTemplate>().Query()
-            .Where(ht => enemyTemplateIds.Contains(ht.Id))
-            .Include(ht => ht.Faction)
-            .Include(ht => ht.Class)
-            .Include(ht => ht.Rarity).AsQueryable();
-        if (includeSkills)
-        {
-            templateQuery = templateQuery.Include(ht => ht.HeroSkills.Where(hs => hs.Skill.IsActive)).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.EffectType)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-                .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.AnimationConfig)!.ThenInclude(a => a!.Phases);
-        }
-
-        var enemyFullTemplates = await templateQuery.AsNoTracking()
-            .AsSplitQuery()
-            .ToDictionaryAsync(ht => ht.Id, ct);
+        var templateQuery = (await _templates.GetAllAsync<HrkHeroTemplate>(ct))
+            .Where(ht => enemyTemplateIds.Contains(ht.Id)).AsEnumerable();
+        var enemyFullTemplates = templateQuery
+            .ToDictionary(ht => ht.Id);
         long enemyIdCounter = 9501;
         var rightTeam = new List<PlayerHeroDto>();
         foreach (var enemyCfg in floorEnemies)
@@ -99,7 +88,7 @@ public sealed class TowerBattleExecutor
                     MagicDamage = scaledMagicDmg,
                     MagicResistance = scaledMagicRes
                 },
-                Skills = ht.HeroSkills.OrderBy(hs => hs.SkillOrder)
+                Skills = ht.HeroSkills.Where(hs => includeSkills && hs.Skill.IsActive).OrderBy(hs => hs.SkillOrder)
                 .Select(hs => GameDtoMapper.MapSkillTemplate(hs.Skill)!)
                 .Where(s => s != null).ToList()
             };
@@ -118,24 +107,15 @@ public sealed class TowerBattleExecutor
             return;
         var leftTeam = snapshot.Heroes;
         var formationTemplateIds = leftTeam.Select(x => x.HeroTemplateId).Distinct().ToList();
-        var heroSkills = await _unitOfWork.ReadOnlyRepository<HrkHeroSkill>().Query()
+        var heroSkills = (await _templates.GetAllAsync<HrkHeroSkill>(ct))
             .Where(hs => formationTemplateIds.Contains(hs.HeroTemplateId) && hs.Skill.IsActive)
-            .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.EffectType)
-            .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.TargetType)
-            .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Scalings).ThenInclude(s => s.AttributeType)
-            .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.StatModifiers).ThenInclude(m => m.AttributeType)
-            .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Parameters)
-            .Include(hs => hs.Skill).ThenInclude(s => s.AnimationConfig).ThenInclude(a => a!.Phases)
-            .AsSplitQuery()
-            .AsNoTracking()
-            .ToListAsync(ct);
+            .ToList();
         var skillsByTemplateId = heroSkills.GroupBy(hs => hs.HeroTemplateId).ToDictionary(g => g.Key, g => g.OrderBy(hs => hs.SkillOrder)
             .Select(hs => GameDtoMapper.MapSkillTemplate(hs.Skill)!)
             .Where(s => s != null).ToList());
-        var starAuras = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
+        var starAuras = (await _templates.GetAllAsync<HrkHeroStarAuraConfig>(ct))
             .Where(c => c.IsActive && formationTemplateIds.Contains(c.HeroTemplateId))
-            .AsNoTracking()
-            .ToListAsync(ct);
+            .ToList();
         var starAuraLookup = starAuras.ToDictionary(c => (c.HeroTemplateId, c.StarLevel));
         foreach (var hero in leftTeam)
         {
@@ -175,9 +155,9 @@ public sealed class TowerBattleExecutor
 
     public async Task<(BattleInitialStateDto initialState, BattleSimulationResult simulation, int randomSeed)> SimulateTowerFloorBattle(HrkPlayer player, FormationBattleSnapshot playerFormation, HrkTowerFloor floor, CancellationToken ct)
     {
-        var battleConfigs = await _unitOfWork.ReadOnlyRepository<HrkBattleConfig>().Query()
+        var battleConfigs = (await _templates.GetAllAsync<HrkBattleConfig>(ct))
             .Where(x => x.IsEnabled)
-            .ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase, ct);
+            .ToDictionary(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
         int maxRounds = GetPositiveIntConfig(battleConfigs, "MAX_ROUNDS", 100);
         int maxEnergy = GetPositiveIntConfig(battleConfigs, "MAX_ENERGY", 100);
         int initialEnergy = Math.Clamp(GetIntConfig(battleConfigs, "INITIAL_ENERGY", 0), 0, maxEnergy);

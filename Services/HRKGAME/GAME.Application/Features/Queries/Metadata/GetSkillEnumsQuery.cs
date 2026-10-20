@@ -1,7 +1,7 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 
@@ -9,9 +9,9 @@ namespace GAME.Application.Features.Queries.Metadata;
 
 public record GetSkillEnumsQuery : IQuery<BaseResponse<SkillEnumsDto>>;
 
-public sealed class GetSkillEnumsQueryHandler(IUnitOfWork unitOfWork) : IQueryHandler<GetSkillEnumsQuery, BaseResponse<SkillEnumsDto>>
+public sealed class GetSkillEnumsQueryHandler(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null) : IQueryHandler<GetSkillEnumsQuery, BaseResponse<SkillEnumsDto>>
 {
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     public async Task<BaseResponse<SkillEnumsDto>> Handle(GetSkillEnumsQuery request, CancellationToken cancellationToken)
     {
         var result = await ExecuteAsync(cancellationToken);
@@ -20,9 +20,9 @@ public sealed class GetSkillEnumsQueryHandler(IUnitOfWork unitOfWork) : IQueryHa
 
     private async Task<SkillEnumsDto> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        var effectTypes = await _unitOfWork.ReadOnlyRepository<HrkSkillEffectType>().Query()
+        var effectTypes = (await _templates.GetAllAsync<HrkSkillEffectType>(cancellationToken))
             .Select(x => new LookupItemDto { Id = x.Id, Code = x.Code, Name = x.Name, IsDebuff = !x.IsBeneficial })
-            .ToListAsync(cancellationToken);
+            .ToList();
         return new SkillEnumsDto
         {
             CostTypes = new List<LookupItemDto>

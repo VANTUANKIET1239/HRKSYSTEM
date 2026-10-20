@@ -1,4 +1,5 @@
 using GAME.Application.Common;
+using GAME.Application.Templates;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Persistence.Repositories;
 using Core.Application.CQRS;
@@ -13,11 +14,13 @@ public record GetEquipmentDowngradePreviewQuery(long InventoryItemId, int Target
 public class GetEquipmentDowngradePreviewQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetEquipmentDowngradePreviewQuery, BaseResponse<EquipmentDowngradePreviewDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IGameTemplateCatalog _templates;
     private readonly IGamePlayerService _gamePlayerService;
     private readonly IItemStatCalculationService _statCalculationService;
-    public GetEquipmentDowngradePreviewQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext) : base(requestContext)
+    public GetEquipmentDowngradePreviewQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext, IGameTemplateCatalog? templates = null) : base(requestContext)
     {
         _unitOfWork = unitOfWork;
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _gamePlayerService = gamePlayerService;
         _statCalculationService = statCalculationService;
     }
@@ -31,24 +34,24 @@ public class GetEquipmentDowngradePreviewQueryHandler : AuthenticatedGameHandler
         }
 
         var item = await _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-            .Include(x => x.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(x => x.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(x => x.Attributes).ThenInclude(x => x.AttributeType)
+            .Include(x => x.Attributes)
             .FirstOrDefaultAsync(x => x.Id == query.InventoryItemId && x.PlayerId == player.Id && x.IsActive, cancellationToken);
         if (item == null)
         {
             return BaseResponse<EquipmentDowngradePreviewDto>.FailResponse("Không tìm thấy trang bị.", statusCode: 404);
         }
 
-        var preview = await DowngradeCalculator.BuildAsync(_unitOfWork, _statCalculationService, item, query.TargetLevel, cancellationToken);
+        await TemplateHydration.InventoryAsync(_templates, new[] { item }, cancellationToken);
+        var preview = await DowngradeCalculator.BuildAsync(_unitOfWork, _statCalculationService, item, query.TargetLevel, cancellationToken, _templates);
         return BaseResponse<EquipmentDowngradePreviewDto>.SuccessResponse(preview);
     }
 }
 
 internal static class DowngradeCalculator
 {
-    internal static async Task<EquipmentDowngradePreviewDto> BuildAsync(IUnitOfWork unitOfWork, IItemStatCalculationService statCalculationService, HrkPlayerInventory item, int targetLevel, CancellationToken cancellationToken)
+    internal static async Task<EquipmentDowngradePreviewDto> BuildAsync(IUnitOfWork unitOfWork, IItemStatCalculationService statCalculationService, HrkPlayerInventory item, int targetLevel, CancellationToken cancellationToken, IGameTemplateCatalog? templates = null)
     {
+        var catalog = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         var preview = new EquipmentDowngradePreviewDto
         {
             InventoryItemId = item.Id,
@@ -74,12 +77,12 @@ internal static class DowngradeCalculator
             return Fail(preview, "INVALID_TARGET", "Cấp đích phải từ 0 và nhỏ hơn cấp hiện tại.");
         }
 
-        var refundConfigs = await unitOfWork.ReadOnlyRepository<HrkEquipmentDowngradeConfig>().Query()
+        var refundConfigs = (await catalog.GetAllAsync<HrkEquipmentDowngradeConfig>(cancellationToken))
             .Where(x => x.IsEnabled && x.FromLevel <= item.Enhancement && x.ToLevel >= targetLevel)
-            .ToListAsync(cancellationToken);
-        var levelConfigs = await unitOfWork.ReadOnlyRepository<HrkEnhancementLevelConfig>().Query()
+            .ToList();
+        var levelConfigs = (await catalog.GetAllAsync<HrkEnhancementLevelConfig>(cancellationToken))
             .Where(x => x.CurrentLevel >= targetLevel && x.CurrentLevel < item.Enhancement)
-            .ToListAsync(cancellationToken);
+            .ToList();
         if (levelConfigs.Count != item.Enhancement - targetLevel)
         {
             return Fail(preview, "MISSING_LEVEL_CONFIG", "Thiếu cấu hình chi phí cường hóa cho khoảng cấp đã chọn.");
@@ -101,18 +104,17 @@ internal static class DowngradeCalculator
         }
 
         preview.RefundedGold = (long)Math.Floor(refundedGold);
-        preview.RefundedStones = await ConvertStoneValueAsync(unitOfWork, refundedStoneValue, cancellationToken);
+        preview.RefundedStones = await ConvertStoneValueAsync(catalog, refundedStoneValue, cancellationToken);
         preview.CanDowngrade = true;
         return preview;
     }
 
-    private static async Task<List<RefundedMaterialDto>> ConvertStoneValueAsync(IUnitOfWork unitOfWork, decimal stoneValue, CancellationToken cancellationToken)
+    private static async Task<List<RefundedMaterialDto>> ConvertStoneValueAsync(IGameTemplateCatalog catalog, decimal stoneValue, CancellationToken cancellationToken)
     {
-        var stones = await unitOfWork.ReadOnlyRepository<HrkEnhancementMaterial>().Query()
-            .Include(x => x.ItemTemplate)
+        var stones = (await catalog.GetAllAsync<HrkEnhancementMaterial>(cancellationToken))
             .Where(x => x.MaterialType == "STONE" && x.ItemTemplate.SellPrice > 0)
             .OrderByDescending(x => x.ItemTemplate.SellPrice)
-            .ToListAsync(cancellationToken);
+            .ToList();
         var result = new List<RefundedMaterialDto>();
         var remainingValue = (int)Math.Floor(stoneValue);
         foreach (var stone in stones)

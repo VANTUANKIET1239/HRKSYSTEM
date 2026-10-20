@@ -1,49 +1,41 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 using GAME.Application.Services;
 
 namespace GAME.Application.Features.Shared.BattleLab;
 
 public abstract class BattleLabHandlerSupport
 {
+    protected readonly IGameTemplateCatalog _templates;
     protected readonly IUnitOfWork _unitOfWork;
-    protected BattleLabHandlerSupport(IUnitOfWork unitOfWork)
+    protected BattleLabHandlerSupport(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         this._unitOfWork = unitOfWork;
     }
 
-    protected Task<Dictionary<string, decimal>> ConfigsAsync(CancellationToken ct) => _unitOfWork.ReadOnlyRepository<HrkBattleConfig>().Query()
+    protected async Task<Dictionary<string, decimal>> ConfigsAsync(CancellationToken ct) => (await _templates.GetAllAsync<HrkBattleConfig>(ct))
         .Where(c => c.IsEnabled)
-        .ToDictionaryAsync(c => c.Code, c => c.Value, StringComparer.OrdinalIgnoreCase, ct);
+        .ToDictionary(c => c.Code, c => c.Value, StringComparer.OrdinalIgnoreCase);
     protected async Task<BattleLabCatalogDto> GetCatalogAsync(CancellationToken ct)
     {
-        var templates = await _unitOfWork.ReadOnlyRepository<HrkHeroTemplate>().Query()
-            .AsNoTracking()
+        var templates = (await _templates.GetAllAsync<HrkHeroTemplate>(ct))
             .OrderBy(h => h.Id)
-            .ToListAsync(ct);
-        var skills = await _unitOfWork.ReadOnlyRepository<HrkHeroSkill>().Query()
+            .ToList();
+        var skills = (await _templates.GetAllAsync<HrkHeroSkill>(ct))
             .Where(h => h.Skill.IsActive)
-            .Include(h => h.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.EffectType)
-            .Include(h => h.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.TargetType)
-            .Include(h => h.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Scalings).ThenInclude(s => s.AttributeType)
-            .Include(h => h.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.StatModifiers).ThenInclude(s => s.AttributeType)
-            .Include(h => h.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Parameters)
-            .Include(h => h.Skill).ThenInclude(s => s.AnimationConfig).ThenInclude(a => a!.Phases)
-            .AsNoTracking()
-            .AsSplitQuery()
-            .ToListAsync(ct);
+            .ToList();
         var configs = await ConfigsAsync(ct);
         return new BattleLabCatalogDto
         {
-            Equipment = await _unitOfWork.ReadOnlyRepository<HrkItemTemplate>().Query()
-            .AsNoTracking()
+            Equipment = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
             .Where(i => i.Category.IsEquipment)
             .OrderBy(i => i.CategoryId).ThenBy(i => i.Id)
             .Select(i => new BattleLabItemOptionDto { Id = i.Id, Name = i.Name, Category = i.Category.Code, LevelReq = i.LevelReq })
-            .ToListAsync(ct),
+            .ToList(),
             DefenseConstant = BattleMitigationConfig.Read(configs),
             Heroes = templates.Select(t => new PlayerHeroDto
             {

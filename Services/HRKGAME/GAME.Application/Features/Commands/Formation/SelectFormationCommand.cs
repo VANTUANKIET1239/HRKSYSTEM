@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -17,16 +18,16 @@ public sealed class SelectFormationCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationStatService formationStatService,
     ICombatPowerService combatPowerService,
-    IHeroStatCalculationService heroStatCalculationService)
-    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService), ICommandHandler<SelectFormationCommand, BaseResponse<FormationDetailDto>>
+    IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
+    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), ICommandHandler<SelectFormationCommand, BaseResponse<FormationDetailDto>>
 {
     public async Task<BaseResponse<FormationDetailDto>> Handle(SelectFormationCommand message, CancellationToken ct) => BaseResponse<FormationDetailDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, ct));
     private async Task<FormationDetailDto> ExecuteAsync(string userId, string formationCode, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
-        var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
-            .FirstOrDefaultAsync(t => t.Code == formationCode && t.IsEnabled, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+        var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var allPfs = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
             .Where(f => f.PlayerId == player.Id && f.IsActive)
             .ToListAsync(cancellationToken);

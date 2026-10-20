@@ -1,20 +1,22 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace GAME.Application.Services
 {
     public class EquipmentInstanceFactory : IEquipmentInstanceFactory
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IRandomService _randomService;
         private readonly IItemStatCalculationService _statCalculationService;
         private readonly ICombatPowerService _combatPowerService;
-        public EquipmentInstanceFactory(IUnitOfWork unitOfWork, IRandomService randomService, IItemStatCalculationService statCalculationService, ICombatPowerService combatPowerService)
+        public EquipmentInstanceFactory(IUnitOfWork unitOfWork, IRandomService randomService, IItemStatCalculationService statCalculationService, ICombatPowerService combatPowerService, IGameTemplateCatalog? templates = null)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _randomService = randomService;
             _statCalculationService = statCalculationService;
@@ -29,8 +31,8 @@ namespace GAME.Application.Services
             }
 
             // 1. Load active rarity roll config
-            var rarityConfig = await _unitOfWork.ReadOnlyRepository<HrkEquipmentRarityRollConfig>().Query()
-                .FirstOrDefaultAsync(c => c.RarityId == template.RarityId && c.IsActive, cancellationToken);
+            var rarityConfig = (await _templates.GetAllAsync<HrkEquipmentRarityRollConfig>(cancellationToken))
+                .FirstOrDefault(c => c.RarityId == template.RarityId && c.IsActive);
             if (rarityConfig == null)
             {
                 throw new InvalidOperationException($"Chưa cấu hình tỷ lệ tăng trưởng cường hóa cho phẩm chất '{template.Rarity?.Name ?? template.RarityId.ToString()}'.");

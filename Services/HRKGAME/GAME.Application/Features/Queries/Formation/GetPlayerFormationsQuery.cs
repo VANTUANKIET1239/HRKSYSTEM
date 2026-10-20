@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -17,19 +18,18 @@ public sealed class GetPlayerFormationsQueryHandler(
     IFormationStatService formationStatService,
     ICombatPowerService combatPowerService,
     IHeroStatCalculationService heroStatCalculationService,
-    IFormationPowerQueryService formationPowerQueryService)
-    : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService), IQueryHandler<GetPlayerFormationsQuery, BaseResponse<List<PlayerFormationSummaryDto>>>
+    IFormationPowerQueryService formationPowerQueryService, IGameTemplateCatalog? templates = null)
+    : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), IQueryHandler<GetPlayerFormationsQuery, BaseResponse<List<PlayerFormationSummaryDto>>>
 {
     private readonly IFormationPowerQueryService _formationPowerQueryService = formationPowerQueryService;
     public async Task<BaseResponse<List<PlayerFormationSummaryDto>>> Handle(GetPlayerFormationsQuery message, CancellationToken ct) => BaseResponse<List<PlayerFormationSummaryDto>>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
     private async Task<List<PlayerFormationSummaryDto>> ExecuteAsync(string userId, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
-        var templates = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
+        var templates = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
             .Where(t => t.IsEnabled)
-            .Include(t => t.LevelConfigs)
             .OrderBy(t => t.DisplayOrder)
-            .ToListAsync(cancellationToken);
+            .ToList();
         var playerFormations = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
             .Where(f => f.PlayerId == player.Id && f.IsActive)
             .ToListAsync(cancellationToken);

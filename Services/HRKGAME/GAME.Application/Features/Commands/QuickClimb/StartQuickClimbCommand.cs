@@ -26,7 +26,7 @@ public sealed class StartQuickClimbCommandHandler(
     TowerBattleExecutor executor,
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
-    IEventPeriodService eventPeriodService,
+    ITowerEventService towerEvents,
     IFormationSnapshotService formationSnapshotService,
     ILogger<StartQuickClimbCommandHandler> logger)
     : QuickClimbHandlerSupport(outbox, activityEvents), ICommandHandler<StartQuickClimbCommand, BaseResponse<QuickClimbJobStatusDto>>
@@ -35,7 +35,7 @@ public sealed class StartQuickClimbCommandHandler(
     private readonly TowerBattleExecutor _executor = executor;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
-    private readonly IEventPeriodService _eventPeriodService = eventPeriodService;
+    private readonly ITowerEventService _towerEvents = towerEvents;
     private readonly IFormationSnapshotService _formationSnapshotService = formationSnapshotService;
     private readonly ILogger<StartQuickClimbCommandHandler> _logger = logger;
     public async Task<BaseResponse<QuickClimbJobStatusDto>> Handle(StartQuickClimbCommand message, CancellationToken ct) => BaseResponse<QuickClimbJobStatusDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.Request, ct));
@@ -56,10 +56,11 @@ public sealed class StartQuickClimbCommandHandler(
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct, tracked: true) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
         EventAccessPolicy.EnsureCanEnter(ev, player.Level, DateTime.UtcNow);
-        var currentPeriod = await _eventPeriodService.GetOrCreateCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, currentPeriod, ct);
+        var currentPeriod = await _towerEvents.GetOrCreateCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, currentPeriod, ct);
         // Check if player already has an active job
         var existingJob = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
+            .Include(x => x.EventPeriod)
             .FirstOrDefaultAsync(j => j.PlayerId == player.Id && (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct);
         if (existingJob != null)
         {
@@ -113,7 +114,9 @@ public sealed class StartQuickClimbCommandHandler(
             Version = 1
         };
         await _unitOfWork.Repository<HrkTowerQuickClimbJob>().AddAsync(job);
-        _activityEvents.Raise(new QuickClimbStartedEvent(player.Id, userId, job.JobId, job.StartFloor, job.CurrentFloor, job.TargetFloor, job.ClearedFloorsCount, job.Version));
+        job.EventPeriod = currentPeriod;
+        _activityEvents.Raise(new QuickClimbStartedEvent(player.Id, userId, job.JobId, job.StartFloor, job.CurrentFloor, job.TargetFloor, job.ClearedFloorsCount, job.Version)
+        { GameEventId = ev.Id, EventPeriodId = currentPeriod.Id, PeriodKey = currentPeriod.PeriodKey });
         EnqueueStatus(job, userId);
         EnqueueFloorCommand(job, userId);
         await _unitOfWork.SaveChangesAsync(ct);

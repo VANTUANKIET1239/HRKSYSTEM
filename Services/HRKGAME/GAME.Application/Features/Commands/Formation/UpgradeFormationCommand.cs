@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -17,17 +18,16 @@ public sealed class UpgradeFormationCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationStatService formationStatService,
     ICombatPowerService combatPowerService,
-    IHeroStatCalculationService heroStatCalculationService)
-    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService), ICommandHandler<UpgradeFormationCommand, BaseResponse<FormationUpgradeResultDto>>
+    IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
+    : FormationCommandHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), ICommandHandler<UpgradeFormationCommand, BaseResponse<FormationUpgradeResultDto>>
 {
     public async Task<BaseResponse<FormationUpgradeResultDto>> Handle(UpgradeFormationCommand message, CancellationToken ct) => BaseResponse<FormationUpgradeResultDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, ct));
     private async Task<FormationUpgradeResultDto> ExecuteAsync(string userId, string formationCode, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
-        var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
-            .Include(t => t.LevelConfigs)
-            .FirstOrDefaultAsync(t => t.Code == formationCode && t.IsEnabled, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+        var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var pf = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
             .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy dữ liệu trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         if (pf.Level >= tmpl.MaxLevel)

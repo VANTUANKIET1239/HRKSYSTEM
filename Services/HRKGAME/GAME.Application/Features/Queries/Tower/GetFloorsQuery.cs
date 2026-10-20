@@ -16,8 +16,8 @@ public sealed class GetFloorsQueryHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), IQueryHandler<GetFloorsQuery, BaseResponse<List<TowerFloorDto>>>
+    ITowerEventService towerEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetFloorsQuery, BaseResponse<List<TowerFloorDto>>>
 {
     public async Task<BaseResponse<List<TowerFloorDto>>> Handle(GetFloorsQuery message, CancellationToken ct) => BaseResponse<List<TowerFloorDto>>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
     private Task<List<TowerFloorDto>> ExecuteAsync(string userId, CancellationToken ct = default) => GetFloorsAsync(userId, ct);

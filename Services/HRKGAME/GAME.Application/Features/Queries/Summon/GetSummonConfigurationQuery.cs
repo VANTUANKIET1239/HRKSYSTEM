@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common;
@@ -12,7 +13,7 @@ namespace GAME.Application.Features.Queries.Summon;
 
 public sealed record GetSummonConfigurationQuery(string UserId) : IQuery<BaseResponse<SummonConfigurationDto>>;
 
-public sealed class GetSummonConfigurationQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService players) : SummonHandlerSupport(unitOfWork), IQueryHandler<GetSummonConfigurationQuery, BaseResponse<SummonConfigurationDto>>
+public sealed class GetSummonConfigurationQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService players, IGameTemplateCatalog? templates = null) : SummonHandlerSupport(unitOfWork, templates), IQueryHandler<GetSummonConfigurationQuery, BaseResponse<SummonConfigurationDto>>
 {
     private readonly IGamePlayerService _players = players;
     public async Task<BaseResponse<SummonConfigurationDto>> Handle(GetSummonConfigurationQuery request, CancellationToken ct)
@@ -25,10 +26,10 @@ public sealed class GetSummonConfigurationQueryHandler(IUnitOfWork unitOfWork, I
         var player = await _players.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var playerId = player.Id;
         var wallet = await _players.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
-        var pools = await PoolQuery()
+        var pools = (await GetPoolsAsync(ct))
             .Where(x => x.IsEnabled)
             .OrderBy(x => x.DisplayOrder)
-            .ToListAsync(ct);
+            .ToList();
         var result = pools.Select(pool =>
         {
             SummonPolicy.Cost(pool, 1);

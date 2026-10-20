@@ -20,6 +20,10 @@ public sealed class ActivityDbContext(DbContextOptions<ActivityDbContext> option
             entity.HasIndex(x => new { x.ActivityType, x.OccurredAt }).IsDescending(false, true);
             entity.HasIndex(x => x.CorrelationId);
             entity.HasIndex(x => new { x.EntityType, x.EntityId });
+            entity.HasIndex(x => new { x.PlayerId, x.GameEventId, x.PeriodKey, x.OccurredAt });
+            entity.HasIndex(x => x.EventPeriodId);
+            entity.HasIndex(x => x.JobExecutionId);
+            entity.Property(x => x.PeriodKey).HasMaxLength(50);
             entity.Property(x => x.ActivityType).HasMaxLength(100);
             entity.Property(x => x.UserId).HasMaxLength(128);
             entity.Property(x => x.EntityType).HasMaxLength(100);

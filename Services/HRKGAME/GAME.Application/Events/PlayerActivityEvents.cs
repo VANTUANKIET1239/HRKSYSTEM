@@ -1,6 +1,19 @@
 namespace GAME.Application.Events;
 
-public abstract record PlayerActivityEvent(long PlayerId, string UserId);
+public abstract record PlayerActivityEvent(long PlayerId, string UserId)
+{
+    public int? GameEventId { get; init; }
+    public long? EventPeriodId { get; init; }
+    public string? PeriodKey { get; init; }
+    public Guid? JobExecutionId { get; init; }
+    public DateTimeOffset? OccurredAt { get; init; }
+}
+
+public sealed record GameEventActivityEvent(long PlayerId, string UserId, string ActivityType,
+    string SourceId, object Metadata) : PlayerActivityEvent(PlayerId, UserId);
+
+public sealed record CheckInClaimedEvent(long PlayerId, string UserId, long CalendarId, string MonthKey,
+    DateOnly CheckInDate, Guid RequestId, int ConfigVersion, object Rewards) : PlayerActivityEvent(PlayerId, UserId);
 
 public sealed record ItemEnhancedEvent(
     long PlayerId, string UserId, Guid RequestId, long ItemId, long ItemTemplateId,

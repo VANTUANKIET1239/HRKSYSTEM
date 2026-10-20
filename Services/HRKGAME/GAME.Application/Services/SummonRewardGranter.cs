@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using GAME.Application.Common;
 using GAME.Application.DTOs;
@@ -21,34 +22,35 @@ public sealed class SummonRewardGranter(
 
     ISummonRandom random
 
-)
+, IGameTemplateCatalog? templates = null)
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     public async Task EnsureReadyAsync(long playerId, IReadOnlyList<HrkHeroTemplate> heroes, int count, int bagLimit, CancellationToken ct)
     {
         var heroIds = heroes.Select(x => x.Id).Distinct().ToList();
         var rarityIds = heroes.Select(x => x.RarityId).Distinct().ToList();
-        var configuredRarities = await unitOfWork.ReadOnlyRepository<HrkHeroRarityUpgradeConfig>().Query()
+        var configuredRarities = (await _templates.GetAllAsync<HrkHeroRarityUpgradeConfig>(ct))
             .Where(x => rarityIds.Contains(x.RarityId))
             .Select(x => x.RarityId)
-            .ToListAsync(ct);
-        var attributes = await unitOfWork.ReadOnlyRepository<HrkHeroStarAttributePool>().Query()
+            .ToList();
+        var attributes = (await _templates.GetAllAsync<HrkHeroStarAttributePool>(ct))
             .Where(x => x.IsEnabled && rarityIds.Contains(x.RarityId))
-            .ToListAsync(ct);
-        var attributeIds = await unitOfWork.ReadOnlyRepository<HrkAttributeType>().Query()
+            .ToList();
+        var attributeIds = (await _templates.GetAllAsync<HrkAttributeType>(ct))
             .Where(x => x.Code == "CRIT_RATE" || x.Code == "CRIT_DAMAGE" || x.Code == "LIFESTEAL" || x.Code == "ACCURACY" || x.Code == "RESISTANCE")
             .Select(x => x.Id)
-            .ToListAsync(ct);
+            .ToList();
         if (configuredRarities.Distinct().Count() != rarityIds.Count || attributes.Select(x => x.RarityId).Distinct().Count() != rarityIds.Count || attributes.Any(x => x.Weight <= 0 || x.MinValue > x.MaxValue || !attributeIds.Contains(x.AttributeTypeId)) || attributes.GroupBy(x => x.RarityId).Any(group => group.Sum(x => (long)x.Weight) > int.MaxValue))
             throw new InvalidOperationException("Invalid hero initialization configuration in summon pool.");
-        var configs = await unitOfWork.ReadOnlyRepository<HrkHeroStoneConfig>().Query()
+        var configs = (await _templates.GetAllAsync<HrkHeroStoneConfig>(ct))
             .Where(x => heroIds.Contains(x.HeroTemplateId) && x.IsActive)
-            .ToListAsync(ct);
+            .ToList();
         if (configs.Select(x => x.HeroTemplateId).Distinct().Count() != heroIds.Count || configs.Any(x => x.DuplicateConversionQuantity <= 0))
             throw new InvalidOperationException("Missing duplicate conversion configuration in summon pool.");
         var ids = configs.Select(x => x.ItemTemplateId).ToList();
-        var templates = await unitOfWork.ReadOnlyRepository<HrkItemTemplate>().Query()
+        var templates = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
             .Where(x => ids.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
+            .ToDictionary(x => x.Id);
         var inventory = await unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
             .Where(x => x.PlayerId == playerId && x.IsActive && !x.IsEquipped)
             .ToListAsync(ct);
@@ -74,21 +76,21 @@ public sealed class SummonRewardGranter(
             .Where(x => x.PlayerId == playerId && x.IsActive)
             .ToListAsync(ct);
         var ids = heroes.Select(x => x.Id).Distinct().ToList();
-        var stones = await unitOfWork.ReadOnlyRepository<HrkHeroStoneConfig>().Query()
+        var stones = (await _templates.GetAllAsync<HrkHeroStoneConfig>(ct))
             .Where(x => ids.Contains(x.HeroTemplateId) && x.IsActive)
-            .ToDictionaryAsync(x => x.HeroTemplateId, ct);
+            .ToDictionary(x => x.HeroTemplateId);
         var itemIds = stones.Values.Select(x => x.ItemTemplateId).ToList();
-        var stoneItems = await unitOfWork.ReadOnlyRepository<HrkItemTemplate>().Query()
+        var stoneItems = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
             .Where(x => itemIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
-        var growth = await unitOfWork.ReadOnlyRepository<HrkHeroRarityUpgradeConfig>().Query()
-            .ToDictionaryAsync(x => x.RarityId, ct);
-        var attributePool = await unitOfWork.ReadOnlyRepository<HrkHeroStarAttributePool>().Query()
+            .ToDictionary(x => x.Id);
+        var growth = (await _templates.GetAllAsync<HrkHeroRarityUpgradeConfig>(ct))
+            .ToDictionary(x => x.RarityId);
+        var attributePool = (await _templates.GetAllAsync<HrkHeroStarAttributePool>(ct))
             .Where(x => x.IsEnabled)
             .OrderBy(x => x.Id)
-            .ToListAsync(ct);
-        var attributeCodes = await unitOfWork.ReadOnlyRepository<HrkAttributeType>().Query()
-            .ToDictionaryAsync(x => x.Id, x => x.Code, ct);
+            .ToList();
+        var attributeCodes = (await _templates.GetAllAsync<HrkAttributeType>(ct))
+            .ToDictionary(x => x.Id, x => x.Code);
         var exp = await levels.GetHeroRequirementAsync(1, ct);
         var results = new List<SummonRewardDto>();
         for (var index = 0; index < heroes.Count; index++)

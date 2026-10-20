@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -14,9 +15,10 @@ public record SellItemsCommand(List<SellItemRequestItem> Items) : ICommand<BaseR
 public sealed class SellItemsCommandHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
-    IGameRequestContext actor)
+    IGameRequestContext actor, IGameTemplateCatalog? templates = null)
     : ICommandHandler<SellItemsCommand, BaseResponse<SellItemsResponseDto>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IGameRequestContext _actor = actor;
@@ -59,9 +61,9 @@ public sealed class SellItemsCommandHandler(
 
         var itemIds = groupedItems.Select(i => i.InventoryItemId).ToList();
         var inventories = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-            .Include(i => i.ItemTemplate)
             .Where(i => i.PlayerId == player.Id && itemIds.Contains(i.Id) && i.IsActive)
             .ToListAsync(cancellationToken);
+        var itemTemplates = await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken);
         long totalEarnedGold = 0;
         int totalSoldCount = 0;
         foreach (var req in groupedItems)
@@ -72,28 +74,29 @@ public sealed class SellItemsCommandHandler(
                 throw new BusinessException("ITEM_NOT_FOUND", $"Không tìm thấy vật phẩm với mã ID {req.InventoryItemId} trong hành trang.", BusinessErrorKind.NotFound);
             }
 
+            var template = itemTemplates[inv.ItemTemplateId];
             if (inv.IsLocked)
             {
-                throw new BusinessException("ITEM_LOCKED", $"Vật phẩm '{inv.ItemTemplate.Name}' đang bị khóa, không thể bán.", BusinessErrorKind.Conflict);
+                throw new BusinessException("ITEM_LOCKED", $"Vật phẩm '{template.Name}' đang bị khóa, không thể bán.", BusinessErrorKind.Conflict);
             }
 
             if (inv.IsEquipped)
             {
-                throw new BusinessException("ITEM_EQUIPPED", $"Vật phẩm '{inv.ItemTemplate.Name}' đang được trang bị, không thể bán.", BusinessErrorKind.Conflict);
+                throw new BusinessException("ITEM_EQUIPPED", $"Vật phẩm '{template.Name}' đang được trang bị, không thể bán.", BusinessErrorKind.Conflict);
             }
 
             if (req.Count > inv.Count)
             {
-                throw new BusinessException("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng bán ({req.Count}) vượt quá số lượng hiện có ({inv.Count}) của '{inv.ItemTemplate.Name}'.", BusinessErrorKind.Conflict);
+                throw new BusinessException("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng bán ({req.Count}) vượt quá số lượng hiện có ({inv.Count}) của '{template.Name}'.", BusinessErrorKind.Conflict);
             }
 
-            if (inv.ItemTemplate.SellPrice < 0)
+            if (template.SellPrice < 0)
             {
-                throw new BusinessException("ITEM_NOT_SELLABLE", $"Vật phẩm '{inv.ItemTemplate.Name}' là vật phẩm không thể bán.", BusinessErrorKind.Conflict);
+                throw new BusinessException("ITEM_NOT_SELLABLE", $"Vật phẩm '{template.Name}' là vật phẩm không thể bán.", BusinessErrorKind.Conflict);
             }
 
             // Sử dụng trực tiếp giá bán SellPrice được cấu hình trong bảng HRK_ItemTemplates
-            long unitPrice = inv.ItemTemplate.SellPrice;
+            long unitPrice = template.SellPrice;
             totalEarnedGold += unitPrice * req.Count;
             totalSoldCount += req.Count;
             // Soft-delete: nếu bán hết thì chuyển IsActive = false, không xóa dòng trong DB

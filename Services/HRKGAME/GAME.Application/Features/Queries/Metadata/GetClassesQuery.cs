@@ -1,7 +1,7 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 
@@ -9,9 +9,9 @@ namespace GAME.Application.Features.Queries.Metadata;
 
 public record GetClassesQuery : IQuery<BaseResponse<List<HeroClassDto>>>;
 
-public sealed class GetClassesQueryHandler(IUnitOfWork unitOfWork) : IQueryHandler<GetClassesQuery, BaseResponse<List<HeroClassDto>>>
+public sealed class GetClassesQueryHandler(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null) : IQueryHandler<GetClassesQuery, BaseResponse<List<HeroClassDto>>>
 {
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     public async Task<BaseResponse<List<HeroClassDto>>> Handle(GetClassesQuery request, CancellationToken cancellationToken)
     {
         var classes = await ExecuteAsync(cancellationToken);
@@ -20,9 +20,9 @@ public sealed class GetClassesQueryHandler(IUnitOfWork unitOfWork) : IQueryHandl
 
     private async Task<List<HeroClassDto>> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        return await _unitOfWork.ReadOnlyRepository<HrkHeroClass>().Query()
+        return (await _templates.GetAllAsync<HrkHeroClass>(cancellationToken))
             .OrderBy(c => c.DisplayOrder)
             .Select(c => new HeroClassDto { Id = c.Id, Code = c.Code, Name = c.Name, Icon = c.Icon, DisplayOrder = c.DisplayOrder })
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 }

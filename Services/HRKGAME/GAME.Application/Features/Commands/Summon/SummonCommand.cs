@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common;
@@ -19,8 +20,8 @@ public sealed class SummonCommandHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService players,
     ISummonRandom random,
-    SummonRewardGranter granter)
-    : SummonHandlerSupport(unitOfWork), ICommandHandler<SummonCommand, BaseResponse<SummonResultDto>>
+    SummonRewardGranter granter, IGameTemplateCatalog? templates = null)
+    : SummonHandlerSupport(unitOfWork, templates), ICommandHandler<SummonCommand, BaseResponse<SummonResultDto>>
 {
     private readonly IGamePlayerService _players = players;
     private readonly ISummonRandom _random = random;
@@ -54,8 +55,8 @@ public sealed class SummonCommandHandler(
                 return;
             }
 
-            var pool = await PoolQuery()
-                .SingleOrDefaultAsync(x => x.Code == code && x.IsEnabled, ct) ?? throw new BusinessException("SUMMON_POOL_UNAVAILABLE", "Rương chiêu mộ hiện không khả dụng.", BusinessErrorKind.Conflict);
+            var pool = (await GetPoolsAsync(ct))
+                .SingleOrDefault(x => x.Code == code && x.IsEnabled) ?? throw new BusinessException("SUMMON_POOL_UNAVAILABLE", "Rương chiêu mộ hiện không khả dụng.", BusinessErrorKind.Conflict);
             var entries = EnabledEntries(pool);
             var total = SummonPolicy.TotalWeight(entries);
             var cost = SummonPolicy.Cost(pool, request.Count);

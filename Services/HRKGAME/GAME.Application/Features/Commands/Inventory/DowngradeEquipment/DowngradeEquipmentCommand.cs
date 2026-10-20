@@ -1,4 +1,5 @@
 using Core.Common.Errors;
+using GAME.Application.Templates;
 using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Persistence.Repositories;
@@ -16,11 +17,13 @@ public record DowngradeEquipmentCommand(DowngradeEquipmentRequestDto Request) : 
 public class DowngradeEquipmentCommandHandler : AuthenticatedGameHandler, ICommandHandler<DowngradeEquipmentCommand, BaseResponse<EquipmentDowngradePreviewDto>>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IGameTemplateCatalog _templates;
     private readonly IGamePlayerService _gamePlayerService;
     private readonly IItemStatCalculationService _statCalculationService;
-    public DowngradeEquipmentCommandHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext) : base(requestContext)
+    public DowngradeEquipmentCommandHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext, IGameTemplateCatalog? templates = null) : base(requestContext)
     {
         _unitOfWork = unitOfWork;
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _gamePlayerService = gamePlayerService;
         _statCalculationService = statCalculationService;
     }
@@ -62,7 +65,8 @@ public class DowngradeEquipmentCommandHandler : AuthenticatedGameHandler, IComma
                 try
                 {
                     var item = await LoadOwnedEquipmentAsync(player.Id, command.Request.InventoryItemId, cancellationToken);
-                    var preview = await DowngradeCalculator.BuildAsync(_unitOfWork, _statCalculationService, item, command.Request.TargetEnhancement, cancellationToken);
+                    var view = await TemplateHydration.InventoryViewAsync(_templates, item, cancellationToken);
+                    var preview = await DowngradeCalculator.BuildAsync(_unitOfWork, _statCalculationService, view, command.Request.TargetEnhancement, cancellationToken, _templates);
                     if (!preview.CanDowngrade)
                     {
                         throw new BusinessException("UPGRADE_NOT_ALLOWED", preview.Message ?? "Không thể hạ cấp trang bị.", BusinessErrorKind.Conflict);
@@ -78,7 +82,7 @@ public class DowngradeEquipmentCommandHandler : AuthenticatedGameHandler, IComma
                     }
 
                     item.Enhancement = command.Request.TargetEnhancement;
-                    item.UpdateCurrentStatsCache(_statCalculationService.CalculateCurrentStatsJson(item, command.Request.TargetEnhancement));
+                    item.UpdateCurrentStatsCache(_statCalculationService.CalculateCurrentStatsJson(view, command.Request.TargetEnhancement));
                     _unitOfWork.Repository<HrkPlayerInventory>().Update(item);
                     await _unitOfWork.Repository<HrkEquipmentDowngradeHistory>().AddAsync(new HrkEquipmentDowngradeHistory { RequestId = command.Request.RequestId, PlayerId = player.Id, PlayerInventoryId = item.Id, OldEnhancement = preview.CurrentEnhancement, NewEnhancement = preview.TargetEnhancement, RefundedGold = preview.RefundedGold, RefundedMaterialsJson = JsonSerializer.Serialize(preview.RefundedStones) });
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -98,9 +102,7 @@ public class DowngradeEquipmentCommandHandler : AuthenticatedGameHandler, IComma
     private async Task<HrkPlayerInventory> LoadOwnedEquipmentAsync(long playerId, long inventoryItemId, CancellationToken cancellationToken)
     {
         return await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-            .Include(x => x.ItemTemplate).ThenInclude(x => x.Category)
-            .Include(x => x.ItemTemplate).ThenInclude(x => x.Attributes).ThenInclude(x => x.AttributeType)
-            .Include(x => x.Attributes).ThenInclude(x => x.AttributeType)
+            .Include(x => x.Attributes)
             .FirstOrDefaultAsync(x => x.Id == inventoryItemId && x.PlayerId == playerId && x.IsActive, cancellationToken) ?? throw new BusinessException("ITEM_NOT_FOUND", "Không tìm thấy trang bị thuộc người chơi.", BusinessErrorKind.NotFound);
     }
 

@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
@@ -10,13 +11,15 @@ namespace GAME.Application.Services;
 
 public sealed class PlayerReadModels : IPlayerReadModels
 {
+    private readonly IGameTemplateCatalog _templates;
     private readonly IGamePlayerService _players;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IHeroStatCalculationService _heroStatCalculationService;
     private readonly ICombatPowerService _combatPowerService;
     private readonly IFormationPowerQueryService _formationPowerQueryService;
-    public PlayerReadModels(IUnitOfWork unitOfWork, IGamePlayerService players, IHeroStatCalculationService heroStatCalculationService, ICombatPowerService combatPowerService, IFormationPowerQueryService formationPowerQueryService)
+    public PlayerReadModels(IUnitOfWork unitOfWork, IGamePlayerService players, IHeroStatCalculationService heroStatCalculationService, ICombatPowerService combatPowerService, IFormationPowerQueryService formationPowerQueryService, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _unitOfWork = unitOfWork;
         _players = players;
         _heroStatCalculationService = heroStatCalculationService;
@@ -91,23 +94,20 @@ public sealed class PlayerReadModels : IPlayerReadModels
             return new List<PlayerHeroDto>();
         var playerHeroes = await _unitOfWork.ReadOnlyRepository<HrkPlayerHero>().Query()
             .Where(ph => ph.PlayerId == player.Id && ph.IsActive)
-            .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Faction)
-            .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Class)
-            .Include(ph => ph.HeroTemplate).ThenInclude(ht => ht.Rarity)// List/card endpoint intentionally excludes the skill-effect graph.
             .AsSplitQuery()
             .AsNoTracking()
             .ToListAsync(cancellationToken);
         // Batch load every equipped item once. Calling GetPlayerHeroDetailAsync for
         // every card used to cause 2+ SQL queries per hero (the N+1 bottleneck).
+        await TemplateHydration.HeroesAsync(_templates, playerHeroes, cancellationToken);
         var heroIds = playerHeroes.Select(h => h.Id).ToList();
-        var equipmentByHeroId = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, player.Id, heroIds, cancellationToken);
+        var equipmentByHeroId = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, player.Id, heroIds, cancellationToken, _templates);
         var powerConfigs = await _combatPowerService.GetConfigsAsync(cancellationToken);
         // Batch load star auras for player heroes (no N+1 query)
         var templateIds = playerHeroes.Select(h => h.HeroTemplateId).Distinct().ToList();
-        var starAuraConfigs = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
+        var starAuraConfigs = (await _templates.GetAllAsync<HrkHeroStarAuraConfig>(cancellationToken))
             .Where(c => c.IsActive && templateIds.Contains(c.HeroTemplateId))
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+            .ToList();
         var auraLookup = starAuraConfigs.ToDictionary(c => (c.HeroTemplateId, c.StarLevel));
         var result = new List<PlayerHeroDto>(playerHeroes.Count);
         foreach (var hero in playerHeroes)
@@ -134,43 +134,22 @@ public sealed class PlayerReadModels : IPlayerReadModels
             return null;
         var ph = await _unitOfWork.ReadOnlyRepository<HrkPlayerHero>().Query()
             .Where(x => x.Id == heroId && x.PlayerId == player.Id && x.IsActive)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.Faction)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.Class)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.Rarity)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-            .Include(x => x.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
         if (ph == null)
             return null;
-        var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, player.Id, new[] { ph.Id }, cancellationToken);
+        await TemplateHydration.HeroesAsync(_templates, new[] { ph }, cancellationToken);
+        var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, player.Id, new[] { ph.Id }, cancellationToken, _templates);
         equipments.TryGetValue(ph.Id, out var eq);
         var detailClampedStars = (byte)Math.Clamp(ph.Stars, 0, 5);
-        var starAura = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
-            .FirstOrDefaultAsync(c => c.HeroTemplateId == ph.HeroTemplateId && c.StarLevel == detailClampedStars && c.IsActive, cancellationToken);
+        var starAura = (await _templates.GetAllAsync<HrkHeroStarAuraConfig>(cancellationToken))
+            .FirstOrDefault(c => c.HeroTemplateId == ph.HeroTemplateId && c.StarLevel == detailClampedStars && c.IsActive);
         var baseHero = GameDtoMapper.MapPlayerHero(ph, starAura);
         if (baseHero == null)
             return null;
         var statResult = _heroStatCalculationService.CalculateStats(ph, eq);
-        var starBonusAttributes = await (
-            from bonus in _unitOfWork.ReadOnlyRepository<HrkPlayerHeroBonusAttribute>().Query()
-            join attribute in _unitOfWork.ReadOnlyRepository<HrkAttributeType>().Query() on bonus.AttributeTypeId equals attribute.Id
-            where bonus.PlayerHeroId == ph.Id
-            orderby bonus.UnlockedAtStar
-            select new HeroBonusAttributeDto
-            {
-                UnlockedAtStar = bonus.UnlockedAtStar,
-                Code = attribute.Code,
-                Name = attribute.Name,
-                Value = bonus.Value,
-                IsPercentage = bonus.IsPercentage
-            }
-
-        ).ToListAsync(cancellationToken);
+        var starBonusAttributes = await TemplateHydration.HeroBonusesAsync(_unitOfWork, _templates, ph.Id, cancellationToken);
         // CurrentStats already contains star bonus values. Move those values from
         // the generic growth bucket into a dedicated STAR source so the hero stat
         // tooltip explains the real origin without changing the calculated total.
@@ -227,11 +206,11 @@ public sealed class PlayerReadModels : IPlayerReadModels
     public async Task<List<PlayerAvatarTemplateDto>> GetAvatarTemplatesAsync(string userId, CancellationToken cancellationToken = default)
     {
         var player = await GetRequiredPlayerAsync(userId, cancellationToken);
-        return await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+        return (await _templates.GetAllAsync<HrkAvatarTemplate>(cancellationToken))
             .Where(x => x.IsEnabled)
             .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id)
             .Select(x => new PlayerAvatarTemplateDto { Id = x.Id, Code = x.Code, Name = x.Name, ImagePath = x.ImagePath, IsSelected = player.AvatarType == "TEMPLATE" && player.AvatarTemplateId == x.Id })
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 
     public async Task<PlayerCustomAvatarDto?> GetCustomAvatarAsync(long playerId, CancellationToken cancellationToken = default)
@@ -247,11 +226,11 @@ public sealed class PlayerReadModels : IPlayerReadModels
         string? avatarUrl = null;
         if (player.AvatarType == "TEMPLATE")
         {
-            avatarUrl = await _unitOfWork.ReadOnlyRepository<HrkAvatarTemplate>().Query()
+            avatarUrl = (await _templates.GetAllAsync<HrkAvatarTemplate>(cancellationToken))
                 .Where(x => x.IsEnabled && (x.Id == player.AvatarTemplateId || (player.AvatarTemplateId == null && x.IsDefault)))
                 .OrderByDescending(x => x.Id == player.AvatarTemplateId).ThenByDescending(x => x.IsDefault)
                 .Select(x => x.ImagePath)
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefault();
         }
 
         var power = knownFormationPower;

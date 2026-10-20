@@ -16,8 +16,8 @@ public sealed class GetPendingRewardsQueryHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), IQueryHandler<GetPendingRewardsQuery, BaseResponse<List<PlayerPendingRewardDto>>>
+    ITowerEventService towerEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetPendingRewardsQuery, BaseResponse<List<PlayerPendingRewardDto>>>
 {
     public async Task<BaseResponse<List<PlayerPendingRewardDto>>> Handle(GetPendingRewardsQuery message, CancellationToken ct) => BaseResponse<List<PlayerPendingRewardDto>>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
     private Task<List<PlayerPendingRewardDto>> ExecuteAsync(string userId, CancellationToken ct = default) => GetPendingRewardsAsync(userId, ct);

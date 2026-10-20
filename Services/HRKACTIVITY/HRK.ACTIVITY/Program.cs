@@ -19,7 +19,7 @@ var api = app.MapGroup("/api/activities").RequireAuthorization("ActivityAdmin");
 api.MapGet("", async ([AsParameters] GetActivitiesQuery query,
     IActivityQueries queries, CancellationToken ct) =>
 {
-    if (query.Page is < 1 or > 100000 || query.PageSize is < 1 or > 100) return Results.BadRequest("Invalid pagination.");
+    if (!query.IsValid) return Results.BadRequest("Invalid activity filters or pagination.");
     return Results.Ok(await queries.GetAsync(query, ct));
 });
 api.MapGet("/{activityId:guid}", async (Guid activityId, IActivityQueries queries, CancellationToken ct) =>

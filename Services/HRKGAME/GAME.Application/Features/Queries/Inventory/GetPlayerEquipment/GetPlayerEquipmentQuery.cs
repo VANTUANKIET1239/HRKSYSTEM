@@ -1,4 +1,5 @@
 using Core.Persistence.Repositories;
+using GAME.Application.Templates;
 using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -14,9 +15,10 @@ public record GetPlayerEquipmentQuery(string? CategoryCode = null, bool IncludeE
 public sealed class GetPlayerEquipmentQueryHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
-    IGameRequestContext actor)
+    IGameRequestContext actor, IGameTemplateCatalog? templates = null)
     : IQueryHandler<GetPlayerEquipmentQuery, BaseResponse<List<InventoryItemDto>>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IGameRequestContext _actor = actor;
@@ -32,27 +34,24 @@ public sealed class GetPlayerEquipmentQueryHandler(
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken);
         if (player == null)
             return new List<InventoryItemDto>();
+        var itemTemplates = (await _templates.GetAllAsync<HrkItemTemplate>(cancellationToken)).ToList();
+        var allowedIds = itemTemplates.Where(t => t.Category.IsEquipment &&
+            (string.IsNullOrWhiteSpace(categoryCode) || categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase) ||
+             t.Category.Code.Equals(categoryCode, StringComparison.OrdinalIgnoreCase))).Select(t => t.Id).ToArray();
         var query = _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-            .Where(inv => inv.PlayerId == player.Id && inv.IsActive && inv.ItemTemplate.Category.IsEquipment)
-            .Include(inv => inv.Attributes).ThenInclude(a => a.AttributeType)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Category)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Rarity)
-            .Include(inv => inv.ItemTemplate).ThenInclude(it => it.Attributes).ThenInclude(a => a.AttributeType)
-            .Include(inv => inv.EquippedHero).ThenInclude(hero => hero!.HeroTemplate)
+            .Where(inv => inv.PlayerId == player.Id && inv.IsActive && allowedIds.Contains(inv.ItemTemplateId))
+            .Include(inv => inv.Attributes)
+            .Include(inv => inv.EquippedHero)
             .AsSplitQuery().AsQueryable();
         if (!includeEquipped)
         {
             query = query.Where(inv => !inv.IsEquipped);
         }
 
-        if (!string.IsNullOrWhiteSpace(categoryCode) && !categoryCode.Equals("all", StringComparison.OrdinalIgnoreCase))
-        {
-            var upperCategoryCode = categoryCode.ToUpper();
-            query = query.Where(inv => inv.ItemTemplate.Category.Code.ToUpper() == upperCategoryCode);
-        }
-
-        query = query.OrderByDescending(x => x.ItemTemplate.RarityId).ThenByDescending(x => x.Enhancement).ThenBy(x => x.ItemTemplate.Name);
         var items = await query.ToListAsync(cancellationToken);
-        return items.Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
+        await TemplateHydration.InventoryAsync(_templates, items, cancellationToken);
+        await TemplateHydration.HeroesAsync(_templates, items.Select(i => i.EquippedHero).OfType<HrkPlayerHero>(), cancellationToken);
+        return items.OrderByDescending(x => x.ItemTemplate.RarityId).ThenByDescending(x => x.Enhancement)
+            .ThenBy(x => x.ItemTemplate.Name).Select(inv => GameDtoMapper.MapInventoryItem(inv)!).ToList();
     }
 }

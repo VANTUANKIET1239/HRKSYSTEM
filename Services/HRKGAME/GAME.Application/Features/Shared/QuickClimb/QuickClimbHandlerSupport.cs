@@ -34,6 +34,11 @@ public abstract class QuickClimbHandlerSupport
         var statusEvent = new ProcessStatusUpdatedV1(Guid.NewGuid(), job.JobId, userId, "TOWER_QUICK_CLIMB", job.Version, job.CurrentFloor, job.TargetFloor, percentage, job.Status, DateTime.UtcNow, errorCode, errorMessage is null ? null : errorMessage[..Math.Min(errorMessage.Length, 500)]);
         _outbox.Add(statusEvent, MessagingContractNames.ProcessStatusUpdatedV1, MessagingPublisherNames.GameEvents, MessagingContractNames.ProcessStatusUpdatedV1, partitionKey: job.JobId, sequence: job.Version);
         if (job.Status is not ("QUEUED" or "PROCESSING"))
-            _activityEvents.Raise(new QuickClimbEndedEvent(job.PlayerId, userId, job.JobId, job.Status, job.StartFloor, job.CurrentFloor, job.TargetFloor, job.ClearedFloorsCount, job.StopReason, job.Version));
+            _activityEvents.Raise(new QuickClimbEndedEvent(job.PlayerId, userId, job.JobId, job.Status, job.StartFloor, job.CurrentFloor, job.TargetFloor, job.ClearedFloorsCount, job.StopReason, job.Version)
+            {
+                GameEventId = job.EventPeriod?.EventId, EventPeriodId = job.EventPeriodId,
+                PeriodKey = job.EventPeriod?.PeriodKey, OccurredAt = job.CompletedOnUtc is { } completed ?
+                    new DateTimeOffset(DateTime.SpecifyKind(completed, DateTimeKind.Utc)) : null
+            });
     }
 }

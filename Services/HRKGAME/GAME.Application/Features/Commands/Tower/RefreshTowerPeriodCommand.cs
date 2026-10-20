@@ -14,7 +14,7 @@ public sealed record RefreshTowerPeriodCommand(string UserId, string? EventCode 
 public sealed class RefreshTowerPeriodCommandHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService players,
-    IEventPeriodService periods,
+    ITowerEventService periods,
     TowerOperationRunner runner)
     : ICommandHandler<RefreshTowerPeriodCommand, BaseResponse<bool>>
 {

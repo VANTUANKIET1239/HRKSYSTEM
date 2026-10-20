@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common;
@@ -31,8 +32,8 @@ public sealed class UpgradeHeroStarCommandHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
     IHeroProgressionStatService progressionStatService,
-    ICombatPowerService combatPowerService)
-    : HeroStarUpgradeHandlerSupport(unitOfWork, gamePlayerService, progressionStatService, combatPowerService), ICommandHandler<UpgradeHeroStarCommand, BaseResponse<HeroStarUpgradePreviewDto>>
+    ICombatPowerService combatPowerService, IGameTemplateCatalog? templates = null)
+    : HeroStarUpgradeHandlerSupport(unitOfWork, gamePlayerService, progressionStatService, combatPowerService, templates), ICommandHandler<UpgradeHeroStarCommand, BaseResponse<HeroStarUpgradePreviewDto>>
 {
     public async Task<BaseResponse<HeroStarUpgradePreviewDto>> Handle(UpgradeHeroStarCommand message, CancellationToken ct) => BaseResponse<HeroStarUpgradePreviewDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.HeroId, message.RequestId, ct, message.MaterialType));
     private async Task<HeroStarUpgradePreviewDto> ExecuteAsync(string userId, long heroId, Guid requestId, CancellationToken cancellationToken = default, string? materialType = null)
@@ -70,7 +71,7 @@ public sealed class UpgradeHeroStarCommandHandler(
                 var rolledAttributes = new List<HeroBonusAttributeDto>();
                 for (var index = 0; index < data.Config.ExtraAttributeRollCount; index++)
                 {
-                    rolledAttributes.Add(await RollAttributeAsync(data.Hero, data.Config.NextStar, requestId, index, cancellationToken));
+                    rolledAttributes.Add(await RollAttributeAsync(data.Hero, data.Template.RarityId, data.Config.NextStar, requestId, index, cancellationToken));
                 }
 
                 data.Hero.Stars = data.Config.NextStar;
@@ -80,7 +81,7 @@ public sealed class UpgradeHeroStarCommandHandler(
                 data.Hero.AuraTier = (byte)Math.Clamp(data.Hero.Stars, 1, 4);
                 var allBonuses = await GetBonusAttributesAsync(data.Hero.Id, cancellationToken);
                 allBonuses.AddRange(rolledAttributes);
-                var calculatedStats = _progressionStatService.Calculate(data.Hero.HeroTemplate, data.Hero.Level, data.RarityConfig.StatGrowthRate, data.Config.GrowthBonusPercent, allBonuses.Select(x => (x.Code, x.Value)));
+                var calculatedStats = _progressionStatService.Calculate(data.Template, data.Hero.Level, data.RarityConfig.StatGrowthRate, data.Config.GrowthBonusPercent, allBonuses.Select(x => (x.Code, x.Value)));
                 data.Hero.CurrentStats = JsonSerializer.Serialize(calculatedStats);
                 data.Hero.Power = await _combatPowerService.CalculateAsync(calculatedStats, cancellationToken);
                 data.Hero.UpdatedOn = DateTime.UtcNow;
@@ -143,11 +144,11 @@ public sealed class UpgradeHeroStarCommandHandler(
         throw new BusinessException("INSUFFICIENT_MATERIALS", "Nguyên liệu không đủ.", BusinessErrorKind.Conflict);
     }
 
-    private async Task<HeroBonusAttributeDto> RollAttributeAsync(HrkPlayerHero hero, int star, Guid seed, int offset, CancellationToken cancellationToken)
+    private async Task<HeroBonusAttributeDto> RollAttributeAsync(HrkPlayerHero hero, int rarityId, int star, Guid seed, int offset, CancellationToken cancellationToken)
     {
-        var pool = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAttributePool>().Query()
-            .Where(x => x.RarityId == hero.HeroTemplate.RarityId && x.IsEnabled)
-            .ToListAsync(cancellationToken);
+        var pool = (await _templates.GetAllAsync<HrkHeroStarAttributePool>(cancellationToken))
+            .Where(x => x.RarityId == rarityId && x.IsEnabled)
+            .ToList();
         if (pool.Count == 0)
         {
             throw new InvalidOperationException("Pool thuộc tính sao đang trống.");
@@ -155,8 +156,8 @@ public sealed class UpgradeHeroStarCommandHandler(
 
         var (selected, value) = HeroStarRollCalculator.Roll(pool, seed, offset);
         await _unitOfWork.Repository<HrkPlayerHeroBonusAttribute>().AddAsync(new HrkPlayerHeroBonusAttribute { PlayerHeroId = hero.Id, UnlockedAtStar = star, AttributeTypeId = selected.AttributeTypeId, Value = value, IsPercentage = selected.IsPercentage, RollSeed = seed });
-        var attribute = await _unitOfWork.ReadOnlyRepository<HrkAttributeType>().Query()
-            .SingleAsync(x => x.Id == selected.AttributeTypeId, cancellationToken);
+        var attribute = (await _templates.GetAllAsync<HrkAttributeType>(cancellationToken))
+            .Single(x => x.Id == selected.AttributeTypeId);
         return new HeroBonusAttributeDto
         {
             UnlockedAtStar = star,

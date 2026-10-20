@@ -2,6 +2,7 @@ using GAME.Domain.Entities;
 using Core.TransactionalMessaging.Entities;
 using Core.TransactionalMessaging.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Core.Scheduling;
 
 namespace GAME.Infrastructure.Data
 {
@@ -96,6 +97,8 @@ namespace GAME.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.ConfigureScheduling();
+            modelBuilder.ConfigureCheckIn();
 
             modelBuilder.Entity<HrkHeroLevelConfig>(entity =>
             {
@@ -1209,6 +1212,8 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(x => new { x.PlayerId, x.EventId, x.EventPeriodId }).IsUnique();
                 entity.Property(x => x.PeriodKey).HasMaxLength(50).IsRequired();
                 entity.Property(x => x.QuickClimbRunsUsed).HasDefaultValue(0);
+                entity.HasIndex(x => new { x.EventId, x.ClosedAtUtc, x.Id });
+                entity.Property(x => x.ResetSummaryJson).HasColumnType("nvarchar(max)");
                 entity.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.EventPeriod).WithMany(x => x.PlayerProgresses).HasForeignKey(x => x.EventPeriodId).OnDelete(DeleteBehavior.Cascade);

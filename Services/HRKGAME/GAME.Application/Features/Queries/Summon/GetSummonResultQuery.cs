@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -12,7 +13,7 @@ namespace GAME.Application.Features.Queries.Summon;
 
 public sealed record GetSummonResultQuery(string UserId, Guid RequestId) : IQuery<BaseResponse<SummonResultDto>>;
 
-public sealed class GetSummonResultQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService players) : SummonHandlerSupport(unitOfWork), IQueryHandler<GetSummonResultQuery, BaseResponse<SummonResultDto>>
+public sealed class GetSummonResultQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService players, IGameTemplateCatalog? templates = null) : SummonHandlerSupport(unitOfWork, templates), IQueryHandler<GetSummonResultQuery, BaseResponse<SummonResultDto>>
 {
     private readonly IGamePlayerService _players = players;
     public async Task<BaseResponse<SummonResultDto>> Handle(GetSummonResultQuery request, CancellationToken ct)

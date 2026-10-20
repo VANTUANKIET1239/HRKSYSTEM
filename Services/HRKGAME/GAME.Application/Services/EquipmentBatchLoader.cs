@@ -1,4 +1,5 @@
 using Core.Persistence.Repositories;
+using GAME.Application.Templates;
 using GAME.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +11,7 @@ namespace GAME.Application.Services
     /// </summary>
     internal static class EquipmentBatchLoader
     {
-        public static async Task<Dictionary<long, HrkPlayerEquipment>> LoadForHeroesAsync(IUnitOfWork unitOfWork, long playerId, IReadOnlyCollection<long> heroIds, CancellationToken cancellationToken)
+        public static async Task<Dictionary<long, HrkPlayerEquipment>> LoadForHeroesAsync(IUnitOfWork unitOfWork, long playerId, IReadOnlyCollection<long> heroIds, CancellationToken cancellationToken, IGameTemplateCatalog? templates = null)
         {
             if (heroIds.Count == 0)
                 return new Dictionary<long, HrkPlayerEquipment>();
@@ -27,13 +28,11 @@ namespace GAME.Application.Services
             // attribute collections from producing a cartesian result set.
             var inventoryItems = await unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
                 .Where(i => i.PlayerId == playerId && inventoryIds.Contains(i.Id) && i.IsActive)
-                .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Rarity)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
+                .Include(i => i.Attributes)
                 .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
+            await TemplateHydration.InventoryAsync(templates ?? new DatabaseTemplateCatalog(unitOfWork), inventoryItems, cancellationToken);
             var inventoryById = inventoryItems.ToDictionary(i => i.Id);
             foreach (var equipment in equipments)
             {

@@ -13,6 +13,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ApiGateway/ApiGateway/ApiGateway.csproj", "ApiGateway/ApiGateway/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
 RUN dotnet restore "./ApiGateway/ApiGateway/ApiGateway.csproj"
 COPY . .
 WORKDIR "/src/ApiGateway/ApiGateway"

@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -8,9 +9,11 @@ namespace GAME.Application.Services;
 
 public sealed class DungeonStarService : IDungeonStarService
 {
+    private readonly IGameTemplateCatalog _templates;
     private readonly IUnitOfWork _unitOfWork;
-    public DungeonStarService(IUnitOfWork unitOfWork)
+    public DungeonStarService(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _unitOfWork = unitOfWork;
     }
 
@@ -47,10 +50,9 @@ public sealed class DungeonStarService : IDungeonStarService
 
         long totalCurrentHp = finalHpMap.Values.Where(hp => hp > 0).Sum();
         decimal remainingHpRate = Math.Clamp((decimal)totalCurrentHp / totalMaxHp, 0m, 1m);
-        var configs = await _unitOfWork.ReadOnlyRepository<HrkDungeonStarRatingConfig>().Query()
+        var configs = (await _templates.GetAllAsync<HrkDungeonStarRatingConfig>(cancellationToken))
             .Where(x => x.IsActive && (x.DungeonMapId == mapId || x.DungeonMapId == null))
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+            .ToList();
         var mapConfigs = configs.Where(x => x.DungeonMapId == mapId).ToList();
         var effectiveConfigs = mapConfigs.Count > 0 ? mapConfigs : configs.Where(x => x.DungeonMapId == null).ToList();
         if (effectiveConfigs.Count == 0)

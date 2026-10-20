@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -17,8 +18,8 @@ public sealed class GetPlayerFormationQueryHandler(
     IFormationStatService formationStatService,
     ICombatPowerService combatPowerService,
     IHeroStatCalculationService heroStatCalculationService,
-    IGameRequestContext actor)
-    : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService), IQueryHandler<GetPlayerFormationQuery, BaseResponse<FormationDto>>
+    IGameRequestContext actor, IGameTemplateCatalog? templates = null)
+    : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), IQueryHandler<GetPlayerFormationQuery, BaseResponse<FormationDto>>
 {
     private readonly IGameRequestContext _actor = actor;
     public async Task<BaseResponse<FormationDto>> Handle(GetPlayerFormationQuery request, CancellationToken cancellationToken)
@@ -44,18 +45,18 @@ public sealed class GetPlayerFormationQueryHandler(
         }
 
         var selectedFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-            .Include(f => f.FormationTemplate)
             .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.IsSelected && f.IsActive, cancellationToken);
         if (selectedFormation == null)
         {
             selectedFormation = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()
-                .Include(f => f.FormationTemplate)
                 .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.IsActive, cancellationToken);
         }
 
         if (selectedFormation != null)
         {
-            var detail = await GetFormationDetailAsync(userId, selectedFormation.FormationTemplate.Code, cancellationToken);
+            var template = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
+                .Single(t => t.Id == selectedFormation.FormationTemplateId);
+            var detail = await GetFormationDetailAsync(userId, template.Code, cancellationToken);
             if (detail != null)
             {
                 return new FormationDto

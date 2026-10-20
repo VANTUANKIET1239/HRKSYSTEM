@@ -25,13 +25,19 @@ public sealed class ActivityStore(ActivityDbContext db, IInboxExecutor inbox, IL
 
     public async Task<IReadOnlyList<PlayerActivity>> GetAsync(GetActivitiesQuery query, CancellationToken ct)
     {
-        if (query.Page is < 1 or > 100000 || query.PageSize is < 1 or > 100)
-            throw new ArgumentException("Page must be 1-100000 and PageSize 1-100.");
+        if (!query.IsValid) throw new ArgumentException("Invalid activity filters or pagination.");
         var records = db.PlayerActivities.AsNoTracking();
         if (query.PlayerId is { } playerId) records = records.Where(x => x.PlayerId == playerId);
         if (query.CorrelationId is { } correlationId) records = records.Where(x => x.CorrelationId == correlationId);
         if (query.EntityType is { } entityType) records = records.Where(x => x.EntityType == entityType);
         if (query.EntityId is { } entityId) records = records.Where(x => x.EntityId == entityId);
+        if (query.GameEventId is { } eventId) records = records.Where(x => x.GameEventId == eventId);
+        if (query.EventPeriodId is { } periodId) records = records.Where(x => x.EventPeriodId == periodId);
+        if (query.PeriodKey is { } periodKey) records = records.Where(x => x.PeriodKey == periodKey);
+        if (query.JobExecutionId is { } executionId) records = records.Where(x => x.JobExecutionId == executionId);
+        if (query.FromUtc is { } from) records = records.Where(x => x.OccurredAt >= from);
+        if (query.ToUtc is { } to) records = records.Where(x => x.OccurredAt < to);
+        if (query.ActivityType is { } type) records = records.Where(x => x.ActivityType == type);
         return await records.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
             .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToListAsync(ct);
     }

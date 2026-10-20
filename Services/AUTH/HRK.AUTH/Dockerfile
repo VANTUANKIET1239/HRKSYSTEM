@@ -14,6 +14,7 @@ WORKDIR /src
 COPY ["Services/AUTH/HRK.AUTH/HRK.AUTH.csproj", "Services/AUTH/HRK.AUTH/"]
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
 COPY ["Services/AUTH/AUTH.Application/AUTH.Application.csproj", "Services/AUTH/AUTH.Application/"]
 COPY ["Services/AUTH/AUTH.Domain/AUTH.Domain.csproj", "Services/AUTH/AUTH.Domain/"]
 COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]

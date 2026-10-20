@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using System.Security.Cryptography;
 using System.Text;
@@ -7,7 +8,6 @@ using GAME.Application.Common.Mappings;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Application.Services;
 // All entities below are transient. Never add them to a repository.
@@ -23,35 +23,31 @@ public sealed class BattleLabBuildResolver(
 
     ICombatPowerService power
 
-)
+, IGameTemplateCatalog? templates = null)
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(store);
     public async Task<BattleLabResolvedBuildDto> ResolveAsync(PlayerHeroDto hero, BattleLabBuildDto build, int team, CancellationToken ct)
     {
-        var template = await store.ReadOnlyRepository<HrkHeroTemplate>().Query()
-            .AsNoTracking()
-            .SingleAsync(h => h.Id == hero.HeroTemplateId, ct);
-        var rarity = await store.ReadOnlyRepository<HrkHeroRarityUpgradeConfig>().Query()
-            .AsNoTracking()
-            .SingleOrDefaultAsync(c => c.RarityId == template.RarityId, ct) ?? throw new ArgumentException($"Missing rarity growth configuration for {hero.Name}.");
+        var template = (await _templates.GetAllAsync<HrkHeroTemplate>(ct))
+            .Single(h => h.Id == hero.HeroTemplateId);
+        var rarity = (await _templates.GetAllAsync<HrkHeroRarityUpgradeConfig>(ct))
+            .SingleOrDefault(c => c.RarityId == template.RarityId) ?? throw new ArgumentException($"Missing rarity growth configuration for {hero.Name}.");
         if (build.Level > rarity.MaxLevel)
             throw new BusinessException("INVALID_REQUEST", $"{hero.Name}: maximum level is {rarity.MaxLevel}.", BusinessErrorKind.Validation);
-        var starConfigs = await store.ReadOnlyRepository<HrkHeroStarUpgradeConfig>().Query()
-            .AsNoTracking()
+        var starConfigs = (await _templates.GetAllAsync<HrkHeroStarUpgradeConfig>(ct))
             .Where(c => c.RarityId == template.RarityId && c.IsEnabled && c.NextStar <= build.Stars)
             .OrderBy(c => c.NextStar)
-            .ToListAsync(ct);
+            .ToList();
         var starConfig = starConfigs.SingleOrDefault(c => c.NextStar == build.Stars);
         if (build.Stars > 1 && starConfig == null)
             throw new ArgumentException("Missing star growth configuration.");
         var bonuses = new List<HeroBonusAttributeDto>();
-        var pool = await store.ReadOnlyRepository<HrkHeroStarAttributePool>().Query()
-            .AsNoTracking()
+        var pool = (await _templates.GetAllAsync<HrkHeroStarAttributePool>(ct))
             .Where(c => c.RarityId == template.RarityId && c.IsEnabled)
             .OrderBy(c => c.Id)
-            .ToListAsync(ct);
-        var attributes = await store.ReadOnlyRepository<HrkAttributeType>().Query()
-            .AsNoTracking()
-            .ToDictionaryAsync(a => a.Id, ct);
+            .ToList();
+        var attributes = (await _templates.GetAllAsync<HrkAttributeType>(ct))
+            .ToDictionary(a => a.Id);
         // Same weighted/hash roll rule as star upgrades, with a reproducible lab seed.
         foreach (var config in starConfigs)
         {
@@ -84,12 +80,8 @@ public sealed class BattleLabBuildResolver(
         var categories = new HashSet<int>();
         foreach (var choice in build.Equipment.OrderBy(e => e.ItemTemplateId))
         {
-            var item = await store.ReadOnlyRepository<HrkItemTemplate>().Query()
-                .Include(i => i.Category)
-                .Include(i => i.Rarity)
-                .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(i => i.Id == choice.ItemTemplateId, ct);
+            var item = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
+                .SingleOrDefault(i => i.Id == choice.ItemTemplateId);
             if (item == null || !item.Category.IsEquipment || item.LevelReq > build.Level)
                 throw new BusinessException("INVALID_REQUEST", $"Equipment {choice.ItemTemplateId} is unavailable for this level.", BusinessErrorKind.Validation);
             if (!categories.Add(item.CategoryId))
@@ -126,9 +118,8 @@ public sealed class BattleLabBuildResolver(
         hero.AuraTier = build.AuraTier;
         hero.Power = await power.CalculateAsync(hero.Stats, ct);
         result.Breakdown = calculated.Breakdowns;
-        var aura = await store.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
-            .AsNoTracking()
-            .SingleOrDefaultAsync(a => a.HeroTemplateId == hero.HeroTemplateId && a.StarLevel == build.Stars && a.IsActive, ct);
+        var aura = (await _templates.GetAllAsync<HrkHeroStarAuraConfig>(ct))
+            .SingleOrDefault(a => a.HeroTemplateId == hero.HeroTemplateId && a.StarLevel == build.Stars && a.IsActive);
         hero.StarAura = GameDtoMapper.MapStarAura(aura);
         return result;
     }

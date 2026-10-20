@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
@@ -18,14 +19,16 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
 {
     public class EnhanceEquipmentCommandHandler : AuthenticatedGameHandler, ICommandHandler<EnhanceEquipmentCommand, BaseResponse<EnhanceEquipmentResultDto>>
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
         private readonly IItemStatCalculationService _statCalculationService;
         private readonly IEquipmentEnhancementDomainService _enhancementDomainService;
         private readonly ILogger<EnhanceEquipmentCommandHandler> _logger;
         private readonly IPlayerActivityEvents _activityEvents;
-        public EnhanceEquipmentCommandHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IEquipmentEnhancementDomainService enhancementDomainService, IGameRequestContext requestContext, ILogger<EnhanceEquipmentCommandHandler> logger, IPlayerActivityEvents activityEvents) : base(requestContext)
+        public EnhanceEquipmentCommandHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IEquipmentEnhancementDomainService enhancementDomainService, IGameRequestContext requestContext, ILogger<EnhanceEquipmentCommandHandler> logger, IPlayerActivityEvents activityEvents, IGameTemplateCatalog? templates = null) : base(requestContext)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
             _statCalculationService = statCalculationService;
@@ -45,14 +48,15 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
 
             _logger.LogInformation("EnhancementAttemptStarted: UserId={UserId}, RequestId={RequestId}, InventoryItemId={InventoryItemId}, StonesCount={StonesCount}, HasCharm={HasCharm}", userId, req.RequestId, req.InventoryItemId, req.StoneInventoryItemIds?.Count ?? 0, req.CharmInventoryItemId.HasValue);
             {
+                var itemTemplates = (await _templates.GetAllAsync<HrkItemTemplate>(cancellationToken)).ToDictionary(t => t.Id);
+                var attributeTypes = (await _templates.GetAllAsync<HrkAttributeType>(cancellationToken)).ToDictionary(a => a.Id);
                 // 1. Idempotency Check
                 var existingHistory = await _unitOfWork.ReadOnlyRepository<HrkEquipmentEnhancementHistory>().Query()
-                    .Include(h => h.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
                     .FirstOrDefaultAsync(h => h.RequestId == req.RequestId, cancellationToken);
                 if (existingHistory != null)
                 {
                     _logger.LogInformation("Idempotent enhancement request detected for RequestId={RequestId}. Returning cached result.", req.RequestId);
-                    var cachedStats = _statCalculationService.CalculateCurrentStats(existingHistory.ItemTemplate, existingHistory.NewEnhancement, 0);
+                    var cachedStats = _statCalculationService.CalculateCurrentStats(itemTemplates[existingHistory.ItemTemplateId], existingHistory.NewEnhancement, 0);
                     var cachedDto = new EnhanceEquipmentResultDto
                     {
                         RequestId = existingHistory.RequestId,
@@ -66,7 +70,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         FinalSuccessRate = existingHistory.FinalSuccessRate,
                         WasLevelProtected = existingHistory.WasLevelProtected,
                         CurrentStats = cachedStats,
-                        CurrentStatsJson = _statCalculationService.CalculateCurrentStatsJson(existingHistory.ItemTemplate, existingHistory.NewEnhancement, 0),
+                        CurrentStatsJson = _statCalculationService.CalculateCurrentStatsJson(itemTemplates[existingHistory.ItemTemplateId], existingHistory.NewEnhancement, 0),
                         Consumed = new ConsumedResourcesDto
                         {
                             Gold = existingHistory.GoldCost
@@ -92,9 +96,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
 
                 // 3. Load Equipment Aggregate & Invariants
                 var equipment = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-                    .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
-                    .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
-                    .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
+                    .Include(i => i.Attributes)
                     .FirstOrDefaultAsync(i => i.Id == req.InventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken);
                 if (equipment == null)
                 {
@@ -102,10 +104,11 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 }
 
                 // Protect Aggregate Invariants via Entity Method
-                equipment.EnsureCanBeEnhanced();
+                var calculationEquipment = await TemplateHydration.InventoryViewAsync(_templates, equipment, cancellationToken);
+                calculationEquipment.EnsureCanBeEnhanced();
                 // 4. Fetch Level Configuration
-                var levelConfig = await _unitOfWork.ReadOnlyRepository<HrkEnhancementLevelConfig>().Query()
-                    .FirstOrDefaultAsync(c => c.CurrentLevel == equipment.Enhancement, cancellationToken);
+                var levelConfig = (await _templates.GetAllAsync<HrkEnhancementLevelConfig>(cancellationToken))
+                    .FirstOrDefault(c => c.CurrentLevel == equipment.Enhancement);
                 if (levelConfig == null)
                 {
                     throw new InvalidOperationException($"Chưa có cấu hình cường hóa cho cấp độ +{equipment.Enhancement}.");
@@ -127,28 +130,28 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 {
                     var groupKeys = stoneGroups.Keys.ToList();
                     stoneInventories = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-                        .Include(i => i.ItemTemplate)
                         .Where(i => groupKeys.Contains(i.Id) && i.PlayerId == player.Id && i.IsActive)
                         .ToListAsync(cancellationToken);
                     var templateIds = stoneInventories.Select(s => s.ItemTemplateId).Distinct().ToList();
-                    var stoneConfigs = await _unitOfWork.ReadOnlyRepository<HrkEnhancementMaterial>().Query()
+                    var stoneConfigs = (await _templates.GetAllAsync<HrkEnhancementMaterial>(cancellationToken))
                         .Where(m => templateIds.Contains(m.ItemTemplateId))
-                        .ToDictionaryAsync(m => m.ItemTemplateId, cancellationToken);
+                        .ToDictionary(m => m.ItemTemplateId);
                     foreach (var (invId, requiredQty) in stoneGroups)
                     {
                         var stoneInv = stoneInventories.FirstOrDefault(s => s.Id == invId);
+                        var stoneTemplate = stoneInv == null ? null : itemTemplates.GetValueOrDefault(stoneInv.ItemTemplateId);
                         if (stoneInv == null || stoneInv.Count < requiredQty)
                         {
-                            throw new BusinessException("INSUFFICIENT_MATERIALS", $"Số lượng đá cường hóa '{stoneInv?.ItemTemplate?.Name ?? "ID: " + invId}' trong túi không đủ ({stoneInv?.Count ?? 0}/{requiredQty}).", BusinessErrorKind.Conflict);
+                            throw new BusinessException("INSUFFICIENT_MATERIALS", $"Số lượng đá cường hóa '{stoneTemplate?.Name ?? "ID: " + invId}' trong túi không đủ ({stoneInv?.Count ?? 0}/{requiredQty}).", BusinessErrorKind.Conflict);
                         }
 
                         if (!stoneConfigs.TryGetValue(stoneInv.ItemTemplateId, out var matConfig) || matConfig.MaterialType != "STONE")
                         {
-                            throw new BusinessException("INVALID_ENHANCEMENT_STONE", $"Vật phẩm '{stoneInv.ItemTemplate?.Name}' không phải là đá cường hóa hợp lệ.", BusinessErrorKind.Conflict);
+                            throw new BusinessException("INVALID_ENHANCEMENT_STONE", $"Vật phẩm '{stoneTemplate?.Name}' không phải là đá cường hóa hợp lệ.", BusinessErrorKind.Conflict);
                         }
 
-                        stoneMaterialItems.Add(new StoneMaterialItem(stoneInv.Id, stoneInv.ItemTemplateId, stoneInv.ItemTemplate?.Code ?? "", stoneInv.ItemTemplate?.Name ?? "", requiredQty, matConfig.SuccessRateBonus));
-                        consumedStonesList.Add(new ConsumedMaterialItemDto { ItemTemplateId = stoneInv.ItemTemplateId, Code = stoneInv.ItemTemplate?.Code ?? "", Name = stoneInv.ItemTemplate?.Name ?? "", Quantity = requiredQty, SuccessRateBonus = matConfig.SuccessRateBonus });
+                        stoneMaterialItems.Add(new StoneMaterialItem(stoneInv.Id, stoneInv.ItemTemplateId, stoneTemplate?.Code ?? "", stoneTemplate?.Name ?? "", requiredQty, matConfig.SuccessRateBonus));
+                        consumedStonesList.Add(new ConsumedMaterialItemDto { ItemTemplateId = stoneInv.ItemTemplateId, Code = stoneTemplate?.Code ?? "", Name = stoneTemplate?.Name ?? "", Quantity = requiredQty, SuccessRateBonus = matConfig.SuccessRateBonus });
                     }
                 }
 
@@ -159,26 +162,26 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 if (req.CharmInventoryItemId.HasValue && req.CharmInventoryItemId.Value > 0)
                 {
                     charmInventory = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-                        .Include(i => i.ItemTemplate)
                         .FirstOrDefaultAsync(i => i.Id == req.CharmInventoryItemId.Value && i.PlayerId == player.Id && i.IsActive, cancellationToken);
                     if (charmInventory == null || charmInventory.Count < 1)
                     {
                         throw new BusinessException("ENHANCEMENT_CHARM_UNAVAILABLE", "Không tìm thấy bùa hộ mệnh/may mắn trong hành trang hoặc đã hết số lượng.", BusinessErrorKind.Conflict);
                     }
 
-                    var charmConfig = await _unitOfWork.ReadOnlyRepository<HrkEnhancementMaterial>().Query()
-                        .FirstOrDefaultAsync(m => m.ItemTemplateId == charmInventory.ItemTemplateId, cancellationToken);
+                    var charmTemplate = itemTemplates[charmInventory.ItemTemplateId];
+                    var charmConfig = (await _templates.GetAllAsync<HrkEnhancementMaterial>(cancellationToken))
+                        .FirstOrDefault(m => m.ItemTemplateId == charmInventory.ItemTemplateId);
                     if (charmConfig == null || charmConfig.MaterialType != "CHARM")
                     {
-                        throw new BusinessException("INVALID_ENHANCEMENT_CHARM", $"Vật phẩm '{charmInventory.ItemTemplate?.Name}' không phải là bùa cường hóa hợp lệ.", BusinessErrorKind.Conflict);
+                        throw new BusinessException("INVALID_ENHANCEMENT_CHARM", $"Vật phẩm '{charmTemplate?.Name}' không phải là bùa cường hóa hợp lệ.", BusinessErrorKind.Conflict);
                     }
 
-                    charmMaterialItem = new CharmMaterialItem(charmInventory.Id, charmInventory.ItemTemplateId, charmInventory.ItemTemplate?.Code ?? "", charmInventory.ItemTemplate?.Name ?? "", charmConfig.SuccessRateBonus, charmConfig.PreventLevelDrop);
+                    charmMaterialItem = new CharmMaterialItem(charmInventory.Id, charmInventory.ItemTemplateId, charmTemplate?.Code ?? "", charmTemplate?.Name ?? "", charmConfig.SuccessRateBonus, charmConfig.PreventLevelDrop);
                     consumedCharmDto = new ConsumedMaterialItemDto
                     {
                         ItemTemplateId = charmInventory.ItemTemplateId,
-                        Code = charmInventory.ItemTemplate?.Code ?? "",
-                        Name = charmInventory.ItemTemplate?.Name ?? "",
+                        Code = charmTemplate?.Code ?? "",
+                        Name = charmTemplate?.Name ?? "",
                         Quantity = 1,
                         SuccessRateBonus = charmConfig.SuccessRateBonus
                     };
@@ -189,7 +192,9 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 // 9. Execute Domain Service (Pure Domain Rules + RNG + Aggregate State Transition)
                 // Option A: Enhancement roll occurs before retryable transactional delegate
                 using var operation = new GameOperation("inventory.enhancement");
-                var executionResult = _enhancementDomainService.ExecuteAttempt(equipment, levelConfig, materialsVo);
+                var executionResult = _enhancementDomainService.ExecuteAttempt(calculationEquipment, levelConfig, materialsVo);
+                equipment.Enhancement = executionResult.NewEnhancement;
+                equipment.UpdatedOn = calculationEquipment.UpdatedOn;
                 // 10. Atomic Database Transaction (Application Layer Orchestration)
                 await _unitOfWork.ExecuteStrategyAsync(async () =>
                 {
@@ -204,7 +209,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         {
                             foreach (var attr in equipment.Attributes)
                             {
-                                bool isPercentage = attr.AttributeType?.IsPercentage ?? false;
+                                bool isPercentage = attributeTypes.GetValueOrDefault(attr.AttributeTypeId)?.IsPercentage ?? false;
                                 decimal mult = 1.0m + (executionResult.NewEnhancement * growthPercent / 100.0m);
                                 attr.CurrentValue = isPercentage ? Math.Round(attr.BaseRolledValue * mult, 4) : Math.Round(attr.BaseRolledValue * mult * starMultiplier, 2);
                                 attr.UpdatedOn = DateTime.UtcNow;
@@ -212,7 +217,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                             }
                         }
 
-                        var currentStatsJson = _statCalculationService.CalculateCurrentStatsJson(equipment, executionResult.NewEnhancement);
+                        var currentStatsJson = _statCalculationService.CalculateCurrentStatsJson(calculationEquipment, executionResult.NewEnhancement);
                         equipment.UpdateCurrentStatsCache(currentStatsJson);
                         _unitOfWork.Repository<HrkPlayerInventory>().Update(equipment);
                         // B. Deduct Gold via Wallet Domain Method
@@ -274,7 +279,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 }, cancellationToken);
                 // 11. Build Response DTO
                 operation.Complete(executionResult.IsSuccess ? "success" : "roll_failure");
-                var calculatedStats = _statCalculationService.CalculateCurrentStats(equipment, executionResult.NewEnhancement);
+                var calculatedStats = _statCalculationService.CalculateCurrentStats(calculationEquipment, executionResult.NewEnhancement);
                 var responseDto = new EnhanceEquipmentResultDto
                 {
                     RequestId = req.RequestId,

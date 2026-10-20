@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -14,8 +15,8 @@ public sealed record RunBattleLabCommand(BattleLabRequestDto Request) : ICommand
 public sealed class RunBattleLabCommandHandler(
     IUnitOfWork unitOfWork,
     IBattleSimulationEngine engine,
-    BattleLabBuildResolver? buildResolver)
-    : BattleLabHandlerSupport(unitOfWork), ICommandHandler<RunBattleLabCommand, BaseResponse<BattleLabReportDto>>
+    BattleLabBuildResolver? buildResolver, IGameTemplateCatalog? templates = null)
+    : BattleLabHandlerSupport(unitOfWork, templates), ICommandHandler<RunBattleLabCommand, BaseResponse<BattleLabReportDto>>
 {
     private readonly IBattleSimulationEngine _engine = engine;
     private readonly BattleLabBuildResolver? _buildResolver = buildResolver;

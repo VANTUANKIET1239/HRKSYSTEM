@@ -1,4 +1,5 @@
 using GAME.Application.DTOs;
+using Core.Web.Compression;
 using HRK.GAME.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -41,6 +42,7 @@ public sealed class DungeonController : HRKControllerBase
     }
 
     [HttpPost("stages/{stageId:int}/start")]
+    [HrkResponseCompression("BattleReplay")]
     public async Task<IActionResult> Start(int stageId, [FromBody] StartDungeonStageRequestDto request, CancellationToken ct)
     {
         return HrkOk(await _mediator.Send(new StartStageCommand(UserId, stageId, request), ct));

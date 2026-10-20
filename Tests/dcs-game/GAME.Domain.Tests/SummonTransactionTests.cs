@@ -6,8 +6,14 @@ using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
 using GAME.Infrastructure.Data;
 using GAME.Application.Services;
+using GAME.Application.Templates;
+using GAME.Infrastructure.Templates;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace GAME.Domain.Tests;
@@ -318,6 +324,7 @@ public class SummonTransactionTests(SummonDatabaseFixture database) : IClassFixt
 
 public sealed class SummonDatabaseFixture : IAsyncLifetime
 {
+    private ServiceProvider? _templateProvider;
     private readonly string name = "HRK_SummonTests_" + Guid.NewGuid().ToString("N");
     private const string Master = @"Server=(localdb)\MSSQLLocalDB;Database=master;Integrated Security=true;TrustServerCertificate=true";
     private string Connection => new SqlConnectionStringBuilder(Master)
@@ -389,6 +396,17 @@ public sealed class SummonDatabaseFixture : IAsyncLifetime
         // Deploy the production procedures, then rerun to verify CREATE OR ALTER is safe.
         await GameOperationSqlScript.ApplyAsync(db);
         await GameOperationSqlScript.ApplyAsync(db);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IHostEnvironment>(new CacheEnvironment());
+        services.AddSingleton<IDistributedCache>(new RedisProbe());
+        services.AddScoped<GameDbContext>(_ => Context());
+        services.AddScoped<IUnitOfWork>(sp => new UnitOfWork<GameDbContext>(sp.GetRequiredService<GameDbContext>()));
+        services.AddGameTemplateCache(new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            { ["GameTemplateCache:Enabled"] = "false", ["GameTemplateCache:WarmupOnStartup"] = "false" }).Build());
+        _templateProvider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 
     public async Task<HrkPlayer> PlayerAsync(long gold = 1000, int diamonds = 100, int capacity = 200)
@@ -414,18 +432,27 @@ public sealed class SummonDatabaseFixture : IAsyncLifetime
         return player;
     }
 
+    public IGameTemplateCatalog Templates()
+    {
+        var provider = _templateProvider ?? throw new InvalidOperationException("The SQL fixture is not initialized.");
+        return new GameTemplateCatalog(provider.GetRequiredService<GameTemplateStore>(), provider.GetRequiredService<TemplateTableRegistry>());
+    }
+
     public SummonHarness Service(GameDbContext db, ISummonRandom? random = null)
     {
         random ??= new ZeroRandom();
         var unitOfWork = new UnitOfWork<GameDbContext>(db);
-        var grants = new SummonRewardGranter(unitOfWork, new HeroProgressionStatService(), new TestPower(), new TestLevels(), random);
-        return new(unitOfWork, TestGamePlayers.Create(unitOfWork), random, grants);
+        // Exercise configured relation hydration without caching SQL edits made by transaction tests.
+        var templates = Templates();
+        var grants = new SummonRewardGranter(unitOfWork, new HeroProgressionStatService(), new TestPower(), new TestLevels(), random, templates);
+        return new(unitOfWork, TestGamePlayers.Create(unitOfWork), random, grants, templates);
     }
 
     public async Task DisposeAsync()
     {
         if (Environment.GetEnvironmentVariable("HRK_SUMMON_SQL_TESTS") != "1")
             return;
+        if (_templateProvider != null) await _templateProvider.DisposeAsync();
         SqlConnection.ClearAllPools();
         await using var master = new SqlConnection(Master);
         await master.OpenAsync();
@@ -477,11 +504,12 @@ public sealed class SummonHarness(
 
     ISummonRandom random,
 
-    SummonRewardGranter granter
+    SummonRewardGranter granter,
+    IGameTemplateCatalog templates
 
 )
 {
-    public async Task<SummonConfigurationDto> GetConfigurationAsync(string userId, CancellationToken ct) => (await new GAME.Application.Features.Queries.Summon.GetSummonConfigurationQueryHandler(store, players).Handle(new(userId), ct)).Data!;
-    public async Task<SummonResultDto> SummonAsync(string userId, SummonRequestDto request, CancellationToken ct) => (await new GAME.Application.Features.Commands.Summon.SummonCommandHandler(store, players, random, granter).Handle(new(userId, request), ct)).Data!;
+    public async Task<SummonConfigurationDto> GetConfigurationAsync(string userId, CancellationToken ct) => (await new GAME.Application.Features.Queries.Summon.GetSummonConfigurationQueryHandler(store, players, templates).Handle(new(userId), ct)).Data!;
+    public async Task<SummonResultDto> SummonAsync(string userId, SummonRequestDto request, CancellationToken ct) => (await new GAME.Application.Features.Commands.Summon.SummonCommandHandler(store, players, random, granter, templates).Handle(new(userId, request), ct)).Data!;
     public async Task<SummonResultDto> GetResultAsync(string userId, Guid requestId, CancellationToken ct) => (await new GAME.Application.Features.Queries.Summon.GetSummonResultQueryHandler(store, players).Handle(new(userId, requestId), ct)).Data!;
 }

@@ -10,6 +10,8 @@ using Core.Web.Responses;
 using GAME.Application.Common;
 using GAME.Application.DTOs;
 using GAME.Application.Features.Commands.Formation;
+using GAME.Application.Features.Commands.CheckIn;
+using GAME.Application.Features.Queries.CheckIn;
 using GAME.Application.Features.Commands.QuickClimb;
 using GAME.Application.Features.Commands.Tower;
 using GAME.Application.Features.Queries.Formation;
@@ -29,25 +31,39 @@ namespace GAME.Domain.Tests;
 
 public sealed class GameCqrsHttpTests
 {
+    [Fact]
+    public async Task CheckInRoutesUseAuthenticatedPlayerAndDoNotRunTowerLifecycle()
+    {
+        var probe = new CqrsTransportProbe();
+        using var server = Server(probe);
+        using var client = server.CreateClient();
+        using var get = await client.GetAsync("/api/check-in");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        Assert.Equal("authenticated-owner", Assert.IsType<GetCheckInCalendarQuery>(Assert.Single(probe.Requests)).UserId);
+        probe.Requests.Clear();
+        var requestId = Guid.NewGuid();
+        using var claim = await client.PostAsJsonAsync("/api/check-in/claim", new { RequestId = requestId, PlayerId = 999, CheckInDate = "2000-01-01" });
+        Assert.Equal(HttpStatusCode.OK, claim.StatusCode);
+        var command = Assert.IsType<ClaimCheckInCommand>(Assert.Single(probe.Requests));
+        Assert.Equal("authenticated-owner", command.UserId);
+        Assert.Equal(requestId, command.RequestId);
+    }
+
     [Theory]
     [InlineData("/api/events", null)]
     [InlineData("/api/events/tower/progress", "TOWER_CLIMB")]
-    [InlineData("/api/events/tower/pending-rewards", "READ_ONLY")]
-    public async Task Tower_routes_keep_the_original_lifecycle_scope(string route, string? expectedScope)
+    [InlineData("/api/events/tower/pending-rewards", "TOWER_CLIMB")]
+    public async Task Tower_routes_refresh_the_player_period_before_reading(string route, string? expectedScope)
     {
         var probe = new CqrsTransportProbe();
         using var server = Server(probe);
         using var response = await server.CreateClient().GetAsync(route);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        if (expectedScope == "READ_ONLY")
-            Assert.IsType<GetPendingRewardsQuery>(Assert.Single(probe.Requests));
-        else
-        {
-            Assert.Equal(2, probe.Requests.Count);
-            var lifecycle = Assert.IsType<RefreshTowerPeriodCommand>(probe.Requests[0]);
-            Assert.Equal(expectedScope, lifecycle.EventCode);
-            Assert.Equal("authenticated-owner", lifecycle.UserId);
-        }
+        Assert.Equal(2, probe.Requests.Count);
+        var lifecycle = Assert.IsType<RefreshTowerPeriodCommand>(probe.Requests[0]);
+        Assert.Equal(expectedScope, lifecycle.EventCode);
+        Assert.Equal("authenticated-owner", lifecycle.UserId);
+        if (route.EndsWith("pending-rewards")) Assert.IsType<GetPendingRewardsQuery>(probe.Requests[1]);
     }
 
     private static TestServer Server(CqrsTransportProbe probe) => new(new WebHostBuilder().ConfigureServices(services =>

@@ -16,8 +16,8 @@ public sealed class GetEventsQueryHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), IQueryHandler<GetEventsQuery, BaseResponse<List<GameEventDto>>>
+    ITowerEventService towerEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetEventsQuery, BaseResponse<List<GameEventDto>>>
 {
     public async Task<BaseResponse<List<GameEventDto>>> Handle(GetEventsQuery message, CancellationToken ct) => BaseResponse<List<GameEventDto>>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
     private Task<List<GameEventDto>> ExecuteAsync(string userId, CancellationToken ct = default) => GetEventsAsync(userId, ct);

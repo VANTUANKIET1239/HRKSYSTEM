@@ -16,13 +16,20 @@ BEGIN
         SourceService nvarchar(100) NOT NULL,
         PayloadJson nvarchar(max) NOT NULL CHECK (ISJSON(PayloadJson) = 1),
         OccurredAt datetimeoffset NOT NULL,
-        RecordedAt datetimeoffset NOT NULL
+        RecordedAt datetimeoffset NOT NULL,
+        GameEventId int NULL,
+        EventPeriodId bigint NULL,
+        PeriodKey nvarchar(50) NULL,
+        JobExecutionId uniqueidentifier NULL
     );
     CREATE UNIQUE INDEX IX_PlayerActivities_ActivityId ON dbo.PlayerActivities(ActivityId);
     CREATE INDEX IX_PlayerActivities_PlayerId_OccurredAt ON dbo.PlayerActivities(PlayerId, OccurredAt DESC);
     CREATE INDEX IX_PlayerActivities_ActivityType_OccurredAt ON dbo.PlayerActivities(ActivityType, OccurredAt DESC);
     CREATE INDEX IX_PlayerActivities_CorrelationId ON dbo.PlayerActivities(CorrelationId);
     CREATE INDEX IX_PlayerActivities_EntityType_EntityId ON dbo.PlayerActivities(EntityType, EntityId);
+    CREATE INDEX IX_PlayerActivities_PlayerId_GameEventId_PeriodKey_OccurredAt ON dbo.PlayerActivities(PlayerId, GameEventId, PeriodKey, OccurredAt);
+    CREATE INDEX IX_PlayerActivities_EventPeriodId ON dbo.PlayerActivities(EventPeriodId);
+    CREATE INDEX IX_PlayerActivities_JobExecutionId ON dbo.PlayerActivities(JobExecutionId);
 END;
 IF OBJECT_ID('dbo.Activity_ProcessedMessages', 'U') IS NULL
 BEGIN

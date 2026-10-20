@@ -25,6 +25,7 @@ public static class DependencyInjection
 
     public static void AddServices(WebApplicationBuilder builder)
     {
+        builder.Services.AddHrkInternalApi(builder.Configuration);
         var connection = builder.Configuration["Database:ConnectionString"]
             ?? builder.Configuration.GetConnectionString("Activity")
             ?? throw new InvalidOperationException("Database:ConnectionString is required.");

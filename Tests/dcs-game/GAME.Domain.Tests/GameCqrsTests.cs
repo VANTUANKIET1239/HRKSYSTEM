@@ -15,6 +15,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Xunit;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Core.Web.Compression;
+using GAME.Infrastructure.Scheduling;
 
 namespace GAME.Domain.Tests;
 
@@ -23,13 +30,21 @@ public sealed class GameCqrsTests
     [Fact]
     public void Production_registration_resolves_every_game_handler_in_a_scope()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Database:Provider"] = "SqlServer", ["Database:ConnectionString"] = "Server=localhost;Database=CqrsRegistrationProbe;Trusted_Connection=True", ["Redis:ConnectionString"] = "localhost:6379,abortConnect=false" }).Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
+        var configuration = new ConfigurationBuilder().AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json")).AddInMemoryCollection(new Dictionary<string, string?> { ["Database:Provider"] = "SqlServer", ["Database:ConnectionString"] = "Server=localhost;Database=CqrsRegistrationProbe;Trusted_Connection=True", ["Redis:ConnectionString"] = "localhost:6379,abortConnect=false" }).Build();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            ApplicationName = typeof(HRK.GAME.Controllers.EventsController).Assembly.GetName().Name,
+            EnvironmentName = Environments.Development
+        });
+        builder.Configuration.AddConfiguration(configuration);
+        var services = builder.Services;
         services.AddSingleton<IDiagnosticContext>(new Serilog.Extensions.Hosting.DiagnosticContext(new LoggerConfiguration().CreateLogger()));
-        services.AddCustomDependency(configuration);
+        services.AddCustomDependency(builder.Configuration, builder.Environment);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         using var scope = provider.CreateScope();
+        Assert.Equal("Bearer", provider.GetRequiredService<IOptions<AuthenticationOptions>>().Value.DefaultScheme);
+        Assert.False(provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get("Bearer").RequireHttpsMetadata);
+        Assert.NotEmpty(provider.GetRequiredService<IOptions<HrkResponseCompressionOptions>>().Value.Policies);
         var handlers = services.Where(s => s.ServiceType.IsGenericType && s.ServiceType.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)).ToArray();
         Assert.NotEmpty(handlers);
         foreach (var handler in handlers)
@@ -83,7 +98,7 @@ public sealed class GameCqrsTests
         store.Data<HrkPlayer>().Add(new() { Id = 1, UserId = "owner", IsActive = true });
         store.Data<HrkGameEvent>().Add(new() { Id = 1, Code = "TOWER", Name = "Tower", ResetType = "DAILY", TimeZoneId = "UTC", InitialLives = 3, RulesJson = "{}" });
         store.Data<HrkTowerFloor>().Add(new() { Id = 1, EventId = 1, FloorNumber = 1, IsActive = true });
-        var handler = new GetEventsQueryHandler(new TowerBattleExecutor(store, null!, null!, null!), store, TestGamePlayers.Create(store), null!, null!, new EventPeriodService(store));
+        var handler = new GetEventsQueryHandler(new TowerBattleExecutor(store, null!, null!, null!), store, TestGamePlayers.Create(store), null!, null!, new TowerEventService(store, null!, null!, new EventResetSchedule(store)));
         var response = await handler.Handle(new("owner"), default);
         Assert.Single(response.Data!);
         Assert.Empty(store.Data<HrkEventPeriod>());

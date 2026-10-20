@@ -1,33 +1,25 @@
 using Core.Persistence.Repositories;
+using GAME.Application.Templates;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Core.Caching;
-using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Application.Services
 {
     public class CombatPowerService : ICombatPowerService
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly ICacheService _cache;
-        private const string CombatPowerConfigCacheKey = "config:combat-power:v1";
-        public CombatPowerService(IUnitOfWork unitOfWork, ICacheService cache)
+        private readonly IGameTemplateCatalog _templates;
+        public CombatPowerService(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null)
         {
-            _unitOfWork = unitOfWork;
-            _cache = cache;
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         }
 
         public async Task<List<CombatPowerConfigDto>> GetConfigsAsync(CancellationToken cancellationToken = default)
         {
-            var cached = await _cache.GetAsync<List<CombatPowerConfigDto>>(CombatPowerConfigCacheKey, cancellationToken);
-            if (cached != null)
-                return cached;
-            var configs = await _unitOfWork.ReadOnlyRepository<HrkCombatPowerConfig>().Query()
+            var configs = (await _templates.GetAllAsync<HrkCombatPowerConfig>(cancellationToken))
                 .OrderBy(x => x.DisplayOrder)
                 .Select(x => new CombatPowerConfigDto { StatCode = x.StatCode, PowerPerUnit = x.PowerPerUnit, IsEnabled = x.IsEnabled, DisplayOrder = x.DisplayOrder })
-                .ToListAsync(cancellationToken);
-            await _cache.SetAsync(CombatPowerConfigCacheKey, configs, TimeSpan.FromMinutes(30), cancellationToken);
+                .ToList();
             return configs;
         }
 

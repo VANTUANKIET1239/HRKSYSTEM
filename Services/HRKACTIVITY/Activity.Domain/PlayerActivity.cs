@@ -15,4 +15,8 @@ public sealed class PlayerActivity
     public string PayloadJson { get; set; } = "{}";
     public DateTimeOffset OccurredAt { get; set; }
     public DateTimeOffset RecordedAt { get; set; }
+    public int? GameEventId { get; set; }
+    public long? EventPeriodId { get; set; }
+    public string? PeriodKey { get; set; }
+    public Guid? JobExecutionId { get; set; }
 }

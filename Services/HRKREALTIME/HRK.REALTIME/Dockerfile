@@ -9,6 +9,7 @@ WORKDIR /src
 COPY ["Services/HRKREALTIME/HRK.REALTIME/HRK.REALTIME.csproj", "Services/HRKREALTIME/HRK.REALTIME/"]
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
 COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
 RUN dotnet restore "./Services/HRKREALTIME/HRK.REALTIME/HRK.REALTIME.csproj"
 COPY . .

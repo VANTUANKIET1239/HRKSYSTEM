@@ -17,15 +17,15 @@ public abstract class TowerHandlerSupport
     protected readonly IGamePlayerService _gamePlayerService;
     protected readonly IFormationSnapshotService _formationSnapshotService;
     protected readonly IFormationPowerQueryService _formationPowerQueryService;
-    protected readonly IEventPeriodService _eventPeriodService;
-    protected TowerHandlerSupport(TowerBattleExecutor executor, IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationSnapshotService formationSnapshotService, IFormationPowerQueryService formationPowerQueryService, IEventPeriodService eventPeriodService)
+    protected readonly ITowerEventService _towerEvents;
+    protected TowerHandlerSupport(TowerBattleExecutor executor, IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationSnapshotService formationSnapshotService, IFormationPowerQueryService formationPowerQueryService, ITowerEventService towerEvents)
     {
         this._executor = executor;
         this._unitOfWork = unitOfWork;
         this._gamePlayerService = gamePlayerService;
         this._formationSnapshotService = formationSnapshotService;
         this._formationPowerQueryService = formationPowerQueryService;
-        this._eventPeriodService = eventPeriodService;
+        this._towerEvents = towerEvents;
     }
 
     protected async Task<List<GameEventDto>> GetEventsAsyncCore(string userId, CancellationToken ct = default)
@@ -37,8 +37,8 @@ public abstract class TowerHandlerSupport
         var result = new List<GameEventDto>();
         foreach (var ev in events)
         {
-            var period = await _eventPeriodService.ReadCurrentPeriodAsync(ev, ct);
-            var progress = await _eventPeriodService.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
+            var period = await _towerEvents.ReadCurrentPeriodAsync(ev, ct);
+            var progress = await _towerEvents.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
             var allTime = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventAllTimeRecord>().Query()
                 .FirstOrDefaultAsync(a => a.PlayerId == player.Id && a.EventId == ev.Id, ct);
             int pendingCount = await _unitOfWork.ReadOnlyRepository<HrkPlayerPendingReward>().Query().CountAsync(r => r.PlayerId == player.Id && r.Status == "PENDING", ct);
@@ -52,14 +52,14 @@ public abstract class TowerHandlerSupport
                 {
                     Type = "GOLD",
                     Name = "Vàng Phong Phú",
-                    ImagePath = "/assets/images/dcs-game/items/gold.png",
+                    ImagePath = "images/dcs-game/items/currencies/gold.svg",
                     Quantity = 1000000
                 },
                 new()
                 {
                     Type = "DIAMOND",
                     Name = "Kim Cương Quý",
-                    ImagePath = "/assets/images/dcs-game/items/diamond.png",
+                    ImagePath = "images/dcs-game/items/currencies/diamond.svg",
                     Quantity = 2500
                 },
                 new()
@@ -77,7 +77,7 @@ public abstract class TowerHandlerSupport
                     Quantity = 15
                 }
             };
-            result.Add(new GameEventDto { Id = ev.Id, Code = ev.Code, Name = ev.Name, EventType = ev.EventType, Description = ev.Description, BannerImagePath = ev.BannerImagePath, Icon = ev.Icon, DisplayOrder = ev.DisplayOrder, MinPlayerLevel = ev.MinPlayerLevel, IsOpen = ev.IsOpen, Status = status, LockReason = lockReason, RemainingSecondsToReset = _eventPeriodService.CalculateRemainingSecondsToReset(period), NextResetTimeUtc = period.EndAtUtc, InitialLives = ev.InitialLives, MaxFloor = await _executor.MaxFloorAsync(ev.Id, ct), HighlightRewards = highlightRewards, PlayerProgress = new PlayerEventProgressSummaryDto { CurrentFloor = progress.CurrentFloor, RemainingLives = progress.RemainingLives, InitialLives = ev.InitialLives, CurrentRunNumber = progress.CurrentRunNumber, QuickClimbRunsUsed = progress.QuickClimbRunsUsed, QuickClimbDailyLimit = rules.QuickClimbDailyLimit, QuickClimbRunsRemaining = Math.Max(0, rules.QuickClimbDailyLimit - progress.QuickClimbRunsUsed), CanStartQuickClimb = progress.QuickClimbRunsUsed < rules.QuickClimbDailyLimit, HighestFloorInPeriod = progress.HighestFloorInPeriod, HighestFloorAllTime = allTime?.HighestFloorAllTime ?? 0, IsCompleted = progress.IsCompleted, CanStartNewRun = progress.RemainingLives <= 0 && !progress.IsCompleted && (!ev.MaxDailyRuns.HasValue || progress.CurrentRunNumber < ev.MaxDailyRuns.Value), PeriodKey = period.PeriodKey, PendingRewardsCount = pendingCount } });
+            result.Add(new GameEventDto { Id = ev.Id, Code = ev.Code, Name = ev.Name, EventType = ev.EventType, Description = ev.Description, BannerImagePath = ev.BannerImagePath, Icon = ev.Icon, DisplayOrder = ev.DisplayOrder, MinPlayerLevel = ev.MinPlayerLevel, IsOpen = ev.IsOpen, Status = status, LockReason = lockReason, RemainingSecondsToReset = EventPeriodCalculator.CalculateRemainingSecondsToReset(period.EndAtUtc), NextResetTimeUtc = period.EndAtUtc, InitialLives = ev.InitialLives, MaxFloor = await _executor.MaxFloorAsync(ev.Id, ct), HighlightRewards = highlightRewards, PlayerProgress = new PlayerEventProgressSummaryDto { CurrentFloor = progress.CurrentFloor, RemainingLives = progress.RemainingLives, InitialLives = ev.InitialLives, CurrentRunNumber = progress.CurrentRunNumber, QuickClimbRunsUsed = progress.QuickClimbRunsUsed, QuickClimbDailyLimit = rules.QuickClimbDailyLimit, QuickClimbRunsRemaining = Math.Max(0, rules.QuickClimbDailyLimit - progress.QuickClimbRunsUsed), CanStartQuickClimb = progress.QuickClimbRunsUsed < rules.QuickClimbDailyLimit, HighestFloorInPeriod = progress.HighestFloorInPeriod, HighestFloorAllTime = allTime?.HighestFloorAllTime ?? 0, IsCompleted = progress.IsCompleted, CanStartNewRun = progress.RemainingLives <= 0 && !progress.IsCompleted && (!ev.MaxDailyRuns.HasValue || progress.CurrentRunNumber < ev.MaxDailyRuns.Value), PeriodKey = period.PeriodKey, PendingRewardsCount = pendingCount } });
         }
 
         return result;
@@ -87,15 +87,12 @@ public abstract class TowerHandlerSupport
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
-        var period = await _eventPeriodService.ReadCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
+        var period = await _towerEvents.ReadCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
         var allTime = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventAllTimeRecord>().Query()
             .FirstOrDefaultAsync(a => a.PlayerId == player.Id && a.EventId == ev.Id, ct);
         var rules = TowerRules.Parse(ev.RulesJson);
-        var chests = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
-            .Where(c => c.EventId == ev.Id && c.IsActive)
-            .OrderBy(c => c.FloorNumber)
-            .ToListAsync(ct);
+        var chests = await GetPeriodChestsAsync(period, ct);
         var claimedChestIds = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query()
             .Where(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST")
             .Select(c => c.TargetId)
@@ -110,7 +107,7 @@ public abstract class TowerHandlerSupport
             EventId = ev.Id,
             EventName = ev.Name,
             MaxFloor = await _executor.MaxFloorAsync(ev.Id, ct),
-            SecondsUntilReset = _eventPeriodService.CalculateRemainingSecondsToReset(period),
+            SecondsUntilReset = EventPeriodCalculator.CalculateRemainingSecondsToReset(period.EndAtUtc),
             Floors = await GetFloorsAsync(userId, ct),
             LeadHero = (await _formationSnapshotService.BuildAsync(player.Id, null, null, ct)).Heroes.OrderByDescending(h => h.Power).FirstOrDefault(),
             PlayerPower = await GetSelectedFormationPower(player.Id, ct),
@@ -141,18 +138,15 @@ public abstract class TowerHandlerSupport
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
-        var period = await _eventPeriodService.ReadCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
+        var period = await _towerEvents.ReadCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
         var maxFloor = await _executor.MaxFloorAsync(ev.Id, ct);
         var floors = await _unitOfWork.ReadOnlyRepository<HrkTowerFloor>().Query()
             .Where(f => f.EventId == ev.Id && f.IsActive && f.FloorNumber <= maxFloor)
-            .Include(f => f.Enemies).ThenInclude(e => e.HeroTemplate)
-            .Include(f => f.RepresentativeHeroTemplate)
+            .Include(f => f.Enemies)
             .OrderBy(f => f.FloorNumber)
             .ToListAsync(ct);
-        var chests = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
-            .Where(c => c.EventId == ev.Id && c.IsActive)
-            .ToDictionaryAsync(c => c.FloorNumber, ct);
+        var chests = (await GetPeriodChestsAsync(period, ct)).ToDictionary(c => c.FloorNumber);
         var claimedChestIds = (await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query()
             .Where(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST")
             .Select(c => c.TargetId)
@@ -224,6 +218,15 @@ public abstract class TowerHandlerSupport
         FactionCode = hero.FactionCode
     };
     protected static List<GenericRewardItemDto> ParseRewardsJson(string? json) => TowerRewardService.ParseRewards(json);
+    protected async Task<List<HrkTowerChestConfig>> GetPeriodChestsAsync(HrkEventPeriod period, CancellationToken ct)
+    {
+        if (period.ChestSnapshotJson is not null)
+            return (JsonSerializer.Deserialize<List<EventChestSnapshot>>(period.ChestSnapshotJson)
+                ?? throw new InvalidOperationException("Invalid period chest snapshot."))
+                .Select(x => x.ToConfiguration(period.EventId)).OrderBy(x => x.FloorNumber).ToList();
+        return await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
+            .Where(x => x.EventId == period.EventId && x.IsActive).OrderBy(x => x.FloorNumber).ToListAsync(ct);
+    }
     protected async Task<HrkGameEvent> GetTowerEventAsync(CancellationToken ct) => await _unitOfWork.ReadOnlyRepository<HrkGameEvent>().Query()
         .FirstOrDefaultAsync(e => e.Code == "TOWER_CLIMB", ct) ?? throw new KeyNotFoundException("Không tìm thấy cấu hình sự kiện 'TOWER_CLIMB'.");
     protected async Task<int> GetSelectedFormationPower(long playerId, CancellationToken ct)

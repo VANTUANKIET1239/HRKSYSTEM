@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
@@ -13,6 +14,7 @@ namespace GAME.Application.Services;
 
 public sealed class BattleExecutor : IBattleExecutor
 {
+    private readonly IGameTemplateCatalog _templates;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IGamePlayerService _gamePlayerService;
     private readonly IFormationStatService _formationStatService;
@@ -21,8 +23,9 @@ public sealed class BattleExecutor : IBattleExecutor
     private readonly IBattleSimulationEngine _battleSimulationEngine;
     private readonly IFormationSnapshotService _formationSnapshotService;
     private readonly ILogger<BattleExecutor> _logger;
-    public BattleExecutor(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationStatService formationStatService, IHeroStatCalculationService heroStatCalculationService, ICombatPowerService combatPowerService, IBattleSimulationEngine battleSimulationEngine, IFormationSnapshotService formationSnapshotService, ILogger<BattleExecutor> logger)
+    public BattleExecutor(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationStatService formationStatService, IHeroStatCalculationService heroStatCalculationService, ICombatPowerService combatPowerService, IBattleSimulationEngine battleSimulationEngine, IFormationSnapshotService formationSnapshotService, ILogger<BattleExecutor> logger, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _unitOfWork = unitOfWork;
         _gamePlayerService = gamePlayerService;
         _formationStatService = formationStatService;
@@ -37,9 +40,9 @@ public sealed class BattleExecutor : IBattleExecutor
     {
         using var operation = new GameOperation("battle");
         _logger.LogInformation("Starting battle for user {UserId} at stage {StageId}", userId, request.StageId);
-        var battleConfigs = await _unitOfWork.ReadOnlyRepository<HrkBattleConfig>().Query()
+        var battleConfigs = (await _templates.GetAllAsync<HrkBattleConfig>(cancellationToken))
             .Where(x => x.IsEnabled)
-            .ToDictionaryAsync(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase, cancellationToken);
+            .ToDictionary(x => x.Code, x => x.Value, StringComparer.OrdinalIgnoreCase);
         var maxRounds = GetPositiveIntConfig(battleConfigs, "MAX_ROUNDS", 100);
         var maxEnergy = GetPositiveIntConfig(battleConfigs, "MAX_ENERGY", 100);
         var initialEnergy = Math.Clamp(GetIntConfig(battleConfigs, "INITIAL_ENERGY", 0), 0, maxEnergy);
@@ -74,32 +77,15 @@ public sealed class BattleExecutor : IBattleExecutor
             {
                 // Load the full active skill graph once
                 var formationTemplateIds = leftTeam.Select(x => x.HeroTemplateId).Distinct().ToList();
-                var fullHeroSkills = await _unitOfWork.ReadOnlyRepository<HrkHeroSkill>().Query()
+                var fullHeroSkills = (await _templates.GetAllAsync<HrkHeroSkill>(cancellationToken))
                     .Where(hs => formationTemplateIds.Contains(hs.HeroTemplateId) && hs.Skill.IsActive)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.EffectType)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.TargetType)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Scalings).ThenInclude(s => s.AttributeType)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.StatModifiers).ThenInclude(m => m.AttributeType)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.Effects.Where(e => e.IsActive)).ThenInclude(e => e.Parameters)
-                    .Include(hs => hs.Skill).ThenInclude(s => s.AnimationConfig)!.ThenInclude(a => a.Phases)
-                    .AsSplitQuery()
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken);
+                    .ToList();
                 var skillsByTemplateId = fullHeroSkills.GroupBy(hs => hs.HeroTemplateId).ToDictionary(group => group.Key, group => group.OrderBy(hs => hs.SkillOrder)
                     .Select(hs => GameDtoMapper.MapSkillTemplate(hs.Skill))
                     .Where(skill => skill != null).Cast<SkillTemplateDto>().ToList());
-                var enemyTemplatePool = await _unitOfWork.ReadOnlyRepository<HrkHeroTemplate>().Query()
-                    .Include(ht => ht.Faction)
-                    .Include(ht => ht.Class)
-                    .Include(ht => ht.Rarity)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-                    .Include(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.AnimationConfig)!.ThenInclude(a => a.Phases)
+                var enemyTemplatePool = (await _templates.GetAllAsync<HrkHeroTemplate>(cancellationToken))
                     .OrderBy(ht => ht.Id)
-                    .ToListAsync(cancellationToken);
+                    .ToList();
                 var stageEnemyConfigs = stageId.HasValue ? await _unitOfWork.ReadOnlyRepository<HrkDungeonStageEnemy>().Query()
                     .Where(x => x.StageId == stageId.Value)
                     .OrderBy(x => x.Position)
@@ -108,10 +94,9 @@ public sealed class BattleExecutor : IBattleExecutor
                 var enemyTemplates = stageEnemyConfigs.Count > 0 ? stageEnemyConfigs.Select(config => enemyTemplatePool.Single(x => x.Id == config.HeroTemplateId)).ToList() : enemyTemplatePool.OrderBy(_ => System.Random.Shared.Next()).Take(5).ToList();
                 // Batch load star aura configs for all active heroes and enemy templates (no N+1 query)
                 var allTemplateIds = leftTeam.Select(x => x.HeroTemplateId).Concat(enemyTemplates.Select(ht => ht.Id)).Distinct().ToList();
-                var starAuraConfigs = await _unitOfWork.ReadOnlyRepository<HrkHeroStarAuraConfig>().Query()
+                var starAuraConfigs = (await _templates.GetAllAsync<HrkHeroStarAuraConfig>(cancellationToken))
                     .Where(c => c.IsActive && allTemplateIds.Contains(c.HeroTemplateId))
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken);
+                    .ToList();
                 var starAuraLookup = starAuraConfigs.ToDictionary(c => (c.HeroTemplateId, c.StarLevel));
                 foreach (var hero in leftTeam)
                 {

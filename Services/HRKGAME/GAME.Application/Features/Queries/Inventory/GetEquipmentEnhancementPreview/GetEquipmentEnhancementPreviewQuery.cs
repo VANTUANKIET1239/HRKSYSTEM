@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Persistence.Repositories;
@@ -12,11 +13,13 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
     public record GetEquipmentEnhancementPreviewQuery(long InventoryItemId) : IQuery<BaseResponse<EquipmentEnhancementPreviewDto>>;
     public class GetEquipmentEnhancementPreviewQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetEquipmentEnhancementPreviewQuery, BaseResponse<EquipmentEnhancementPreviewDto>>
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
         private readonly IItemStatCalculationService _statCalculationService;
-        public GetEquipmentEnhancementPreviewQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext) : base(requestContext)
+        public GetEquipmentEnhancementPreviewQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IGameRequestContext requestContext, IGameTemplateCatalog? templates = null) : base(requestContext)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
             _statCalculationService = statCalculationService;
@@ -32,20 +35,19 @@ namespace GAME.Application.Features.Queries.Inventory.GetEquipmentEnhancementPre
             }
 
             var item = await _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
-                .Include(i => i.Attributes).ThenInclude(a => a.AttributeType)
+                .Include(i => i.Attributes)
                 .FirstOrDefaultAsync(i => i.Id == request.InventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken);
             if (item == null)
             {
                 return BaseResponse<EquipmentEnhancementPreviewDto>.FailResponse("Không tìm thấy trang bị trong hành trang.", statusCode: 404);
             }
 
+            await TemplateHydration.InventoryAsync(_templates, new[] { item }, cancellationToken);
             var eligibility = item.CheckEnhancementEligibility();
             var currentLevel = item.Enhancement;
             var targetLevel = Math.Min(15, currentLevel + 1);
-            var levelConfig = await _unitOfWork.ReadOnlyRepository<HrkEnhancementLevelConfig>().Query()
-                .FirstOrDefaultAsync(c => c.CurrentLevel == currentLevel, cancellationToken);
+            var levelConfig = (await _templates.GetAllAsync<HrkEnhancementLevelConfig>(cancellationToken))
+                .FirstOrDefault(c => c.CurrentLevel == currentLevel);
             var currentStats = _statCalculationService.CalculateCurrentStats(item, currentLevel);
             var nextStats = _statCalculationService.CalculateCurrentStats(item, targetLevel);
             var dto = new EquipmentEnhancementPreviewDto

@@ -36,6 +36,7 @@ public class HrkEventPeriod
     public string PeriodKey { get; set; } = null!; // e.g. "2026-10-01"
     public DateTime StartAtUtc { get; set; }
     public DateTime EndAtUtc { get; set; }
+    public string? ChestSnapshotJson { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
 
     public virtual HrkGameEvent Event { get; set; } = null!;
@@ -55,6 +56,9 @@ public class HrkPlayerEventPeriodProgress
     public int QuickClimbRunsUsed { get; set; }
     public int HighestFloorInPeriod { get; set; } = 0;
     public bool IsCompleted { get; set; } = false;
+    public DateTime? ClosedAtUtc { get; set; }
+    public Guid? ResetExecutionId { get; set; }
+    public string? ResetSummaryJson { get; set; }
     public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedOn { get; set; } = DateTime.UtcNow;
 

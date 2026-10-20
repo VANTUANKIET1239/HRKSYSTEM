@@ -1,5 +1,4 @@
 using Core.Persistence.Database.Extensions;
-using Core.Persistence.Database.Options;
 using Core.Persistence.DependencyInjection;
 using Core.Application.DependencyInjection;
 using Core.Caching;
@@ -34,6 +33,17 @@ using GAME.Infrastructure.Messaging.Consumers;
 using Oservability;
 using Oservability.Tracing;
 using HRK.GAME.Health;
+using HRK.GAME.Filters;
+using Core.Web.Responses;
+using Core.Web.Compression;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Text;
+using GAME.Application.Templates;
+using GAME.Infrastructure.Messaging;
+using GAME.Infrastructure.Templates;
+using GAME.Infrastructure.Scheduling;
+using HRK.GAME.Common;
 
 namespace HRK.GAME.Configuration
 {
@@ -42,7 +52,7 @@ namespace HRK.GAME.Configuration
         public static WebApplicationBuilder AddCustomDependency(this WebApplicationBuilder builder)
         {
             AddObservability(builder);
-            builder.Services.AddCustomDependency(builder.Configuration);
+            builder.Services.AddCustomDependency(builder.Configuration, builder.Environment);
             return builder;
         }
 
@@ -50,77 +60,181 @@ namespace HRK.GAME.Configuration
         public static void AddRedisTelemetry(IServiceCollection services, IConfiguration configuration)
         {
             services.AddHrkRedisTelemetry();
-            services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>().Configure<RedisTelemetry>((options, telemetry) => options.ConnectionMultiplexerFactory = () => telemetry.ConnectAsync(configuration["Redis:ConnectionString"] ?? "localhost:6379,abortConnect=false"));
+            services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
+                .Configure<RedisTelemetry>((options, telemetry) =>
+                    options.ConnectionMultiplexerFactory = () => telemetry.ConnectAsync(
+                        configuration["Redis:ConnectionString"] ?? "localhost:6379,abortConnect=false"));
         }
 
-        public static void AddServiceHealthChecks(IServiceCollection services) => services.AddHealthChecks().AddCheck<GameDatabaseHealthCheck>("database").AddCheck<GameRabbitMqHealthCheck>("rabbitmq");
-        public static IServiceCollection AddCustomDependency(this IServiceCollection services, IConfiguration configuration)
+        public static void AddServiceHealthChecks(IServiceCollection services) => services.AddHealthChecks()
+            .AddCheck<GameDatabaseHealthCheck>("database")
+            .AddCheck<GameRabbitMqHealthCheck>("rabbitmq");
+        public static IServiceCollection AddCustomDependency(this IServiceCollection services, IConfiguration configuration,
+            IHostEnvironment? environment = null)
         {
-            services.AddHttpContextAccessor();
-            // 1. Add DbContexts & Database
-            AddDbContexts(services, configuration);
-            // 2. Add Core Options
-            AddOptions(services, configuration);
-            // 3. Add Services & Repositories / UnitOfWork
-            AddServices(services, configuration);
-            AddRedisTelemetry(services, configuration);
-            AddServiceHealthChecks(services);
-            // 4. Register MediatR for GAME.Application assembly
-            services.AddCoreApplication(typeof(IGameRequestContext).Assembly);
+            AddServices(services, configuration, environment);
             return services;
         }
 
-        public static void AddDbContexts(IServiceCollection services, IConfiguration configuration)
-        {
-            services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
+        public static void AddDbContexts(IServiceCollection services, IConfiguration configuration) =>
             services.AddDatabase<GameDbContext>(configuration);
+
+        public static void AddServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment? environment = null)
+        {
+            AddOptions(services, configuration);
+            AddPersistenceServices(services, configuration);
+            AddApiServices(services);
+            AddResponseCompression(services, configuration);
+            AddSecurityServices(services, configuration, environment?.IsDevelopment() == true);
+            AddCachingServices(services, configuration);
+            AddMessagingServices(services, configuration);
+            AddInternalApiServices(services, configuration);
+            AddPlayerServices(services);
+            AddFormationServices(services);
+            AddProgressionServices(services);
+            AddInventoryServices(services);
+            AddDungeonServices(services);
+            AddBattleServices(services);
+            AddSummonServices(services);
+            AddEventServices(services);
+            AddSchedulingServices(services, configuration);
+            AddServiceHealthChecks(services);
+            services.AddCoreApplication(typeof(IGameRequestContext).Assembly);
         }
 
-        public static void AddServices(IServiceCollection services, IConfiguration configuration)
+        private static void AddPersistenceServices(IServiceCollection services, IConfiguration configuration)
+        {
+            AddDbContexts(services, configuration);
+            services.AddRepositoryUOW<GameDbContext>();
+        }
+
+        private static void AddApiServices(IServiceCollection services)
+        {
+            services.AddHttpContextAccessor();
+            services.AddSwaggerGen();
+            services.AddControllers(options => options.AddGameApiFilters());
+            services.AddHrkApiResponses();
+        }
+
+        private static void AddResponseCompression(IServiceCollection services, IConfiguration configuration) =>
+            services.AddHrkResponseCompression(configuration);
+
+        private static void AddInternalApiServices(IServiceCollection services, IConfiguration configuration) =>
+            services.AddHrkInternalApi(configuration);
+
+        private static void AddSecurityServices(IServiceCollection services, IConfiguration configuration, bool isDevelopment)
+        {
+            services
+                .AddAuthentication("Bearer")
+                .AddJwtBearer("Bearer", opts =>
+                {
+                    opts.Audience = configuration["JwtSettings:Audience"];
+                    opts.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = configuration["JwtSettings:Issuer"],
+                        ValidateAudience = true,
+                        ValidAudience = configuration["JwtSettings:Audience"],
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.UTF8.GetBytes(configuration["JwtSettings:SecretKey"] ?? "Kite@1239kK10Kite@1239kK10Kite@1239kK10")
+                        ),
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromSeconds(60)
+                    };
+
+                    if (isDevelopment)
+                        opts.RequireHttpsMetadata = false;
+                });
+
+            services.AddAuthorization();
+        }
+
+        private static void AddCachingServices(IServiceCollection services, IConfiguration configuration)
         {
             services.AddHrkRedisCache(configuration);
-            services.AddSingleton<global::GAME.Infrastructure.Messaging.PlayerActivityEventMapper>();
-            services.AddScoped<IPlayerActivityEvents, global::GAME.Infrastructure.Messaging.PlayerActivityEvents>();
-            // Register UnitOfWork for GameDbContext
-            services.AddRepositoryUOW<GameDbContext>();
-            // Register Application Services
-            services.AddSingleton<IRandomService, DefaultRandomService>();
-            services.AddScoped<IEquipmentInstanceFactory, EquipmentInstanceFactory>();
-            services.AddScoped<IFormationPowerQueryService, FormationPowerQueryService>();
-            services.AddScoped<IFormationSnapshotService, FormationSnapshotService>();
-            services.AddScoped<IItemStatCalculationService, ItemStatCalculationService>();
+            services.AddGameTemplateCache(configuration);
+            services.AddScoped<IGameTemplateRefreshAccess, TemplateRefreshAccess>();
+            AddRedisTelemetry(services, configuration);
+        }
+
+        private static void AddMessagingServices(IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddSingleton<PlayerActivityEventMapper>();
+            services.AddScoped<IPlayerActivityEvents, PlayerActivityEvents>();
+            services.AddRabbitMqMessaging(configuration).EnsureRabbitTopology()
+                .AddNamedRabbitConsumer<ProcessQuickClimbFloorRequestedV1, QuickClimbFloorRequestedHandler>("QuickClimb");
+            services.AddTransactionalMessaging<GameDbContext>(configuration);
+        }
+
+        private static void AddPlayerServices(IServiceCollection services)
+        {
             services.AddScoped<IGamePlayerService, GamePlayerService>();
             services.AddScoped<IPlayerReadModels, PlayerReadModels>();
-            services.AddScoped<IDungeonChestReader, DungeonChestReader>();
-            services.AddScoped<IBattleExecutor, BattleExecutor>();
             services.AddScoped<IGameRequestContext, HttpGameRequestContext>();
+        }
+
+        private static void AddFormationServices(IServiceCollection services)
+        {
+            services.AddScoped<IFormationPowerQueryService, FormationPowerQueryService>();
+            services.AddScoped<IFormationSnapshotService, FormationSnapshotService>();
             services.AddScoped<IFormationStatService, FormationStatService>();
-            services.AddScoped<BattleLabBuildResolver>();
+        }
+
+        private static void AddProgressionServices(IServiceCollection services)
+        {
+            services.AddScoped<ILevelExperienceService, LevelExperienceService>();
+            services.AddScoped<IHeroStatCalculationService, HeroStatCalculationService>();
+            services.AddScoped<ICombatPowerService, CombatPowerService>();
+            services.AddScoped<IHeroProgressionStatService, HeroProgressionStatService>();
+        }
+
+        private static void AddInventoryServices(IServiceCollection services)
+        {
+            services.AddScoped<IEquipmentInstanceFactory, EquipmentInstanceFactory>();
+            services.AddScoped<IItemStatCalculationService, ItemStatCalculationService>();
+            services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
+            services.AddScoped<IEquipmentEnhancementDomainService, EquipmentEnhancementDomainService>();
+        }
+
+        private static void AddDungeonServices(IServiceCollection services)
+        {
+            services.AddScoped<IDungeonChestReader, DungeonChestReader>();
             services.AddScoped<IDungeonStarService, DungeonStarService>();
             services.AddScoped<IDungeonRewardService, DungeonRewardService>();
             services.AddScoped<IDungeonEquipmentRewardPolicy, DungeonEquipmentRewardPolicy>();
-            services.AddScoped<ILevelExperienceService, LevelExperienceService>();
+        }
+
+        private static void AddBattleServices(IServiceCollection services)
+        {
+            services.AddSingleton<IRandomService, DefaultRandomService>();
+            services.AddScoped<IBattleExecutor, BattleExecutor>();
+            services.AddScoped<BattleLabBuildResolver>();
             AddBattleEffectHandlers(services);
             AddBattleTargetSelectors(services);
             AddBattleSkillHandlers(services);
             AddBattleReactionHandlers(services);
             services.AddSingleton<IBattleSimulationEngine, BattleSimulationEngine>();
-            services.AddScoped<IHeroStatCalculationService, HeroStatCalculationService>();
-            services.AddScoped<ICombatPowerService, CombatPowerService>();
-            services.AddScoped<IHeroProgressionStatService, HeroProgressionStatService>();
-            services.AddSingleton<ISummonRandom, global::GAME.Infrastructure.Random.CryptoSummonRandom>();
+        }
+
+        private static void AddSummonServices(IServiceCollection services)
+        {
+            services.AddSingleton<ISummonRandom, CryptoSummonRandom>();
             services.AddScoped<SummonRewardGranter>();
-            services.AddRabbitMqMessaging(configuration).EnsureRabbitTopology().AddNamedRabbitConsumer<ProcessQuickClimbFloorRequestedV1, QuickClimbFloorRequestedHandler>("QuickClimb");
-            services.AddTransactionalMessaging<GameDbContext>(configuration);
+        }
+
+        private static void AddEventServices(IServiceCollection services)
+        {
+            services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+            services.AddScoped<GameRewardGranter>();
             services.AddScoped<TowerOperationRunner>();
             services.AddScoped<TowerBattleExecutor>();
             services.AddScoped<TowerRewardService>();
-            // Event & Tower Climb Services
-            services.AddScoped<IEventPeriodService, EventPeriodService>();
-            // Domain Services & Infrastructure abstractions (DDD)
-            services.AddSingleton<IEnhancementRoller, CryptoEnhancementRoller>();
-            services.AddScoped<IEquipmentEnhancementDomainService, EquipmentEnhancementDomainService>();
+            services.AddScoped<ITowerEventService, TowerEventService>();
         }
+
+        private static void AddSchedulingServices(IServiceCollection services, IConfiguration configuration) =>
+            services.AddGameScheduling(configuration);
 
         private static void AddBattleEffectHandlers(IServiceCollection services)
         {

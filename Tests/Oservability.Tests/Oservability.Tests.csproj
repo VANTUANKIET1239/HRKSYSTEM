@@ -15,6 +15,7 @@
     <PackageReference Include="Testcontainers.RabbitMq" Version="4.0.0" />
     <PackageReference Include="Ocelot" Version="24.0.0" />
     <ProjectReference Include="../../CoreEngine/Oservability/Oservability.csproj" />
+    <ProjectReference Include="../../CoreEngine/Core.Web/Core.Web.csproj" />
     <ProjectReference Include="../../CoreEngine/Core.Persistence/Core.Persistence.csproj" />
     <ProjectReference Include="../../Services/HRKACTIVITY/Activity.Infrastructure/Activity.Infrastructure.csproj" />
     <ProjectReference Include="../../Services/HRKGAME/GAME.Infrastructure/GAME.Infrastructure.csproj" />

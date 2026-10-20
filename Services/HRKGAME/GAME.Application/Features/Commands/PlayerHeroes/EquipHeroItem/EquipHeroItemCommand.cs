@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -16,9 +17,10 @@ public sealed class EquipHeroItemCommandHandler(
     IUnitOfWork unitOfWork,
     IGamePlayerService gamePlayerService,
     IPlayerReadModels playerReadModels,
-    IGameRequestContext actor)
+    IGameRequestContext actor, IGameTemplateCatalog? templates = null)
     : PlayerHeroesHandlerSupport(), ICommandHandler<EquipHeroItemCommand, BaseResponse<PlayerHeroDetailDto>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private static readonly HashSet<string> ValidSlotCodes = new(StringComparer.OrdinalIgnoreCase)
@@ -52,9 +54,9 @@ public sealed class EquipHeroItemCommandHandler(
         var hero = await _unitOfWork.Repository<HrkPlayerHero>().Query()
             .FirstOrDefaultAsync(h => h.Id == heroId && h.PlayerId == player.Id && h.IsActive, cancellationToken) ?? throw new BusinessException("HERO_NOT_FOUND", "Không tìm thấy võ tướng hoặc võ tướng không thuộc tài khoản này.", BusinessErrorKind.NotFound);
         var item = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
-            .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
             .FirstOrDefaultAsync(i => i.Id == inventoryItemId && i.PlayerId == player.Id && i.IsActive, cancellationToken) ?? throw new BusinessException("ITEM_NOT_FOUND", "Không tìm thấy trang bị trong hành trang của người chơi.", BusinessErrorKind.NotFound);
-        if (item.ItemTemplate?.Category == null || !item.ItemTemplate.Category.IsEquipment)
+        var template = (await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken))[item.ItemTemplateId];
+        if (template?.Category == null || !template.Category.IsEquipment)
         {
             throw new BusinessException("INVALID_EQUIPMENT", "Vật phẩm này không phải là trang bị có thể mặc.", BusinessErrorKind.Conflict);
         }
@@ -69,7 +71,7 @@ public sealed class EquipHeroItemCommandHandler(
             throw new BusinessException("ITEM_EQUIPPED", $"Trang bị đang được mặc bởi võ tướng khác (ID: {item.EquippedHeroId.Value}). Vui lòng tháo trước khi chuyển.", BusinessErrorKind.Conflict);
         }
 
-        var slotCode = (item.ItemTemplate.Category.Code ?? "").Trim().ToUpperInvariant();
+        var slotCode = (template.Category.Code ?? "").Trim().ToUpperInvariant();
         if (!ValidSlotCodes.Contains(slotCode))
         {
             throw new BusinessException("INVALID_EQUIPMENT_SLOT", $"Danh mục trang bị '{slotCode}' không khớp với 6 vị trí trang bị trên võ tướng.", BusinessErrorKind.Conflict);

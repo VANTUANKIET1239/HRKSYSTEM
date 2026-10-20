@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -6,18 +7,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Application.Services;
 
-public sealed class DungeonChestReader(IUnitOfWork unitOfWork) : IDungeonChestReader
+public sealed class DungeonChestReader(IUnitOfWork unitOfWork, IGameTemplateCatalog? templates = null) : IDungeonChestReader
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     public async Task<List<DungeonStarChestDto>> GetMapChestsAsync(long playerId, int mapId, int totalStars, CancellationToken cancellationToken = default)
     {
         var chests = await _unitOfWork.ReadOnlyRepository<HrkDungeonMapStarChest>().Query()
             .Where(x => x.DungeonMapId == mapId && x.IsActive)
-            .Include(x => x.GuaranteedItemTemplate).ThenInclude(t => t!.Category)
-            .Include(x => x.GuaranteedItemTemplate).ThenInclude(t => t!.Rarity)
             .OrderBy(x => x.DisplayOrder)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+        var itemTemplates = await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken);
+        foreach (var chest in chests)
+            chest.GuaranteedItemTemplate = chest.GuaranteedItemTemplateId.HasValue ? itemTemplates[chest.GuaranteedItemTemplateId.Value] : null;
         var claims = await _unitOfWork.ReadOnlyRepository<HrkPlayerDungeonStarChestClaim>().Query()
             .Where(x => x.PlayerId == playerId && chests.Select(c => c.Id).Contains(x.StarChestId))
             .ToDictionaryAsync(x => x.StarChestId, x => x.ClaimedOn, cancellationToken);

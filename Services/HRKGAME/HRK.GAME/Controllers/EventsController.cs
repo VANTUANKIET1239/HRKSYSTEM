@@ -1,4 +1,5 @@
 using GAME.Application.DTOs;
+using Core.Web.Compression;
 using HRK.GAME.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -65,6 +66,7 @@ public sealed class EventsController : HRKControllerBase
     }
 
     [HttpPost("tower/floors/{floorNumber:int}/start")]
+    [HrkResponseCompression("BattleReplay")]
     public async Task<IActionResult> StartFloorBattle(int floorNumber, [FromBody] StartTowerBattleRequestDto request, CancellationToken ct)
     {
         return HrkOk(await _mediator.Send(new StartFloorBattleCommand(UserId, floorNumber, request), ct));
@@ -85,6 +87,7 @@ public sealed class EventsController : HRKControllerBase
     [HttpGet("tower/pending-rewards")]
     public async Task<IActionResult> GetPendingRewards(CancellationToken ct)
     {
+        await _mediator.Send(new RefreshTowerPeriodCommand(UserId), ct);
         return HrkOk(await _mediator.Send(new GetPendingRewardsQuery(UserId), ct));
     }
 
@@ -119,6 +122,7 @@ public sealed class EventsController : HRKControllerBase
     }
 
     [HttpGet("tower/battles/{battleId}")]
+    [HrkResponseCompression("BattleReplay")]
     public async Task<IActionResult> GetBattleDetail(string battleId, CancellationToken ct)
     {
         return HrkOk(await _mediator.Send(new GetBattleDetailQuery(UserId, battleId), ct));

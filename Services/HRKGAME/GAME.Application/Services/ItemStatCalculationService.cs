@@ -1,16 +1,18 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace GAME.Application.Services
 {
     public class ItemStatCalculationService : IItemStatCalculationService
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork? _unitOfWork;
-        public ItemStatCalculationService(IUnitOfWork? unitOfWork = null)
+        public ItemStatCalculationService(IUnitOfWork? unitOfWork = null, IGameTemplateCatalog? templates = null)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork!);
             _unitOfWork = unitOfWork;
         }
 
@@ -108,10 +110,10 @@ namespace GAME.Application.Services
                 return;
             }
 
-            var allowedAttributeIds = await _unitOfWork.ReadOnlyRepository<HrkCategoryAllowedAttribute>().Query()
+            var allowedAttributeIds = (await _templates.GetAllAsync<HrkCategoryAllowedAttribute>(cancellationToken))
                 .Where(c => c.CategoryId == categoryId)
                 .Select(c => c.AttributeTypeId)
-                .ToListAsync(cancellationToken);
+                .ToList();
             var invalidIds = attributeTypeIds.Where(id => !allowedAttributeIds.Contains(id)).ToList();
             if (invalidIds.Any())
             {

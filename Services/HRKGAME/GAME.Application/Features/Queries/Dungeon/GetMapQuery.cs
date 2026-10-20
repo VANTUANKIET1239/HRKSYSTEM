@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -18,9 +19,10 @@ public sealed class GetMapQueryHandler(
     IDungeonStarService starService,
     IDungeonRewardService rewardService,
     IDungeonChestReader chestService,
-    IFormationPowerQueryService formationPowerQueryService)
+    IFormationPowerQueryService formationPowerQueryService, IGameTemplateCatalog? templates = null)
     : DungeonHandlerSupport(unitOfWork), IQueryHandler<GetMapQuery, BaseResponse<DungeonMapDetailDto>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IDungeonStarService _starService = starService;
     private readonly IDungeonRewardService _rewardService = rewardService;
@@ -43,10 +45,12 @@ public sealed class GetMapQueryHandler(
             throw new BusinessException("DUNGEON_MAP_NOT_FOUND", "Không tìm thấy bản đồ phó bản.", BusinessErrorKind.NotFound);
         var map = await _unitOfWork.ReadOnlyRepository<HrkDungeonMap>().Query()
             .Where(x => x.Id == mapId && x.IsActive)
-            .Include(x => x.Stages.Where(s => s.IsActive)).ThenInclude(s => s.Enemies).ThenInclude(e => e.HeroTemplate)
+            .Include(x => x.Stages.Where(s => s.IsActive)).ThenInclude(s => s.Enemies)
             .AsSplitQuery()
             .AsNoTracking()
             .SingleAsync(cancellationToken);
+        var heroTemplates = (await _templates.GetAllAsync<HrkHeroTemplate>(cancellationToken)).ToDictionary(t => t.Id);
+        foreach (var enemy in map.Stages.SelectMany(s => s.Enemies)) enemy.HeroTemplate = heroTemplates[enemy.HeroTemplateId];
         var cleared = await ClearedStageIds(player.Id, cancellationToken);
         var playerPower = await GetSelectedFormationPower(player.Id, cancellationToken);
         var baseDto = ToMapDto(map, player, cleared, maps);

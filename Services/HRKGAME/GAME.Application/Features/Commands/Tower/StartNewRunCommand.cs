@@ -9,6 +9,7 @@ using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using GAME.Application.Services;
 using GAME.Application.Features.Shared.Tower;
+using GAME.Application.Events;
 
 namespace GAME.Application.Features.Commands.Tower;
 
@@ -20,9 +21,10 @@ public sealed class StartNewRunCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService,
-    TowerOperationRunner runner)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), ICommandHandler<StartNewRunCommand, BaseResponse<PlayerEventProgressDto>>
+    ITowerEventService towerEvents,
+    TowerOperationRunner runner,
+    IPlayerActivityEvents activityEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), ICommandHandler<StartNewRunCommand, BaseResponse<PlayerEventProgressDto>>
 {
     private readonly TowerOperationRunner _runner = runner;
     public async Task<BaseResponse<PlayerEventProgressDto>> Handle(StartNewRunCommand message, CancellationToken ct) => BaseResponse<PlayerEventProgressDto>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
@@ -31,8 +33,8 @@ public sealed class StartNewRunCommandHandler(
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct, tracked: true) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
-        var period = await _eventPeriodService.GetOrCreateCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
+        var period = await _towerEvents.GetOrCreateCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
         EventAccessPolicy.EnsureCanEnter(ev, player.Level, DateTime.UtcNow);
         EventAccessPolicy.EnsureNewRun(ev, progress);
         if (await _unitOfWork.ReadOnlyRepository<HrkTowerQuickClimbJob>().Query().AnyAsync(j => j.PlayerId == player.Id && (j.Status == "QUEUED" || j.Status == "PROCESSING"), ct))
@@ -42,6 +44,8 @@ public sealed class StartNewRunCommandHandler(
         progress.CurrentRunNumber++;
         progress.IsCompleted = false;
         progress.UpdatedOn = DateTime.UtcNow;
+        activityEvents.RaiseEvent(player, period, "TowerRunStarted", $"{period.Id}:{progress.CurrentRunNumber}",
+            new { progress.CurrentRunNumber, progress.CurrentFloor, progress.RemainingLives });
         await _unitOfWork.SaveChangesAsync(ct);
         return await GetPlayerProgressAsync(userId, ct);
     }

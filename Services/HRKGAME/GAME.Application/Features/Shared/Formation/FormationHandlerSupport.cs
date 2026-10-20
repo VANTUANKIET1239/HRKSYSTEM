@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.Common.Mappings;
@@ -11,13 +12,15 @@ namespace GAME.Application.Features.Shared.Formation;
 
 public abstract class FormationHandlerSupport
 {
+    protected readonly IGameTemplateCatalog _templates;
     protected readonly IUnitOfWork _unitOfWork;
     protected readonly IGamePlayerService _gamePlayerService;
     protected readonly IFormationStatService _formationStatService;
     protected readonly ICombatPowerService _combatPowerService;
     protected readonly IHeroStatCalculationService _heroStatCalculationService;
-    protected FormationHandlerSupport(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationStatService formationStatService, ICombatPowerService combatPowerService, IHeroStatCalculationService heroStatCalculationService)
+    protected FormationHandlerSupport(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IFormationStatService formationStatService, ICombatPowerService combatPowerService, IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
     {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         this._unitOfWork = unitOfWork;
         this._gamePlayerService = gamePlayerService;
         this._formationStatService = formationStatService;
@@ -36,18 +39,11 @@ public abstract class FormationHandlerSupport
             return (new Dictionary<long, HrkPlayerHero>(), new Dictionary<long, HrkPlayerEquipment>());
         var heroes = await _unitOfWork.ReadOnlyRepository<HrkPlayerHero>().Query()
             .Where(h => h.PlayerId == playerId && h.IsActive && heroIds.Contains(h.Id))
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Faction)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Class)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.Rarity)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.EffectType)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.TargetType)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Parameters)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.Scalings).ThenInclude(sc => sc.AttributeType)
-            .Include(h => h.HeroTemplate).ThenInclude(ht => ht.HeroSkills).ThenInclude(hs => hs.Skill).ThenInclude(s => s.Effects).ThenInclude(e => e.StatModifiers).ThenInclude(sm => sm.AttributeType)
             .AsSplitQuery()
             .AsNoTracking()
             .ToListAsync(cancellationToken);
-        var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, heroIds, cancellationToken);
+        await TemplateHydration.HeroesAsync(_templates, heroes, cancellationToken);
+        var equipments = await EquipmentBatchLoader.LoadForHeroesAsync(_unitOfWork, playerId, heroIds, cancellationToken, _templates);
         return (heroes.ToDictionary(h => h.Id), equipments);
     }
 
@@ -124,11 +120,9 @@ public abstract class FormationHandlerSupport
     protected async Task<FormationDetailDto?> GetFormationDetailAsync(string userId, string formationCode, CancellationToken cancellationToken = default)
     {
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
-        var tmpl = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
+        var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
             .Where(t => t.Code == formationCode && t.IsEnabled)
-            .Include(t => t.Slots.OrderBy(s => s.Slot))
-            .Include(t => t.LevelConfigs.OrderBy(c => c.Level))
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefault();
         if (tmpl == null)
             return null;
         var pf = await _unitOfWork.ReadOnlyRepository<HrkPlayerFormation>().Query()

@@ -10,7 +10,7 @@ internal sealed class TowerTestStore : IUnitOfWork
 {
     private readonly Dictionary<Type, object> _repositories = new();
     public Guid? CurrentTransactionId => null;
-    public bool HasActiveTransaction => false;
+    public bool HasActiveTransaction { get; set; }
     public Core.Persistence.SqlExecutor.ISqlExecutor Sql => throw new NotSupportedException("SQL execution requires a relational test database.");
 
     public Task<int> ExecuteSqlAsync(FormattableString sql, CancellationToken cancellationToken = default) => throw new NotSupportedException("SQL locking requires a relational test database.");
@@ -28,8 +28,12 @@ internal sealed class TowerTestStore : IUnitOfWork
         return (IRepository<T>)repository;
     }
 
-    public IReadOnlyRepository<T> ReadOnlyRepository<T>()
-        where T : class => Repository<T>();
+    public int ReadOnlyQueries { get; private set; }
+    public IReadOnlyRepository<T> ReadOnlyRepository<T>() where T : class
+    {
+        ReadOnlyQueries++;
+        return Repository<T>();
+    }
     public int SaveCount { get; private set; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

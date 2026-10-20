@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.Scheduling/Core.Scheduling.csproj" />
     <ProjectReference Include="../GAME.Domain/GAME.Domain.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Common/Core.Common.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Application/Core.Application.csproj" />

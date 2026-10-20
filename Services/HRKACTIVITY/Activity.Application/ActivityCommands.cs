@@ -13,7 +13,17 @@ public interface IActivityRecorder
 }
 
 public sealed record GetActivitiesQuery(long? PlayerId = null, string? CorrelationId = null,
-    string? EntityType = null, string? EntityId = null, int Page = 1, int PageSize = 50);
+    string? EntityType = null, string? EntityId = null, int Page = 1, int PageSize = 50,
+    int? GameEventId = null, long? EventPeriodId = null, string? PeriodKey = null,
+    Guid? JobExecutionId = null, DateTimeOffset? FromUtc = null, DateTimeOffset? ToUtc = null,
+    string? ActivityType = null)
+{
+    public bool IsValid => Page is >= 1 and <= 100000 && PageSize is >= 1 and <= 100 &&
+        GameEventId is not <= 0 && EventPeriodId is not <= 0 && PlayerId is not <= 0 &&
+        JobExecutionId != Guid.Empty && (PeriodKey is null || PeriodKey.Length <= 50) &&
+        (ActivityType is null || ActivityType.Length <= 100) &&
+        (!FromUtc.HasValue || !ToUtc.HasValue || FromUtc < ToUtc);
+}
 
 public interface IActivityQueries
 {
@@ -25,9 +35,12 @@ public static class ActivityMapping
 {
     private static readonly HashSet<string> AllowedTypes = new(StringComparer.Ordinal)
     {
+        "CheckInClaimed",
         "QuickClimbStarted", "QuickClimbCompleted", "QuickClimbFailed", "QuickClimbCancelled",
         "ItemEnhanced", "BattleCompleted", "PlayerLoggedIn", "RewardGranted", "CurrencyChanged",
-        "ContentPublished", "ContentActivated", "AdminConfigurationChanged"
+        "ContentPublished", "ContentActivated", "AdminConfigurationChanged",
+        "TowerBattleCompleted", "MilestoneChestClaimed", "PendingRewardClaimed", "TowerRunStarted",
+        "PlayerEventPeriodClosed", "EventResetCompleted"
     };
 
     public static PlayerActivity Map(RecordPlayerActivityCommand command)
@@ -44,13 +57,18 @@ public static class ActivityMapping
             throw new ArgumentException("Invalid activity metadata.");
         if (message.Payload.ValueKind != JsonValueKind.Object || message.Payload.GetRawText().Length > 16384)
             throw new ArgumentException("Activity payload must be a bounded JSON object.");
+        if (message.GameEventId is <= 0 || message.EventPeriodId is <= 0 ||
+            message.PeriodKey?.Length > 50 || message.JobExecutionId == Guid.Empty)
+            throw new ArgumentException("Invalid event period metadata.");
         return new PlayerActivity
         {
             ActivityId = message.EventId, ActivityType = message.ActivityType, PlayerId = message.PlayerId,
             UserId = message.UserId, EntityType = message.EntityType, EntityId = message.EntityId,
             SourceService = message.SourceService, OccurredAt = message.OccurredAt.ToUniversalTime(),
             RecordedAt = DateTimeOffset.UtcNow, CorrelationId = command.CorrelationId,
-            TraceId = command.TraceId, PayloadJson = message.Payload.GetRawText()
+            TraceId = command.TraceId, PayloadJson = message.Payload.GetRawText(),
+            GameEventId = message.GameEventId, EventPeriodId = message.EventPeriodId,
+            PeriodKey = message.PeriodKey, JobExecutionId = message.JobExecutionId
         };
     }
 

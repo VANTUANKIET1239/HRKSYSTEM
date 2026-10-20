@@ -74,7 +74,8 @@ public class TowerReliabilityTests
     {
         var (store, service, _) = Setup();
         var player = new HrkPlayer { Id = 1, Level = 1, Exp = 0 };
-        store.Data<HrkPlayerHero>().Add(new() { Id = 7, PlayerId = 1, Level = 1, HeroTemplate = new() { Name = "Hero", Avatar = "" } });
+        store.Data<HrkHeroTemplate>().Add(new() { Id = 3, Name = "Hero", Avatar = "" });
+        store.Data<HrkPlayerHero>().Add(new() { Id = 7, PlayerId = 1, HeroTemplateId = 3, Level = 1 });
         await service.AddPlayerExpAsync(player, 125, default);
         var heroes = await service.AddParticipantHeroExp(1, new long[] { 7 }, 125, default);
         Assert.Equal(2, player.Level);

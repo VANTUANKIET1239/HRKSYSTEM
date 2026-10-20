@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Persistence.Repositories;
@@ -13,8 +14,8 @@ public sealed class InitializePlayerFormationsCommandHandler(
     IGamePlayerService players,
     IFormationStatService formationStats,
     ICombatPowerService power,
-    IHeroStatCalculationService heroStats)
-    : FormationCommandHandlerSupport(unitOfWork, players, formationStats, power, heroStats), ICommandHandler<InitializePlayerFormationsCommand, BaseResponse<bool>>
+    IHeroStatCalculationService heroStats, IGameTemplateCatalog? templates = null)
+    : FormationCommandHandlerSupport(unitOfWork, players, formationStats, power, heroStats, templates), ICommandHandler<InitializePlayerFormationsCommand, BaseResponse<bool>>
 {
     public async Task<BaseResponse<bool>> Handle(InitializePlayerFormationsCommand message, CancellationToken ct)
     {

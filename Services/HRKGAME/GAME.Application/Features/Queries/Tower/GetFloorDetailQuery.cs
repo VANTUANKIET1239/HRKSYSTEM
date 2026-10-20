@@ -20,8 +20,8 @@ public sealed class GetFloorDetailQueryHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), IQueryHandler<GetFloorDetailQuery, BaseResponse<TowerFloorDetailDto>>
+    ITowerEventService towerEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetFloorDetailQuery, BaseResponse<TowerFloorDetailDto>>
 {
     public async Task<BaseResponse<TowerFloorDetailDto>> Handle(GetFloorDetailQuery message, CancellationToken ct) => BaseResponse<TowerFloorDetailDto>.SuccessResponse(await ExecuteAsync(message.UserId, message.FloorNumber, ct));
     private Task<TowerFloorDetailDto> ExecuteAsync(string userId, int floorNumber, CancellationToken ct = default) => GetFloorDetailAsyncCore(userId, floorNumber, ct);
@@ -29,16 +29,13 @@ public sealed class GetFloorDetailQueryHandler(
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
-        var period = await _eventPeriodService.ReadCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
+        var period = await _towerEvents.ReadCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.ReadPlayerPeriodProgressAsync(player.Id, ev, period, ct);
         var floor = await _unitOfWork.ReadOnlyRepository<HrkTowerFloor>().Query()
             .Where(f => f.EventId == ev.Id && f.FloorNumber == floorNumber && f.IsActive)
-            .Include(f => f.Enemies).ThenInclude(e => e.HeroTemplate)
-            .Include(f => f.RepresentativeHeroTemplate)
+            .Include(f => f.Enemies)
             .FirstOrDefaultAsync(ct) ?? throw new BusinessException("FLOOR_NOT_FOUND", $"Không tìm thấy tầng {floorNumber}.", BusinessErrorKind.NotFound);
-        var chests = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
-            .Where(c => c.EventId == ev.Id && c.FloorNumber == floorNumber && c.IsActive)
-            .FirstOrDefaultAsync(ct);
+        var chests = (await GetPeriodChestsAsync(period, ct)).FirstOrDefault(c => c.FloorNumber == floorNumber);
         var claimedChestIds = (await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query()
             .Where(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST")
             .Select(c => c.TargetId)

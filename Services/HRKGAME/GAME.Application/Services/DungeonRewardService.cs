@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -9,6 +10,7 @@ namespace GAME.Application.Services;
 
 public sealed class DungeonRewardService : IDungeonRewardService
 {
+    private readonly IGameTemplateCatalog _templates;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IGamePlayerService _gamePlayerService;
     private readonly IItemStatCalculationService _statCalculationService;
@@ -16,8 +18,9 @@ public sealed class DungeonRewardService : IDungeonRewardService
     private readonly IEquipmentInstanceFactory _equipmentInstanceFactory;
     private readonly IRandomService _randomService;
     private readonly ILogger<DungeonRewardService> _logger;
-    public DungeonRewardService(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IDungeonEquipmentRewardPolicy rewardPolicy, IEquipmentInstanceFactory equipmentInstanceFactory, IRandomService randomService, ILogger<DungeonRewardService> logger)
-    {
+    public DungeonRewardService(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IItemStatCalculationService statCalculationService, IDungeonEquipmentRewardPolicy rewardPolicy, IEquipmentInstanceFactory equipmentInstanceFactory, IRandomService randomService, ILogger<DungeonRewardService> logger, IGameTemplateCatalog? templates = null)
+        {
+        _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
         _unitOfWork = unitOfWork;
         _gamePlayerService = gamePlayerService;
         _statCalculationService = statCalculationService;
@@ -43,10 +46,10 @@ public sealed class DungeonRewardService : IDungeonRewardService
 
         var pools = await _unitOfWork.ReadOnlyRepository<HrkDungeonStageDropPool>().Query()
             .Where(x => ids.Contains(x.StageId) && x.IsActive)
-            .Include(x => x.ItemTemplate).ThenInclude(t => t.Category)
-            .Include(x => x.ItemTemplate).ThenInclude(t => t.Rarity)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+        var itemTemplates = await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken);
+        foreach (var pool in pools) pool.ItemTemplate = itemTemplates[pool.ItemTemplateId];
         return pools.GroupBy(p => p.StageId).ToDictionary(group => group.Key, group => group.Select(p => new DungeonPossibleDropDto { ItemTemplateId = p.ItemTemplateId, Code = p.ItemTemplate.Code, Name = p.ItemTemplate.Name, ImagePath = p.ItemTemplate.ImagePath, RarityCode = p.ItemTemplate.Rarity.Code, RarityName = p.ItemTemplate.Rarity.Name, RarityColorHex = p.ItemTemplate.Rarity.ColorHex, CategoryCode = p.ItemTemplate.Category.Code, CategoryName = p.ItemTemplate.Category.Name, DropRatePercent = Math.Round(p.DropRate * 100m, 1) }).ToList());
     }
 
@@ -60,12 +63,9 @@ public sealed class DungeonRewardService : IDungeonRewardService
 
     public async Task<(DungeonDroppedEquipmentDto? droppedEquipment, bool isBagFull)> RollEquipmentDropAsync(long playerId, int stageId, bool isFirstClear, CancellationToken cancellationToken = default)
     {
-        var poolEntries = await _unitOfWork.Repository<HrkDungeonStageDropPool>().Query()
+        var poolEntries = await _unitOfWork.ReadOnlyRepository<HrkDungeonStageDropPool>().Query()
             .Where(x => x.StageId == stageId && x.IsActive && (!x.IsFirstClearOnly || isFirstClear))
-            .Include(x => x.Stage).ThenInclude(s => s.DungeonMap).ThenInclude(m => m.MaxEquipmentRarity)
-            .Include(x => x.ItemTemplate).ThenInclude(t => t.Category)
-            .Include(x => x.ItemTemplate).ThenInclude(t => t.Rarity)
-            .Include(x => x.ItemTemplate).ThenInclude(t => t.Attributes).ThenInclude(a => a.AttributeType)
+            .Include(x => x.Stage).ThenInclude(s => s.DungeonMap)
             .ToListAsync(cancellationToken);
         if (poolEntries.Count == 0)
         {
@@ -96,7 +96,9 @@ public sealed class DungeonRewardService : IDungeonRewardService
         }
 
         selectedEntry ??= poolEntries[0];
-        var itemTemplate = selectedEntry.ItemTemplate;
+        var itemTemplate = (await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken))[selectedEntry.ItemTemplateId];
+        selectedEntry.Stage.DungeonMap.MaxEquipmentRarity = selectedEntry.Stage.DungeonMap.MaxEquipmentRarityId is { } maxRarityId
+            ? (await _templates.GetAllAsync<HrkRarity>(cancellationToken)).Single(r => r.Id == maxRarityId) : null;
         if (!_rewardPolicy.CanReward(selectedEntry.Stage.DungeonMap, itemTemplate))
         {
             _logger.LogWarning("Drop rejected by reward policy: Map={MapCode}, Item={ItemCode}, Rarity={RarityCode}", selectedEntry.Stage.DungeonMap.Code, itemTemplate.Code, itemTemplate.Rarity?.Code);

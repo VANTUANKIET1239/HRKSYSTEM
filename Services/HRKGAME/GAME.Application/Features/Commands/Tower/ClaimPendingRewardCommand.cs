@@ -9,6 +9,9 @@ using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using GAME.Application.Services;
 using GAME.Application.Features.Shared.Tower;
+using GAME.Application.Events;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace GAME.Application.Features.Commands.Tower;
 
@@ -20,10 +23,11 @@ public sealed class ClaimPendingRewardCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService,
+    ITowerEventService towerEvents,
     TowerOperationRunner runner,
-    TowerRewardService rewards)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), ICommandHandler<ClaimPendingRewardCommand, BaseResponse<ClaimRewardResultDto>>
+    TowerRewardService rewards,
+    IPlayerActivityEvents activityEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), ICommandHandler<ClaimPendingRewardCommand, BaseResponse<ClaimRewardResultDto>>
 {
     private readonly TowerOperationRunner _runner = runner;
     private readonly TowerRewardService _rewards = rewards;
@@ -35,7 +39,14 @@ public sealed class ClaimPendingRewardCommandHandler(
         var pending = await _unitOfWork.Repository<HrkPlayerPendingReward>().Query()
             .FirstOrDefaultAsync(r => r.Id == pendingRewardId && r.PlayerId == player.Id && r.Status == "PENDING", ct) ?? throw new BusinessException("REWARD_NOT_FOUND", "Không tìm thấy phần thưởng chờ hợp lệ.", BusinessErrorKind.NotFound);
         var rewards = ParseRewardsJson(pending.RewardItemsJson);
+        var rewardVersion = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pending.RewardItemsJson)));
         var (granted, stillPending, bagFull) = await _rewards.GrantGenericRewardsAsync(player.Id, rewards, pending.EventPeriodId, pending.Description, ct, createPending: false);
+        if (granted.Count > 0)
+        {
+            var period = await _unitOfWork.ReadOnlyRepository<HrkEventPeriod>().Query().SingleAsync(x => x.Id == pending.EventPeriodId, ct);
+            activityEvents.RaiseEvent(player, period, "PendingRewardClaimed", $"{pending.Id}:{rewardVersion}",
+                new { PendingRewardId = pending.Id, Granted = granted, Remaining = stillPending });
+        }
         if (stillPending.Count == 0)
         {
             pending.Status = "CLAIMED";

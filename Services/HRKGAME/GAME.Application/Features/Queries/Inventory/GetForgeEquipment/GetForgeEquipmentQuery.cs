@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using GAME.Application.Common;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Persistence.Repositories;
@@ -12,10 +13,12 @@ namespace GAME.Application.Features.Queries.Inventory.GetForgeEquipment
     public record GetForgeEquipmentQuery() : IQuery<BaseResponse<List<ForgeEquipmentItemDto>>>;
     public class GetForgeEquipmentQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetForgeEquipmentQuery, BaseResponse<List<ForgeEquipmentItemDto>>>
     {
+        private readonly IGameTemplateCatalog _templates;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IGamePlayerService _gamePlayerService;
-        public GetForgeEquipmentQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IGameRequestContext requestContext) : base(requestContext)
+        public GetForgeEquipmentQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService, IGameRequestContext requestContext, IGameTemplateCatalog? templates = null) : base(requestContext)
         {
+            _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
             _unitOfWork = unitOfWork;
             _gamePlayerService = gamePlayerService;
         }
@@ -30,13 +33,13 @@ namespace GAME.Application.Features.Queries.Inventory.GetForgeEquipment
             }
 
             // Truy vấn các trang bị còn active của người chơi (Category.IsEquipment == true)
+            var itemTemplates = await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken);
+            var equipmentIds = itemTemplates.Values.Where(t => t.Category.IsEquipment).Select(t => t.Id).ToArray();
             var inventories = await _unitOfWork.ReadOnlyRepository<HrkPlayerInventory>().Query()
-                .Where(i => i.PlayerId == player.Id && i.IsActive && i.ItemTemplate.Category != null && i.ItemTemplate.Category.IsEquipment)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Category)
-                .Include(i => i.ItemTemplate).ThenInclude(t => t.Rarity)
-                .OrderByDescending(i => i.Enhancement).ThenByDescending(i => i.ItemTemplate.Rarity.DisplayOrder)
+                .Where(i => i.PlayerId == player.Id && i.IsActive && equipmentIds.Contains(i.ItemTemplateId))
                 .ToListAsync(cancellationToken);
-            var dtos = inventories.Select(item =>
+            foreach (var inventory in inventories) inventory.ItemTemplate = itemTemplates[inventory.ItemTemplateId];
+            var dtos = inventories.OrderByDescending(i => i.Enhancement).ThenByDescending(i => i.ItemTemplate.Rarity.DisplayOrder).Select(item =>
             {
                 var eligibility = item.CheckEnhancementEligibility();
                 return new ForgeEquipmentItemDto

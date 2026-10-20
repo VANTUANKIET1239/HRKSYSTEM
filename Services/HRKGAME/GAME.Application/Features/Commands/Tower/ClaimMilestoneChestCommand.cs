@@ -9,6 +9,7 @@ using Core.Application.CQRS;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using GAME.Application.Services;
 using GAME.Application.Features.Shared.Tower;
+using GAME.Application.Events;
 
 namespace GAME.Application.Features.Commands.Tower;
 
@@ -20,10 +21,11 @@ public sealed class ClaimMilestoneChestCommandHandler(
     IGamePlayerService gamePlayerService,
     IFormationSnapshotService formationSnapshotService,
     IFormationPowerQueryService formationPowerQueryService,
-    IEventPeriodService eventPeriodService,
+    ITowerEventService towerEvents,
     TowerOperationRunner runner,
-    TowerRewardService rewards)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, eventPeriodService), ICommandHandler<ClaimMilestoneChestCommand, BaseResponse<ClaimRewardResultDto>>
+    TowerRewardService rewards,
+    IPlayerActivityEvents activityEvents)
+    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), ICommandHandler<ClaimMilestoneChestCommand, BaseResponse<ClaimRewardResultDto>>
 {
     private readonly TowerOperationRunner _runner = runner;
     private readonly TowerRewardService _rewards = rewards;
@@ -33,10 +35,9 @@ public sealed class ClaimMilestoneChestCommandHandler(
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct, tracked: true) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var ev = await GetTowerEventAsync(ct);
-        var period = await _eventPeriodService.GetOrCreateCurrentPeriodAsync(ev, ct);
-        var progress = await _eventPeriodService.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
-        var chest = await _unitOfWork.ReadOnlyRepository<HrkTowerChestConfig>().Query()
-            .FirstOrDefaultAsync(c => c.Id == chestId && c.EventId == ev.Id && c.IsActive, ct) ?? throw new KeyNotFoundException("Không tìm thấy cấu hình rương mốc.");
+        var period = await _towerEvents.GetOrCreateCurrentPeriodAsync(ev, ct);
+        var progress = await _towerEvents.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
+        var chest = (await GetPeriodChestsAsync(period, ct)).FirstOrDefault(c => c.Id == chestId) ?? throw new KeyNotFoundException("Không tìm thấy cấu hình rương mốc.");
         if (progress.HighestFloorInPeriod < chest.FloorNumber)
             throw new BusinessException("MILESTONE_NOT_REACHED", $"Chưa đạt mốc Tầng {chest.FloorNumber} trong kỳ hiện tại để mở rương.", BusinessErrorKind.Conflict);
         bool alreadyClaimed = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query().AnyAsync(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST" && c.TargetId == chest.Id, ct);
@@ -54,6 +55,8 @@ public sealed class ClaimMilestoneChestCommandHandler(
             RewardSummaryJson = JsonSerializer.Serialize(granted)
         };
         await _unitOfWork.Repository<HrkPlayerEventRewardClaim>().AddAsync(claim);
+        activityEvents.RaiseEvent(player, period, "MilestoneChestClaimed", $"{period.Id}:{chest.Id}",
+            new { ChestId = chest.Id, chest.FloorNumber, Granted = granted, Pending = pending }, claim.ClaimedAtUtc);
         await _unitOfWork.SaveChangesAsync(ct);
         return new ClaimRewardResultDto
         {

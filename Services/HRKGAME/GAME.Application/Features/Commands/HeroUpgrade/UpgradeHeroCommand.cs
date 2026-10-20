@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -27,8 +28,8 @@ public sealed class UpgradeHeroCommandHandler(
     IGamePlayerService gamePlayerService,
     ILevelExperienceService levelExperienceService,
     IHeroProgressionStatService progressionStats,
-    IPlayerReadModels playerReadModels)
-    : HeroUpgradeHandlerSupport(unitOfWork, gamePlayerService), ICommandHandler<UpgradeHeroCommand, BaseResponse<PlayerHeroDetailDto>>
+    IPlayerReadModels playerReadModels, IGameTemplateCatalog? templates = null)
+    : HeroUpgradeHandlerSupport(unitOfWork, gamePlayerService, templates), ICommandHandler<UpgradeHeroCommand, BaseResponse<PlayerHeroDetailDto>>
 {
     private readonly ILevelExperienceService _levelExperienceService = levelExperienceService;
     private readonly IHeroProgressionStatService _progressionStats = progressionStats;
@@ -42,7 +43,7 @@ public sealed class UpgradeHeroCommandHandler(
     {
         if (levels is < 1 or > 50)
             throw new BusinessException("INVALID_UPGRADE_LEVELS", "So cap nang phai nam trong khoang 1 den 50.", BusinessErrorKind.Validation);
-        var (player, hero, config) = await LoadHeroAsync(userId, heroId, cancellationToken);
+        var (player, hero, config, template) = await LoadHeroAsync(userId, heroId, cancellationToken);
         if (hero.Level >= config.MaxLevel)
             throw new BusinessException("MAX_LEVEL_REACHED", "Vo tuong da dat cap toi da.", BusinessErrorKind.Conflict);
         var actualLevels = Math.Min(levels, config.MaxLevel - hero.Level);
@@ -59,8 +60,8 @@ public sealed class UpgradeHeroCommandHandler(
             throw new BusinessException("INSUFFICIENT_GOLD", "Khong du Vang de nang cap vo tuong.", BusinessErrorKind.Conflict);
         if (wallet.UpgradeMaterials < materialCost)
             throw new BusinessException("INSUFFICIENT_MATERIALS", "Khong du Da nang cap vo tuong.", BusinessErrorKind.Conflict);
-        var starBonus = await GetStarBonusAsync(hero, cancellationToken);
-        var nextStats = _progressionStats.Calculate(hero.HeroTemplate, hero.Level + actualLevels, config.StatGrowthRate, starBonus);
+        var starBonus = await GetStarBonusAsync(hero, template, cancellationToken);
+        var nextStats = _progressionStats.Calculate(template, hero.Level + actualLevels, config.StatGrowthRate, starBonus);
         wallet.DeductGold(goldCost);
         wallet.UpgradeMaterials -= materialCost;
         wallet.UpdatedOn = DateTime.UtcNow;

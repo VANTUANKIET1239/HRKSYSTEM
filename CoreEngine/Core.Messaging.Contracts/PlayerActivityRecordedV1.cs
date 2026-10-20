@@ -17,4 +17,8 @@ public sealed record PlayerActivityRecordedV1(
     string EntityId,
     string SourceService,
     DateTimeOffset OccurredAt,
-    JsonElement Payload);
+    JsonElement Payload,
+    int? GameEventId = null,
+    long? EventPeriodId = null,
+    string? PeriodKey = null,
+    Guid? JobExecutionId = null);

@@ -1,4 +1,5 @@
 using MediatR;
+using Core.Web.Compression;
 using GAME.Application.Features.Commands.BattleLab;
 using GAME.Application.Features.Queries.BattleLab;
 using GAME.Application.DTOs;
@@ -30,6 +31,7 @@ public sealed class BattleLabController(
     }
 
     [HttpPost("run")]
+    [HrkResponseCompression("BattleReplay")]
     [RequestSizeLimit(65536)]
     public async Task<IActionResult> Run(BattleLabRequestDto request, CancellationToken ct)
     {

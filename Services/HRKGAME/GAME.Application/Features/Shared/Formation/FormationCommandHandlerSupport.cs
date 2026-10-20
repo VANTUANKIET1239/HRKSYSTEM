@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Persistence.Repositories;
 using GAME.Application.Interfaces;
 using GAME.Domain.Entities;
@@ -10,18 +11,18 @@ public abstract class FormationCommandHandlerSupport(
     IGamePlayerService players,
     IFormationStatService formationStats,
     ICombatPowerService power,
-    IHeroStatCalculationService heroStats)
-    : FormationHandlerSupport(unitOfWork, players, formationStats, power, heroStats)
+    IHeroStatCalculationService heroStats, IGameTemplateCatalog? templates = null)
+    : FormationHandlerSupport(unitOfWork, players, formationStats, power, heroStats, templates)
 {
     protected async Task EnsurePlayerFormationsInitializedAsync(HrkPlayer player, CancellationToken cancellationToken)
     {
         var existingPfs = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
             .Where(f => f.PlayerId == player.Id && f.IsActive)
             .ToListAsync(cancellationToken);
-        var templates = await _unitOfWork.ReadOnlyRepository<HrkFormationTemplate>().Query()
+        var templates = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
             .Where(t => t.IsEnabled)
             .OrderBy(t => t.DisplayOrder)
-            .ToListAsync(cancellationToken);
+            .ToList();
         bool hasChanges = false;
         bool anySelected = existingPfs.Any(f => f.IsSelected);
         // Tìm hero của player để gán mặc định nếu formation đầu tiên hoàn toàn rỗng

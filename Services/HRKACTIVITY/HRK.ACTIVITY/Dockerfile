@@ -13,6 +13,7 @@ COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "Co
 COPY ["CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj", "CoreEngine/Core.TransactionalMessaging/"]
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
+COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
 RUN dotnet restore "Services/HRKACTIVITY/HRK.ACTIVITY/HRK.ACTIVITY.csproj"
 COPY . .
 RUN dotnet publish "Services/HRKACTIVITY/HRK.ACTIVITY/HRK.ACTIVITY.csproj" -c Release -o /app/publish /p:UseAppHost=false

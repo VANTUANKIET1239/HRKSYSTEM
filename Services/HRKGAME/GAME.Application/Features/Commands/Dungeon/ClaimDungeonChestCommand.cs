@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -16,9 +17,10 @@ public sealed class ClaimDungeonChestCommandHandler(
     IGamePlayerService gamePlayerService,
     IDungeonStarService starService,
     IItemStatCalculationService statCalculationService,
-    IDungeonEquipmentRewardPolicy rewardPolicy)
+    IDungeonEquipmentRewardPolicy rewardPolicy, IGameTemplateCatalog? templates = null)
     : ICommandHandler<ClaimDungeonChestCommand, BaseResponse<ClaimStarChestResultDto>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IDungeonStarService _starService = starService;
@@ -28,12 +30,13 @@ public sealed class ClaimDungeonChestCommandHandler(
     private async Task<ClaimStarChestResultDto> ExecuteAsync(string userId, int chestId, CancellationToken cancellationToken = default)
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
-        var chest = await _unitOfWork.Repository<HrkDungeonMapStarChest>().Query()
-            .Include(x => x.DungeonMap).ThenInclude(x => x.MaxEquipmentRarity)
-            .Include(x => x.GuaranteedItemTemplate).ThenInclude(t => t!.Category)
-            .Include(x => x.GuaranteedItemTemplate).ThenInclude(t => t!.Rarity)
-            .Include(x => x.GuaranteedItemTemplate).ThenInclude(t => t!.Attributes).ThenInclude(a => a.AttributeType)
+        var chest = await _unitOfWork.ReadOnlyRepository<HrkDungeonMapStarChest>().Query()
+            .Include(x => x.DungeonMap)
             .SingleOrDefaultAsync(x => x.Id == chestId && x.IsActive, cancellationToken) ?? throw new BusinessException("DUNGEON_CHEST_NOT_FOUND", "Không tìm thấy rương sao này.", BusinessErrorKind.NotFound);
+        var itemTemplates = await TemplateHydration.ItemTemplatesAsync(_templates, cancellationToken);
+        chest.GuaranteedItemTemplate = chest.GuaranteedItemTemplateId.HasValue ? itemTemplates[chest.GuaranteedItemTemplateId.Value] : null;
+        chest.DungeonMap.MaxEquipmentRarity = chest.DungeonMap.MaxEquipmentRarityId is { } maxRarityId
+            ? (await _templates.GetAllAsync<HrkRarity>(cancellationToken)).Single(r => r.Id == maxRarityId) : null;
         // Check if already claimed (idempotency check)
         var alreadyClaimed = await _unitOfWork.ReadOnlyRepository<HrkPlayerDungeonStarChestClaim>().Query().AnyAsync(x => x.PlayerId == player.Id && x.StarChestId == chestId, cancellationToken);
         if (alreadyClaimed)

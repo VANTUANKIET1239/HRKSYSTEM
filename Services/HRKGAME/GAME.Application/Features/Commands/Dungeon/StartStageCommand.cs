@@ -1,3 +1,4 @@
+using GAME.Application.Templates;
 using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
@@ -29,9 +30,10 @@ public sealed class StartStageCommandHandler(
     IDungeonStarService starService,
     IDungeonRewardService rewardService,
     IFormationSnapshotService formationSnapshotService,
-    ILevelExperienceService levelExperienceService)
+    ILevelExperienceService levelExperienceService, IGameTemplateCatalog? templates = null)
     : DungeonHandlerSupport(unitOfWork), ICommandHandler<StartStageCommand, BaseResponse<StartDungeonStageResultDto>>
 {
+    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
     private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
     private readonly IBattleExecutor _battleService = battleService;
     private readonly IDungeonStarService _starService = starService;
@@ -193,18 +195,19 @@ public sealed class StartStageCommandHandler(
         if (participantHeroIds == null || participantHeroIds.Count == 0)
             return new();
         var heroes = await _unitOfWork.Repository<HrkPlayerHero>().Query()
-            .Include(x => x.HeroTemplate)
             .Where(x => x.PlayerId == playerId && participantHeroIds.Contains(x.Id))
             .ToListAsync(ct);
+        var heroTemplates = (await _templates.GetAllAsync<HrkHeroTemplate>(ct)).ToDictionary(t => t.Id);
         var results = new List<HeroExpResultDto>();
         foreach (var hero in heroes)
         {
+            var template = heroTemplates[hero.HeroTemplateId];
             var oldMaxExp = hero.MaxExp;
             var item = new HeroExpResultDto
             {
                 PlayerHeroId = hero.Id,
-                HeroName = hero.HeroTemplate.Name,
-                Avatar = hero.HeroTemplate.Avatar ?? string.Empty,
+                HeroName = template.Name,
+                Avatar = template.Avatar ?? string.Empty,
                 ExpGained = exp,
                 OldLevel = hero.Level,
                 OldExp = hero.Exp,

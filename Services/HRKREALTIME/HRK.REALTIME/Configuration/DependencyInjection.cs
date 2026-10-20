@@ -29,6 +29,7 @@ public static class DependencyInjection
 
     public static void AddServices(WebApplicationBuilder builder)
     {
+        builder.Services.AddHrkInternalApi(builder.Configuration);
         var signalR = builder.Services.AddSignalR();
         AddRedisTelemetry(builder, signalR);
 
