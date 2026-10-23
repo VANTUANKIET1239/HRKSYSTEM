@@ -4,6 +4,26 @@ Reusable .NET 9 REST client library for service-to-service calls. Inject
 `IInternalApiClient` and pass a service name and API URL directly. Endpoints do
 not need registration. No database, gRPC, protobuf or operation registry is required.
 
+## Source layout
+
+Each class, interface, enum and record has its own file, grouped by responsibility:
+
+| Folder | Contents |
+| --- | --- |
+| `Contracts/` | Client/provider interfaces and the empty-response record |
+| `Options/` | Library, service, per-call, retry and circuit-breaker options |
+| `Clients/` | HTTP client implementation and named-client identifiers |
+| `Providers/` | Configured credentials and default metadata providers |
+| `DependencyInjection/` | Registration, startup validation and HTTP pipeline setup |
+| `Exceptions/` | Failure categories and the public exception type |
+| `Resilience/` | Retry eligibility and transient-failure predicates |
+| `Serialization/` | Shared JSON serializer settings |
+
+All types retain the `Core.InternalApi` namespace. Consumers continue to use
+`using Core.InternalApi;` and the existing `AddInternalApi(...)` entry point.
+
+## Usage
+
 ```csharp
 services.AddInternalApi(configuration);
 
