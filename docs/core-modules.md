@@ -12,7 +12,7 @@ Do not add database, HTTP, authentication, caching or dependency-injection code 
 | Core.Web | HTTP response/error handling, HTTP-aware command/query bases, cookies | `AddControllers(options => options.AddHrkApiFilters())`, `AddHrkApiResponses()`, `AddCoreCookies(configuration)` when cookies are needed |
 | Core.AUTH | JWT generation/validation, token hashing and JWT settings | `AddCoreJwt(configuration)` |
 | Core.Caching | Redis `IDistributedCache` backend and typed HybridCache L1/L2 adapter | `AddHrkRedisCache(configuration)`, `AddHrkHybridCache(configuration)` |
-| Core.Logging | Optional `ILoggerService<T>` wrapper | `AddCoreLogging()` after host logging setup |
+| Oservability | Shared Serilog providers, correlation and OpenTelemetry | `builder.AddHrkObservability(serviceName)` |
 
 ## Host composition
 
@@ -29,6 +29,9 @@ Core.Common error contracts; it has no references to HTTP, EF or DI projects.
 
 `AddCoreService(configuration)` and the unqualified `AddOptions(configuration)` have been removed.
 Each host composes only the modules it uses.
+
+Application code injects `Microsoft.Extensions.Logging.ILogger<T>` directly. Hosts configure
+Serilog through `AddHrkObservability`; the unused logging wrapper project has been removed.
 
 Repository adapters are optional: call `AddRepositoryAdapters()` only when a consumer injects
 `IRepository<T>` or `IReadOnlyRepository<T>` directly. Consumers injecting `IUnitOfWork` need
@@ -56,7 +59,7 @@ See [SQL object execution](sql-object-execution.md) for named SP, view and TVF u
 | Core.Common.JwtHandler.* | Core.AUTH.Jwt.* |
 | Core.Common.Helpers.TokenHelper | Core.AUTH.Tokens.TokenHelper |
 | Core.Common.Caching / CoreEngine.RedisCache | Core.Caching |
-| Core.Common.Logging | Core.Logging |
+| Core.Common.Logging | Microsoft.Extensions.Logging (`ILogger<T>`) |
 
 The transaction behavior fixed earlier is retained: commit does not save; the transaction
 wrapper rejects nested ownership and rebuilds tracked state on retry; uncertain commit

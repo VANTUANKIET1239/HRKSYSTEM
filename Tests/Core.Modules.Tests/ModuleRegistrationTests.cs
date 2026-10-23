@@ -5,8 +5,6 @@ using Core.Application.DependencyInjection;
 using Core.Caching;
 using Core.Caching.Hybrid;
 using Core.Common.Entity;
-using Core.Logging;
-using Core.Logging.DependencyInjection;
 using Core.Persistence.Database.Extensions;
 using Core.Persistence.DependencyInjection;
 using Core.Persistence.Repositories;
@@ -81,11 +79,10 @@ public class ModuleRegistrationTests
     }
 
     [Fact]
-    public void RedisHybridAndLogging_ResolveWithoutJwtOrDatabase()
+    public void RedisAndHybridCache_ResolveWithoutJwtOrDatabase()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddCoreLogging();
         services.AddHrkRedisCache(Configuration());
         services.AddHrkHybridCache(Configuration());
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -95,7 +92,6 @@ public class ModuleRegistrationTests
         var redisOptions = scope.ServiceProvider.GetRequiredService<IOptions<RedisBackendOptions>>().Value;
         Assert.Equal("localhost:6379,abortConnect=false", redisOptions.Configuration);
         Assert.Equal("test:cache:", redisOptions.InstanceName);
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ILoggerService<ModuleRegistrationTests>>());
         Assert.Null(scope.ServiceProvider.GetService<IUnitOfWork>());
         Assert.Null(scope.ServiceProvider.GetService<IJwtCoreService>());
     }
