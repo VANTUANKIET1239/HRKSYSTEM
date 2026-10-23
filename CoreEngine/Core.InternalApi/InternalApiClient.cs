@@ -38,16 +38,22 @@ internal sealed class InternalApiClient(IHttpClientFactory clients, IOptions<Int
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(method);
         InternalApiClientNames.ValidateServiceName(serviceName);
+
         if (!configuration.Value.Services.TryGetValue(serviceName, out var service))
             throw new InvalidOperationException($"Missing InternalApi service configuration for '{serviceName}'.");
+
         var uri = ResolveApiUri(new Uri(service.BaseAddress!), api);
         options ??= new InternalCallOptions();
+
         var timeout = options.TimeoutSeconds ?? service.TimeoutSeconds;
         if (!InternalApiRegistration.ValidTimeout(timeout))
             throw new ArgumentException("Invalid internal API call timeout.", nameof(options));
+
         var retry = options.RetryEnabled ?? (InternalApiResilience.IsReadOnly(method) && service.Retry.Enabled);
+
         if (retry && service.Retry.MaxRetries == 0)
             throw new ArgumentException("Retry requires MaxRetries greater than zero in the service configuration.", nameof(options));
+
         if (retry && !InternalApiResilience.IsReadOnly(method) && string.IsNullOrWhiteSpace(options.IdempotencyKey))
             throw new ArgumentException("Retrying a write requires an explicit opt-in and an idempotency key.", nameof(options));
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -64,16 +70,26 @@ internal sealed class InternalApiClient(IHttpClientFactory clients, IOptions<Int
             using var message = new HttpRequestMessage(method, uri);
             message.Options.Set(InternalApiResilience.RetryAllowed, retry);
             foreach (var (key, value) in metadata) message.Headers.Add(key, value);
-            if (authorization is not null) message.Headers.Authorization = AuthenticationHeaderValue.Parse(authorization);
+            if (authorization is not null) 
+                message.Headers.Authorization = AuthenticationHeaderValue.Parse(authorization);
             if (request is not null)
             {
                 message.Content = JsonContent.Create(request, request.GetType(), options: InternalApiJson.Options);
-                await message.Content.LoadIntoBufferAsync(budget.Token);
+
+                if (retry)
+                {
+                    long maxBufferedBytes = configuration.Value.MaxBufferedBytes;
+                    await message.Content.LoadIntoBufferAsync(maxBufferedBytes, budget.Token);
+                }
+               
             }
             using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, budget.Token);
             if (!response.IsSuccessStatusCode)
                 throw new InternalApiException(serviceName, api, InternalApiFailure.HttpError, httpStatusCode: response.StatusCode);
-            if (typeof(TResponse) == typeof(InternalApiEmpty)) return (TResponse)(object)new InternalApiEmpty();
+
+            if (typeof(TResponse) == typeof(InternalApiEmpty)) 
+                return (TResponse)(object)new InternalApiEmpty();
+
             var result = await response.Content.ReadFromJsonAsync<TResponse>(InternalApiJson.Options, budget.Token);
             return result ?? throw new InternalApiException(serviceName, api, InternalApiFailure.InvalidResponse);
         }

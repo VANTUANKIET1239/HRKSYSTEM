@@ -4,6 +4,8 @@ public sealed class InternalApiOptions
 {
     public const string SectionName = "InternalApi";
     public Dictionary<string, InternalServiceOptions> Services { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public long MaxBufferedBytes { get; init; } = 10L * 1024 * 1024;
+
 }
 
 public sealed class InternalServiceOptions
@@ -41,6 +43,7 @@ public sealed class InternalCallOptions
     public bool? RetryEnabled { get; init; }
     public string? CorrelationId { get; init; }
     public string? IdempotencyKey { get; init; }
+
     // Only application metadata (x-*); transport and authentication headers are managed separately.
     public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }
