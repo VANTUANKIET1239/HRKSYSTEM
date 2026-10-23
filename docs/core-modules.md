@@ -11,19 +11,24 @@ Do not add database, HTTP, authentication, caching or dependency-injection code 
 | Core.Application | MediatR command/query contracts and FluentValidation helpers | `AddCoreApplication(applicationAssembly)` |
 | Core.Web | HTTP response/error handling, HTTP-aware command/query bases, cookies | `AddControllers(options => options.AddHrkApiFilters())`, `AddHrkApiResponses()`, `AddCoreCookies(configuration)` when cookies are needed |
 | Core.AUTH | JWT generation/validation, token hashing and JWT settings | `AddCoreJwt(configuration)` |
-| Core.Caching | Redis cache implementation and cache contract | `AddHrkRedisCache(configuration)` |
+| Core.Caching | Redis `IDistributedCache` backend and typed HybridCache L1/L2 adapter | `AddHrkRedisCache(configuration)`, `AddHrkHybridCache(configuration)` |
 | Core.Logging | Optional `ILoggerService<T>` wrapper | `AddCoreLogging()` after host logging setup |
 
 ## Host composition
 
-GAME registers database/UnitOfWork, Redis and application handlers. Its existing JWT bearer
-middleware still validates access tokens; it does not register token generation or cookies.
+GAME registers database/UnitOfWork, Redis, HybridCache and application handlers. Redis supplies
+HybridCache's distributed tier and template revision markers. `AddHrkRedisCache` registers
+only the backend; cache consumers use `IHybridCacheService` or the GAME template catalog.
+The old JSON cache adapter and legacy string-cache wrapper have been removed. Entry TTLs
+come from `HybridCache` / `GameTemplateCache`; the old adapter's default TTL setting has
+been removed. GAME's existing JWT bearer middleware still validates access tokens; it
+does not register token generation or cookies.
 AUTH registers database/UnitOfWork, JWT, cookies and application handlers/validators.
 RabbitMQ no longer references Core.Common. GAME.Domain references only the dependency-free
 Core.Common error contracts; it has no references to HTTP, EF or DI projects.
 
 `AddCoreService(configuration)` and the unqualified `AddOptions(configuration)` have been removed.
-Each host composes only the modules it uses. Configuration keys are unchanged.
+Each host composes only the modules it uses.
 
 Repository adapters are optional: call `AddRepositoryAdapters()` only when a consumer injects
 `IRepository<T>` or `IReadOnlyRepository<T>` directly. Consumers injecting `IUnitOfWork` need

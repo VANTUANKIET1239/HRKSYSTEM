@@ -36,7 +36,6 @@ services:
     environment:
       Redis__ConnectionString: "redis:6379,abortConnect=false"
       Redis__InstanceName: "hrk:game:"
-      Redis__DefaultExpirationMinutes: "10"
       RabbitMq__HostName: "rabbitmq"
       RabbitMq__UserName: "${RABBITMQ_USER:-guest}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:-guest}"

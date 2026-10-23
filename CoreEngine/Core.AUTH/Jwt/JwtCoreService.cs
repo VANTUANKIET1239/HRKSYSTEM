@@ -59,24 +59,6 @@ namespace Core.AUTH.Jwt
         }
 
 
-        //private static string Hash(string raw)
-        //{
-        //    using var sha = SHA256.Create();
-        //    var bytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(raw));
-        //    return Convert.ToHexString(bytes);
-        //}
-
-        //public string CreateRefreshToken(string userId)
-        //{
-        //    // 256-bit random token
-        //    var bytes = new byte[32];
-        //    RandomNumberGenerator.Fill(bytes);
-        //    var tokenString = Hash(Convert.ToBase64String(bytes));
-
-        //    return tokenString;
-        //}
-
-
         public string NewSecureRandomToken(int bytes = 64) =>
             Core.AUTH.Tokens.TokenHelper.NewSecureRandomToken(bytes);
 
