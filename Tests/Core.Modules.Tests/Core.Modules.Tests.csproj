@@ -20,6 +20,5 @@
     <ProjectReference Include="../../CoreEngine/Core.AUTH/Core.AUTH.csproj" />
     <ProjectReference Include="../../CoreEngine/Core.Web/Core.Web.csproj" />
     <ProjectReference Include="../../CoreEngine/Core.Caching/Core.Caching.csproj" />
-    <ProjectReference Include="../../CoreEngine/Core.Logging/Core.Logging.csproj" />
   </ItemGroup>
 </Project>

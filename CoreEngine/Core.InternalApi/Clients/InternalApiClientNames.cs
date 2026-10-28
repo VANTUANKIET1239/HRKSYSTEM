@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Core.InternalApi;
 
 public static class InternalApiClientNames
@@ -16,9 +14,4 @@ public static class InternalApiClientNames
             serviceName.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '.' and not '_' and not '-'))
             throw new ArgumentException("Service names must contain 1-120 ASCII letters, digits, dots, hyphens or underscores.");
     }
-}
-
-internal static class InternalApiJson
-{
-    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 }

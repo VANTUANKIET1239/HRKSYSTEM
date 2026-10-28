@@ -87,6 +87,11 @@ public static class InternalApiRegistration
 
     private static void Validate(InternalApiOptions options)
     {
+
+        if (options.MaxBufferedBytes is <= 0 or > int.MaxValue)
+            throw new ArgumentException(
+                "InternalApi:MaxBufferedBytes must be between 1 and 2147483647.");
+
         foreach (var (name, service) in options.Services)
         {
             InternalApiClientNames.ValidateServiceName(name);

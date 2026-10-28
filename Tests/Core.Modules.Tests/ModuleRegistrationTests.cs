@@ -3,9 +3,8 @@ using Core.AUTH.Jwt;
 using Core.Application.CQRS;
 using Core.Application.DependencyInjection;
 using Core.Caching;
+using Core.Caching.Hybrid;
 using Core.Common.Entity;
-using Core.Logging;
-using Core.Logging.DependencyInjection;
 using Core.Persistence.Database.Extensions;
 using Core.Persistence.DependencyInjection;
 using Core.Persistence.Repositories;
@@ -14,7 +13,11 @@ using Core.Web.DependencyInjection;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using RedisBackendOptions = Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions;
 using Xunit;
 
 namespace Core.Modules.Tests;
@@ -27,7 +30,9 @@ public class ModuleRegistrationTests
             ["Database:Provider"] = "SqlServer",
             ["Database:ConnectionString"] = "Server=localhost;Database=Probe;Trusted_Connection=True",
             ["JwtSettings:SecretKey"] = new string('x', 64),
-            ["JwtSettings:Issuer"] = "test"
+            ["JwtSettings:Issuer"] = "test",
+            ["Redis:ConnectionString"] = "localhost:6379,abortConnect=false",
+            ["Redis:InstanceName"] = "test:cache:"
         }).Build();
 
     [Fact]
@@ -70,20 +75,23 @@ public class ModuleRegistrationTests
         Assert.NotEmpty(jwt.GenerateToken([], "test-audience").AccessToken);
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICoreCookieService>());
         Assert.Null(scope.ServiceProvider.GetService<IUnitOfWork>());
-        Assert.Null(scope.ServiceProvider.GetService<ICacheService>());
+        Assert.Null(scope.ServiceProvider.GetService<IDistributedCache>());
     }
 
     [Fact]
-    public void RedisAndLogging_ResolveWithoutJwtOrDatabase()
+    public void RedisAndHybridCache_ResolveWithoutJwtOrDatabase()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddCoreLogging();
         services.AddHrkRedisCache(Configuration());
+        services.AddHrkHybridCache(Configuration());
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         using var scope = provider.CreateScope();
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICacheService>());
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ILoggerService<ModuleRegistrationTests>>());
+        Assert.IsAssignableFrom<RedisCache>(scope.ServiceProvider.GetRequiredService<IDistributedCache>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IHybridCacheService>());
+        var redisOptions = scope.ServiceProvider.GetRequiredService<IOptions<RedisBackendOptions>>().Value;
+        Assert.Equal("localhost:6379,abortConnect=false", redisOptions.Configuration);
+        Assert.Equal("test:cache:", redisOptions.InstanceName);
         Assert.Null(scope.ServiceProvider.GetService<IUnitOfWork>());
         Assert.Null(scope.ServiceProvider.GetService<IJwtCoreService>());
     }

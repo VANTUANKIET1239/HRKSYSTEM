@@ -278,11 +278,6 @@ public sealed class ConsumerBackgroundService<TMessage, THandler> : BackgroundSe
         };
     }
 
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= Math.Max(1, maxLength)
-            ? value
-            : value[..Math.Max(1, maxLength)];
-
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         try

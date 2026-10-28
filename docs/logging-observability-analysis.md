@@ -4,6 +4,10 @@ Ngày phân tích: 02/10/2026. Phạm vi: source hiện tại và nội dung pro
 
 Cập nhật 03/10/2026: đã bắt đầu triển khai thiết kế này vào source. Trạng thái implementation, cấu hình và các bước migration nằm trong [runbook](observability-runbook.md); phần dưới giữ lại đối chiếu baseline trước implementation.
 
+Cập nhật hiện trạng: các host đã dùng `ILogger<T>` trực tiếp với Serilog được đăng ký qua
+`AddHrkObservability`. Wrapper logging cũ không còn consumer và đã được loại bỏ; các đề xuất
+giữ wrapper bên dưới chỉ phản ánh baseline trước implementation.
+
 ## 1. Kết luận kiến trúc
 
 Áp dụng được kiến trúc trong prompt, nhưng cần điều chỉnh theo repository. Các ứng dụng hiện tại là ApiGateway, HRK.AUTH, HRK.GAME và HRK.REALTIME; project đang target .NET 9, không phải .NET 10. Inventory, battle và rewards hiện nằm trong Game, không nên tách thêm microservice chỉ để triển khai logging.

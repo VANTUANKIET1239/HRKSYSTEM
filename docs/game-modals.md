@@ -8,16 +8,21 @@ titles and revisions. No application database is migrated automatically.
 ## Backend and cache
 
 `GET /api/game-config/modals` requires authentication and returns the standard response
-envelope. `GetModalConfigsQueryHandler` reads active rows through UnitOfWork and caches
-the DTO list using the existing Redis-backed `ICacheService`.
+envelope. `GetModalConfigsQueryHandler` reads `HrkModalConfig` through `IGameTemplateCatalog`,
+then filters active rows and maps them to DTOs. The configured template table is cached
+through HybridCache (process memory L1 and Redis L2); DTOs have no separate cache entry.
 
-- Logical Redis key: `game:config:modals:v1` (plus the configured Redis instance prefix).
-- Absolute Redis TTL: five minutes, including empty lists.
-- Redis outages use the existing fail-open adapter and read from the database.
+- Keys and coordinated revisions follow [GAME template cache](game-template-cache.md).
+- Table TTLs come from `GameTemplateCache:LocalExpirationMinutes` and
+  `GameTemplateCache:DistributedExpirationMinutes` (shipped values: 30 and 1440 minutes).
+- Redis outage behavior follows the template store: use an available local revision;
+  an initial cold cache can fall back to SQL. Unavailable published revisions are not
+  reconstructed from newer database rows.
 - Browser memory refresh interval: one minute, checked when a modal opens; retry after
   failed loads: 30 seconds. A forced `GameModalConfigService.load(true)` refresh is available.
-- SQL edits become visible after cache expiry and a subsequent browser refresh/open.
-  To refresh sooner, remove the prefixed Redis key, then force the browser refresh/reload.
+- After SQL edits, use the authorized template-refresh endpoint to publish a new revision,
+  then force a browser configuration refresh/reload. Automatic renewal also follows the
+  template-cache expiration policy.
 
 Example administrative edit (management is currently via SQL, not a new admin screen):
 
@@ -96,8 +101,9 @@ dotnet test Tests/dcs-game/GAME.Domain.Tests/GAME.Domain.Tests.csproj --no-resto
 ```
 
 LocalDB tests apply the production migration to an isolated database and verify seeding,
-reruns and edit preservation. Unit tests cover Redis hit/miss/TTL, active-only reads and
-cancellation. Browser tests cover nested dialogs, focus restoration, busy policy, persistent
+reruns and edit preservation. Template-cache tests cover L1/L2 reuse, expiration and revision
+handling; modal query tests cover active-only reads and cancellation. Browser tests cover
+nested dialogs, focus restoration, busy policy, persistent
 floating hosts, fallback/validation, confirmation queue/navigation, Tower request guards and
 the existing summon/toast flows. Run the frontend build with
 `npm run build -- --configuration development` from `HrkUi`.
