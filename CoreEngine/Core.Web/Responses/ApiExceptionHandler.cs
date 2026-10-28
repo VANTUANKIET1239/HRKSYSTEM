@@ -21,8 +21,11 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         else
             logger.LogDebug("API request rejected. Code={ErrorCode}, TraceId={TraceId}", code, ApiResponsePolicy.TraceId(context));
         context.Response.StatusCode = status;
-        await context.Response.WriteAsJsonAsync(ApiResponsePolicy.Failure(context, status, code, message,
-            validationErrors: (exception as RequestValidationException)?.Errors), cancellationToken);
+        var response = ApiResponsePolicy.Failure(context, status, code, message,
+            validationErrors: (exception as RequestValidationException)?.Errors);
+        if (exception is BusinessException localized) context.Items[typeof(BusinessException)] = localized;
+        await ApiResponseLocalizer.ApplyAsync(response, context);
+        await context.Response.WriteAsJsonAsync(response, cancellationToken);
         return true;
     }
 }

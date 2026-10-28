@@ -42,4 +42,8 @@
     <ProjectReference Include="../../../CoreEngine/Core.AUTH/Core.AUTH.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Persistence/Core.Persistence.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj" />
+  </ItemGroup>
 </Project>

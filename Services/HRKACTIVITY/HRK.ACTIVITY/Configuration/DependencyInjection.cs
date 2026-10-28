@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Oservability;
+using Core.HealthChecks;
+using Core.Persistence.DependencyInjection;
+using HRK.ACTIVITY.HealthChecks.Dependencies;
 
 namespace HRK.ACTIVITY.Configuration;
 
@@ -31,6 +34,8 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Database:ConnectionString is required.");
         builder.Services.AddDbContext<ActivityDbContext>(options => options.UseSqlServer(connection,
             sql => sql.EnableRetryOnFailure()));
+        builder.Services.AddRepositoryUOW<ActivityDbContext>();
+        AddServiceHealthChecks(builder.Services, builder.Configuration);
         builder.Services.AddScoped<IInboxStore, SqlServerInboxStore<ActivityDbContext>>();
         builder.Services.AddScoped<IInboxExecutor, InboxExecutor<ActivityDbContext>>();
         builder.Services.AddScoped<IActivityRecorder, ActivityStore>();
@@ -52,4 +57,9 @@ public static class DependencyInjection
         builder.Services.AddAuthorization(options => options.AddPolicy("ActivityAdmin", policy =>
             policy.RequireAuthenticatedUser().RequireRole("Admin")));
     }
+
+    private static void AddServiceHealthChecks(IServiceCollection services, IConfiguration configuration) =>
+        services.AddHrkHealthChecks("HRK.ACTIVITY", configuration)
+            .AddDependency<ActivityDatabaseHealthCheck>("database")
+            .AddDependency<ActivityRabbitMqHealthCheck>("rabbitmq");
 }

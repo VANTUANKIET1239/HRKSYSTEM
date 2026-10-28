@@ -91,7 +91,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken);
                 if (wallet == null)
                 {
-                    throw new KeyNotFoundException("Không tìm thấy thông tin ví của người chơi.");
+                    throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy thông tin ví của người chơi.", BusinessErrorKind.NotFound);
                 }
 
                 // 3. Load Equipment Aggregate & Invariants
@@ -117,7 +117,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 // 5. Validate Gold Cost using Wallet Domain Method
                 if (!wallet.HasEnoughGold(levelConfig.GoldCost))
                 {
-                    throw new BusinessException("INSUFFICIENT_GOLD", $"Không đủ Vàng để cường hóa. Yêu cầu: {levelConfig.GoldCost:N0} Vàng (Hiện có: {wallet.Gold:N0} Vàng).");
+                    throw BusinessException.Localized("INSUFFICIENT_GOLD", $"Không đủ Vàng để cường hóa. Yêu cầu: {levelConfig.GoldCost:N0} Vàng (Hiện có: {wallet.Gold:N0} Vàng).");
                 }
 
                 // 6. Validate & Load Enhancement Materials
@@ -142,12 +142,12 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         var stoneTemplate = stoneInv == null ? null : itemTemplates.GetValueOrDefault(stoneInv.ItemTemplateId);
                         if (stoneInv == null || stoneInv.Count < requiredQty)
                         {
-                            throw new BusinessException("INSUFFICIENT_MATERIALS", $"Số lượng đá cường hóa '{stoneTemplate?.Name ?? "ID: " + invId}' trong túi không đủ ({stoneInv?.Count ?? 0}/{requiredQty}).", BusinessErrorKind.Conflict);
+                            throw BusinessException.Localized("INSUFFICIENT_MATERIALS", $"Số lượng đá cường hóa '{stoneTemplate?.Name ?? "ID: " + invId}' trong túi không đủ ({stoneInv?.Count ?? 0}/{requiredQty}).", BusinessErrorKind.Conflict);
                         }
 
                         if (!stoneConfigs.TryGetValue(stoneInv.ItemTemplateId, out var matConfig) || matConfig.MaterialType != "STONE")
                         {
-                            throw new BusinessException("INVALID_ENHANCEMENT_STONE", $"Vật phẩm '{stoneTemplate?.Name}' không phải là đá cường hóa hợp lệ.", BusinessErrorKind.Conflict);
+                            throw BusinessException.Localized("INVALID_ENHANCEMENT_STONE", $"Vật phẩm '{stoneTemplate?.Name}' không phải là đá cường hóa hợp lệ.", BusinessErrorKind.Conflict);
                         }
 
                         stoneMaterialItems.Add(new StoneMaterialItem(stoneInv.Id, stoneInv.ItemTemplateId, stoneTemplate?.Code ?? "", stoneTemplate?.Name ?? "", requiredQty, matConfig.SuccessRateBonus));
@@ -173,7 +173,7 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         .FirstOrDefault(m => m.ItemTemplateId == charmInventory.ItemTemplateId);
                     if (charmConfig == null || charmConfig.MaterialType != "CHARM")
                     {
-                        throw new BusinessException("INVALID_ENHANCEMENT_CHARM", $"Vật phẩm '{charmTemplate?.Name}' không phải là bùa cường hóa hợp lệ.", BusinessErrorKind.Conflict);
+                        throw BusinessException.Localized("INVALID_ENHANCEMENT_CHARM", $"Vật phẩm '{charmTemplate?.Name}' không phải là bùa cường hóa hợp lệ.", BusinessErrorKind.Conflict);
                     }
 
                     charmMaterialItem = new CharmMaterialItem(charmInventory.Id, charmInventory.ItemTemplateId, charmTemplate?.Code ?? "", charmTemplate?.Name ?? "", charmConfig.SuccessRateBonus, charmConfig.PreventLevelDrop);
@@ -300,7 +300,9 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                         Stones = consumedStonesList,
                         Charm = consumedCharmDto
                     },
-                    Message = executionResult.IsSuccess ? $"CƯỜNG HÓA THÀNH CÔNG (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement})" : (executionResult.WasLevelProtected ? $"CƯỜNG HÓA THẤT BẠI (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement}). Bùa Hộ Mệnh đã bảo vệ cấp độ!" : $"CƯỜNG HÓA THẤT BẠI (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement})")
+                    Message = executionResult.IsSuccess ? $"CƯỜNG HÓA THÀNH CÔNG (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement})" : (executionResult.WasLevelProtected ? $"CƯỜNG HÓA THẤT BẠI (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement}). Bùa Hộ Mệnh đã bảo vệ cấp độ!" : $"CƯỜNG HÓA THẤT BẠI (+{executionResult.OldEnhancement} → +{executionResult.NewEnhancement})"),
+                    MessageKey = executionResult.IsSuccess ? "ENHANCEMENT_SUCCESS_DETAIL" : executionResult.WasLevelProtected ? "ENHANCEMENT_PROTECTED_DETAIL" : "ENHANCEMENT_FAILURE_DETAIL",
+                    MessageArguments = new() { ["old"] = executionResult.OldEnhancement, ["next"] = executionResult.NewEnhancement }
                 };
                 if (responseDto.Success)
                 {

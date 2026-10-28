@@ -55,7 +55,7 @@ public sealed class UpgradeHeroCommandHandler(
             materialCost += GetMaterialCost(hero.Level + i, config);
         }
 
-        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new InvalidOperationException("Khong tim thay vi nguoi choi.");
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         if (!wallet.HasEnoughGold(goldCost))
             throw new BusinessException("INSUFFICIENT_GOLD", "Khong du Vang de nang cap vo tuong.", BusinessErrorKind.Conflict);
         if (wallet.UpgradeMaterials < materialCost)

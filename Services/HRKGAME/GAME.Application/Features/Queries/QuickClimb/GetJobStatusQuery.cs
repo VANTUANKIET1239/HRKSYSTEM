@@ -22,7 +22,7 @@ public sealed class GetJobStatusQueryHandler(IUnitOfWork unitOfWork, IGamePlayer
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var job = await _unitOfWork.ReadOnlyRepository<HrkTowerQuickClimbJob>().Query()
-            .FirstOrDefaultAsync(j => j.JobId == jobId && j.PlayerId == player.Id, ct) ?? throw new BusinessException("QUICK_CLIMB_JOB_NOT_FOUND", $"Không tìm thấy phiên leo nhanh '{jobId}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(j => j.JobId == jobId && j.PlayerId == player.Id, ct) ?? throw BusinessException.Localized("QUICK_CLIMB_JOB_NOT_FOUND", $"Không tìm thấy phiên leo nhanh '{jobId}'.", BusinessErrorKind.NotFound);
         return MapJobToDto(job);
     }
 }

@@ -63,7 +63,7 @@ public sealed class StartFloorBattleCommandHandler(
         if (progress.RemainingLives <= 0)
             throw new BusinessException("NO_REMAINING_LIVES", "Đã hết mạng trong lượt leo hiện tại. Vui lòng bắt đầu lượt mới.", BusinessErrorKind.Conflict);
         if (floorNumber != progress.CurrentFloor)
-            throw new BusinessException("FLOOR_LOCKED", $"Không thể đánh tầng {floorNumber}. Tầng hợp lệ hiện tại là {progress.CurrentFloor}.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("FLOOR_LOCKED", $"Không thể đánh tầng {floorNumber}. Tầng hợp lệ hiện tại là {progress.CurrentFloor}.", BusinessErrorKind.Conflict);
         if (progress.IsCompleted)
             throw new BusinessException("TOWER_COMPLETED", "Đã hoàn thành toàn bộ tầng tháp trong kỳ này.", BusinessErrorKind.Conflict);
         // Snapshot formation

@@ -8,13 +8,32 @@ Do not add database, HTTP, authentication, caching or dependency-injection code 
 | --- | --- | --- |
 | Core.Persistence.Abstractions | Repository and UnitOfWork contracts without EF dependencies | None |
 | Core.Persistence | EF repositories, transactions, database providers/interceptor, Dapper executor | `AddDatabase<TContext>(configuration)`, `AddRepositoryUOW<TContext>()` |
-| Core.Application | MediatR command/query contracts and FluentValidation helpers | `AddCoreApplication(applicationAssembly)` |
+| Core.Application | HRK CQRS dispatcher, command/query contracts and FluentValidation helpers; MediatR implementation | `AddCoreApplication(applicationAssembly)` |
 | Core.Web | HTTP response/error handling, HTTP-aware command/query bases, cookies | `AddControllers(options => options.AddHrkApiFilters())`, `AddHrkApiResponses()`, `AddCoreCookies(configuration)` when cookies are needed |
 | Core.AUTH | JWT generation/validation, token hashing and JWT settings | `AddCoreJwt(configuration)` |
 | Core.Caching | Redis cache implementation and cache contract | `AddHrkRedisCache(configuration)` |
 | Core.Logging | Optional `ILoggerService<T>` wrapper | `AddCoreLogging()` after host logging setup |
 
 ## Host composition
+
+Controllers can inject `Core.Application.CQRS.ICqrsDispatcher` and call
+`QueryAsync(query, ct)` / `CommandAsync(command, ct)`. `AddCoreApplication` registers
+the scoped dispatcher; requests still pass through the existing validation and
+MediatR pipeline. Service controllers do not need to reference MediatR directly.
+
+For HTTP-aware handlers, `Core.Web.CQRS` exposes
+`HRKBaseQuery<TQuery,TResponse>` and `HRKBaseCommand<TCommand,TResponse>`.
+They implement the Core.Application handler interfaces and inherit the existing
+HRK user/session/response helpers. Register `AddHttpContextAccessor` in the host
+and in isolated handler tests. Non-generic HRK bases remain available for existing
+AUTH handlers. Background handlers can use the Core.Application interfaces alone.
+
+CQRS regression tests are isolated in `Tests/Core.Cqrs.Tests` so their test
+handlers do not enter assembly scans of unrelated module tests:
+
+```powershell
+dotnet test Tests/Core.Cqrs.Tests/Core.Cqrs.Tests.csproj
+```
 
 GAME registers database/UnitOfWork, Redis and application handlers. Its existing JWT bearer
 middleware still validates access tokens; it does not register token generation or cookies.

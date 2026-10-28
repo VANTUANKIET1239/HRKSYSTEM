@@ -9,8 +9,14 @@ services:
     depends_on:
       - hrk.auth
       - hrk.game
+      - hrk.language
     ports:
       - "5000:8080"
+    environment:
+      InternalApi__Services__health-auth__BaseAddress: "http://hrk.auth:8080"
+      InternalApi__Services__health-game__BaseAddress: "http://hrk.game:8080"
+      InternalApi__Services__health-language__BaseAddress: "http://hrk.language:8080"
+      InternalApi__Services__health-admin__BaseAddress: "http://hrk.admin:8080"
 
 
   hrk.auth:
@@ -20,6 +26,10 @@ services:
       dockerfile: Services/AUTH/HRK.AUTH/Dockerfile
     ports:
       - "5001:8080"
+    environment:
+      InternalApi__Services__language__BaseAddress: "http://hrk.language:8080"
+      Localization__RedisConnectionString: "redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=1000"
+      Localization__RedisKeyPrefix: "${LOCALIZATION_REDIS_PREFIX:-hrk:dev:i18n:}"
 
   hrk.game:
     image: ${DOCKER_REGISTRY-}hrkgame
@@ -34,6 +44,9 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
+      InternalApi__Services__language__BaseAddress: "http://hrk.language:8080"
+      Localization__RedisConnectionString: "redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=1000"
+      Localization__RedisKeyPrefix: "${LOCALIZATION_REDIS_PREFIX:-hrk:dev:i18n:}"
       Redis__ConnectionString: "redis:6379,abortConnect=false"
       Redis__InstanceName: "hrk:game:"
       Redis__DefaultExpirationMinutes: "10"
@@ -62,6 +75,39 @@ services:
       RabbitMq__HostName: "rabbitmq"
       RabbitMq__UserName: "${RABBITMQ_USER:-guest}"
       RabbitMq__Password: "${RABBITMQ_PASSWORD:-guest}"
+
+  hrk.language:
+    image: ${DOCKER_REGISTRY-}hrklanguage
+    build:
+      context: .
+      dockerfile: Services/HRKLANGUAGE/HRK.LANGUAGE/Dockerfile
+    ports:
+      - "5005:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Database__ConnectionString: "${LANGUAGE_DATABASE_CONNECTION:?Set LANGUAGE_DATABASE_CONNECTION in .env to the HRK_LANGUAGE SQL Server connection string}"
+      Localization__RedisConnectionString: "redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=1000"
+      Localization__RedisKeyPrefix: "${LOCALIZATION_REDIS_PREFIX:-hrk:dev:i18n:}"
+
+  hrk.admin:
+    image: ${DOCKER_REGISTRY-}hrkadmin
+    build:
+      context: .
+      dockerfile: Services/HRKADMIN/HRK.ADMIN/Dockerfile
+    ports:
+      - "127.0.0.1:5006:8080"
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      JwtSettings__SecretKey: "${JWT_SECRET_KEY:?Set JWT_SECRET_KEY to the same signing key used by AUTH and GAME}"
+      InternalApi__Services__gateway__BaseAddress: "http://apigateway:8080"
+      InternalApi__Services__auth__BaseAddress: "http://hrk.auth:8080"
+      InternalApi__Services__game__BaseAddress: "http://hrk.game:8080"
+      InternalApi__Services__realtime__BaseAddress: "http://hrk.realtime:8080"
+      InternalApi__Services__activity__BaseAddress: "http://hrk.activity:8080"
+      InternalApi__Services__language__BaseAddress: "http://hrk.language:8080"
 
   redis:
     image: redis:7-alpine

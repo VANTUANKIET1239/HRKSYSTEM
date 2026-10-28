@@ -33,7 +33,7 @@ public sealed class StopQuickClimbCommandHandler(
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, ct, tracked: true) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var job = await _unitOfWork.Repository<HrkTowerQuickClimbJob>().Query()
             .Include(x => x.EventPeriod)
-            .FirstOrDefaultAsync(j => j.JobId == jobId && j.PlayerId == player.Id, ct) ?? throw new BusinessException("QUICK_CLIMB_JOB_NOT_FOUND", $"Không tìm thấy phiên leo nhanh '{jobId}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(j => j.JobId == jobId && j.PlayerId == player.Id, ct) ?? throw BusinessException.Localized("QUICK_CLIMB_JOB_NOT_FOUND", $"Không tìm thấy phiên leo nhanh '{jobId}'.", BusinessErrorKind.NotFound);
         if (job.Status == "QUEUED")
         {
             job.Status = "CANCELLED";

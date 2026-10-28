@@ -33,7 +33,7 @@ public sealed class BattleLabBuildResolver(
         var rarity = (await _templates.GetAllAsync<HrkHeroRarityUpgradeConfig>(ct))
             .SingleOrDefault(c => c.RarityId == template.RarityId) ?? throw new ArgumentException($"Missing rarity growth configuration for {hero.Name}.");
         if (build.Level > rarity.MaxLevel)
-            throw new BusinessException("INVALID_REQUEST", $"{hero.Name}: maximum level is {rarity.MaxLevel}.", BusinessErrorKind.Validation);
+            throw BusinessException.Localized("INVALID_REQUEST", $"{hero.Name}: maximum level is {rarity.MaxLevel}.", BusinessErrorKind.Validation);
         var starConfigs = (await _templates.GetAllAsync<HrkHeroStarUpgradeConfig>(ct))
             .Where(c => c.RarityId == template.RarityId && c.IsEnabled && c.NextStar <= build.Stars)
             .OrderBy(c => c.NextStar)
@@ -83,7 +83,7 @@ public sealed class BattleLabBuildResolver(
             var item = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
                 .SingleOrDefault(i => i.Id == choice.ItemTemplateId);
             if (item == null || !item.Category.IsEquipment || item.LevelReq > build.Level)
-                throw new BusinessException("INVALID_REQUEST", $"Equipment {choice.ItemTemplateId} is unavailable for this level.", BusinessErrorKind.Validation);
+                throw BusinessException.Localized("INVALID_REQUEST", $"Equipment {choice.ItemTemplateId} is unavailable for this level.", BusinessErrorKind.Validation);
             if (!categories.Add(item.CategoryId))
                 throw new BusinessException("INVALID_REQUEST", "Only one equipment item per category/slot is allowed.", BusinessErrorKind.Validation);
             // Stable attribute order and independent item seed: changing another slot does not reroll this item.

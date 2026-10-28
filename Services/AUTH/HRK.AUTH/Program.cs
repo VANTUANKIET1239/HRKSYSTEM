@@ -8,6 +8,7 @@ using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text;
 using Core.Web.Responses;
 using Core.Web.Filters;
+using Core.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddCustomDependency();
@@ -66,5 +67,6 @@ app.UseHrkIdentityLogging(); // must come before UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHrkHealthChecks();
 
 app.Run();

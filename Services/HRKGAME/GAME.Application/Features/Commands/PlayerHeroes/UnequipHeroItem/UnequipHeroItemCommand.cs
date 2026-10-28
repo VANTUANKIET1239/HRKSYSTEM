@@ -51,7 +51,7 @@ public sealed class UnequipHeroItemCommandHandler(
         var cleanSlot = (slotCode ?? "").Trim().ToUpperInvariant();
         if (!ValidSlotCodes.Contains(cleanSlot))
         {
-            throw new BusinessException("INVALID_REQUEST", $"Vị trí trang bị '{slotCode}' không hợp lệ. Cho phép: {string.Join(", ", ValidSlotCodes)}.", BusinessErrorKind.Validation);
+            throw BusinessException.Localized("INVALID_REQUEST", $"Vị trí trang bị '{slotCode}' không hợp lệ. Cho phép: {string.Join(", ", ValidSlotCodes)}.", BusinessErrorKind.Validation);
         }
 
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy thông tin người chơi.", BusinessErrorKind.NotFound);
@@ -77,7 +77,7 @@ public sealed class UnequipHeroItemCommandHandler(
         int bagLimit = wallet?.MaxCapacity ?? 200;
         if (currentBagItemsCount + 1 > bagLimit)
         {
-            throw new BusinessException("INVENTORY_FULL", $"Hành trang đã đầy ({currentBagItemsCount}/{bagLimit} ô). Vui lòng dọn bớt hoặc mở rộng túi đồ trước khi tháo.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INVENTORY_FULL", $"Hành trang đã đầy ({currentBagItemsCount}/{bagLimit} ô). Vui lòng dọn bớt hoặc mở rộng túi đồ trước khi tháo.", BusinessErrorKind.Conflict);
         }
 
         await _unitOfWork.ExecuteStrategyAsync(async () =>

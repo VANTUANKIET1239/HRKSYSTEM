@@ -69,7 +69,7 @@ public sealed class UnequipAllHeroItemsCommandHandler(
         int bagLimit = wallet?.MaxCapacity ?? 200;
         if (currentBagItemsCount + equippedItemIds.Count > bagLimit)
         {
-            throw new BusinessException("INVENTORY_FULL", $"Hành trang không đủ chỗ để tháo {equippedItemIds.Count} trang bị ({currentBagItemsCount}/{bagLimit} ô). Vui lòng dọn bớt hoặc mở rộng túi đồ.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INVENTORY_FULL", $"Hành trang không đủ chỗ để tháo {equippedItemIds.Count} trang bị ({currentBagItemsCount}/{bagLimit} ô). Vui lòng dọn bớt hoặc mở rộng túi đồ.", BusinessErrorKind.Conflict);
         }
 
         await _unitOfWork.ExecuteStrategyAsync(async () =>

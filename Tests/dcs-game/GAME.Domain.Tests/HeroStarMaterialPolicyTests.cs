@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using GAME.Application.Common;
 using GAME.Application.DTOs;
 using Xunit;
@@ -39,8 +40,10 @@ public class HeroStarMaterialPolicyTests
     [InlineData(null, 5, 5)]
     public void RejectsInvalidOrInsufficientSelection(string? choice, int universal, int hero)
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        var error = Assert.Throws<BusinessException>(() =>
             HeroStarMaterialPolicy.UseHeroStone(choice, Stone(universal), Stone(hero)));
+        Assert.Equal(choice == "INVALID" ? BusinessErrorKind.Validation : BusinessErrorKind.Conflict, error.Kind);
+        Assert.Equal(choice == "INVALID" ? "INVALID_STAR_MATERIAL" : "INSUFFICIENT_MATERIALS", error.Code);
     }
 
     [Fact]

@@ -9,4 +9,9 @@
     <ProjectReference Include="../Activity.Infrastructure/Activity.Infrastructure.csproj" />
     <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Persistence/Core.Persistence.csproj" />
+  </ItemGroup>
 </Project>

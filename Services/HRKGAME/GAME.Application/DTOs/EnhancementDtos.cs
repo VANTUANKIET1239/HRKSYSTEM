@@ -29,6 +29,8 @@ namespace GAME.Application.DTOs
         public string? CurrentStatsJson { get; set; }
         public ConsumedResourcesDto Consumed { get; set; } = new();
         public string Message { get; set; } = string.Empty;
+        public string? MessageKey { get; set; }
+        public Dictionary<string, int>? MessageArguments { get; set; }
     }
 
     public class ConsumedResourcesDto

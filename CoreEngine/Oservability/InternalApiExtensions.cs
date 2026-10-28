@@ -21,8 +21,7 @@ public static class InternalApiExtensions
             var metadata = new Dictionary<string, string>();
             var correlation = services.GetService<ICorrelationContext>()?.CorrelationId;
             if (correlation is not null) metadata["x-correlation-id"] = correlation;
-            ValueTask<IReadOnlyDictionary<string, string>> valueTask = new(metadata);
-            return valueTask;
+            return new(metadata);
         }
     }
 }

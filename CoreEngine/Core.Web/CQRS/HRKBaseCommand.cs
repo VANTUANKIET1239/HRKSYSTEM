@@ -8,14 +8,11 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Core.Common.Constants.Common;
+using Core.Common.Errors;
 
 namespace Core.Web.CQRS
 {
-    public interface IHRKBaseCommand
-    {
-
-    }
-    public abstract class HRKBaseCommand 
+    public abstract class HRKBaseCommand : IHRKBaseCommand
     {
         protected readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -64,7 +61,7 @@ namespace Core.Web.CQRS
             {
                 return sessionId;
             }
-            throw new Exception("CurrentLoginSessionId claim is missing or invalid.");
+            throw new BusinessException("INVALID_SESSION", "Phiên đăng nhập không hợp lệ.", BusinessErrorKind.Unauthorized);
         }
     }
 }

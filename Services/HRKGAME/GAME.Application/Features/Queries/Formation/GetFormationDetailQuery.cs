@@ -19,6 +19,6 @@ public sealed class GetFormationDetailQueryHandler(
     IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
     : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), IQueryHandler<GetFormationDetailQuery, BaseResponse<FormationDetailDto?>>
 {
-    public async Task<BaseResponse<FormationDetailDto?>> Handle(GetFormationDetailQuery message, CancellationToken ct) => BaseResponse<FormationDetailDto?>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, ct) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy thông tin trận pháp '{message.FormationCode}'.", BusinessErrorKind.NotFound));
+    public async Task<BaseResponse<FormationDetailDto?>> Handle(GetFormationDetailQuery message, CancellationToken ct) => BaseResponse<FormationDetailDto?>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, ct) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy thông tin trận pháp '{message.FormationCode}'.", BusinessErrorKind.NotFound));
     private Task<FormationDetailDto?> ExecuteAsync(string userId, string formationCode, CancellationToken cancellationToken = default) => GetFormationDetailAsync(userId, formationCode, cancellationToken);
 }

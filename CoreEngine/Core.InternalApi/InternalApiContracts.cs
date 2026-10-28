@@ -4,6 +4,10 @@ namespace Core.InternalApi;
 
 public interface IInternalApiClient
 {
+    /// <summary>Reads a typed body for explicitly accepted HTTP statuses, including health reports with status 503.</summary>
+    Task<InternalApiResponse<TResponse>> GetResponseAsync<TResponse>(string serviceName, string api,
+        IReadOnlyCollection<HttpStatusCode> acceptedStatusCodes,
+        InternalCallOptions? options = null, CancellationToken cancellationToken = default);
     Task<TResponse> GetAsync<TResponse>(string serviceName, string api,
         InternalCallOptions? options = null, CancellationToken cancellationToken = default);
     Task<TResponse> PostAsync<TRequest, TResponse>(string serviceName, string api, TRequest request,
@@ -17,6 +21,8 @@ public interface IInternalApiClient
     Task<TResponse> SendAsync<TResponse>(string serviceName, HttpMethod method, string api, object? request = null,
         InternalCallOptions? options = null, CancellationToken cancellationToken = default);
 }
+
+public sealed record InternalApiResponse<TResponse>(HttpStatusCode StatusCode, TResponse Body);
 
 // Implementations can use scoped context or a service-token provider. End-user credentials are not forwarded automatically.
 public interface IInternalApiCredentialsProvider

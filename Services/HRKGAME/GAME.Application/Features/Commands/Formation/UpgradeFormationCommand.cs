@@ -27,16 +27,16 @@ public sealed class UpgradeFormationCommandHandler(
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
         var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
-            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var pf = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
-            .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy dữ liệu trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy dữ liệu trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         if (pf.Level >= tmpl.MaxLevel)
-            throw new BusinessException("MAX_LEVEL_REACHED", $"Trận pháp '{tmpl.Name}' đã đạt cấp độ tối đa (Lv.{tmpl.MaxLevel}).", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("MAX_LEVEL_REACHED", $"Trận pháp '{tmpl.Name}' đã đạt cấp độ tối đa (Lv.{tmpl.MaxLevel}).", BusinessErrorKind.Conflict);
         var currentCfg = tmpl.LevelConfigs.FirstOrDefault(c => c.Level == pf.Level) ?? throw new InvalidOperationException($"Không tìm thấy cấu hình nâng cấp cho cấp {pf.Level}.");
         // Kiểm tra ví vàng
-        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new KeyNotFoundException("Không tìm thấy ví của người chơi.");
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví của người chơi.", BusinessErrorKind.NotFound);
         if (!wallet.HasEnoughGold(currentCfg.GoldCost))
-            throw new BusinessException("INSUFFICIENT_GOLD", $"Số dư Vàng không đủ để nâng cấp ({wallet.Gold:N0}/{currentCfg.GoldCost:N0} Vàng).");
+            throw BusinessException.Localized("INSUFFICIENT_GOLD", $"Số dư Vàng không đủ để nâng cấp ({wallet.Gold:N0}/{currentCfg.GoldCost:N0} Vàng).");
         // Kiểm tra đá trận pháp
         var stoneItems = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
             .Where(i => i.PlayerId == player.Id && i.ItemTemplateId == currentCfg.StoneItemTemplateId && i.IsActive)
@@ -44,7 +44,7 @@ public sealed class UpgradeFormationCommandHandler(
             .ToListAsync(cancellationToken);
         int totalStones = stoneItems.Sum(i => i.Count);
         if (totalStones < currentCfg.StoneCost)
-            throw new BusinessException("INSUFFICIENT_MATERIALS", $"Không đủ Đá Trận Pháp để nâng cấp ({totalStones}/{currentCfg.StoneCost} viên).", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INSUFFICIENT_MATERIALS", $"Không đủ Đá Trận Pháp để nâng cấp ({totalStones}/{currentCfg.StoneCost} viên).", BusinessErrorKind.Conflict);
         // Prepare container for result
         FormationUpgradeResultDto? upgradeResult = null;
         await _unitOfWork.ExecuteStrategyAsync(async () =>

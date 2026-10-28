@@ -11,6 +11,8 @@ COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
 COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
+COPY ["CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj", "CoreEngine/Core.HealthChecks/"]
+COPY ["CoreEngine/Core.Caching/Core.Caching.csproj", "CoreEngine/Core.Caching/"]
 RUN dotnet restore "./Services/HRKREALTIME/HRK.REALTIME/HRK.REALTIME.csproj"
 COPY . .
 WORKDIR "/src/Services/HRKREALTIME/HRK.REALTIME"

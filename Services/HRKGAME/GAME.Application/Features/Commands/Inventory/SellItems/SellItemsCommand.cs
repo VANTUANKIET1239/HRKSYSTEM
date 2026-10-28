@@ -56,7 +56,7 @@ public sealed class SellItemsCommandHandler(
         var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken);
         if (wallet == null)
         {
-            throw new KeyNotFoundException("Không tìm thấy ví người chơi.");
+            throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         }
 
         var itemIds = groupedItems.Select(i => i.InventoryItemId).ToList();
@@ -71,28 +71,28 @@ public sealed class SellItemsCommandHandler(
             var inv = inventories.FirstOrDefault(i => i.Id == req.InventoryItemId);
             if (inv == null)
             {
-                throw new BusinessException("ITEM_NOT_FOUND", $"Không tìm thấy vật phẩm với mã ID {req.InventoryItemId} trong hành trang.", BusinessErrorKind.NotFound);
+                throw BusinessException.Localized("ITEM_NOT_FOUND", $"Không tìm thấy vật phẩm với mã ID {req.InventoryItemId} trong hành trang.", BusinessErrorKind.NotFound);
             }
 
             var template = itemTemplates[inv.ItemTemplateId];
             if (inv.IsLocked)
             {
-                throw new BusinessException("ITEM_LOCKED", $"Vật phẩm '{template.Name}' đang bị khóa, không thể bán.", BusinessErrorKind.Conflict);
+                throw BusinessException.Localized("ITEM_LOCKED", $"Vật phẩm '{template.Name}' đang bị khóa, không thể bán.", BusinessErrorKind.Conflict);
             }
 
             if (inv.IsEquipped)
             {
-                throw new BusinessException("ITEM_EQUIPPED", $"Vật phẩm '{template.Name}' đang được trang bị, không thể bán.", BusinessErrorKind.Conflict);
+                throw BusinessException.Localized("ITEM_EQUIPPED", $"Vật phẩm '{template.Name}' đang được trang bị, không thể bán.", BusinessErrorKind.Conflict);
             }
 
             if (req.Count > inv.Count)
             {
-                throw new BusinessException("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng bán ({req.Count}) vượt quá số lượng hiện có ({inv.Count}) của '{template.Name}'.", BusinessErrorKind.Conflict);
+                throw BusinessException.Localized("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng bán ({req.Count}) vượt quá số lượng hiện có ({inv.Count}) của '{template.Name}'.", BusinessErrorKind.Conflict);
             }
 
             if (template.SellPrice < 0)
             {
-                throw new BusinessException("ITEM_NOT_SELLABLE", $"Vật phẩm '{template.Name}' là vật phẩm không thể bán.", BusinessErrorKind.Conflict);
+                throw BusinessException.Localized("ITEM_NOT_SELLABLE", $"Vật phẩm '{template.Name}' là vật phẩm không thể bán.", BusinessErrorKind.Conflict);
             }
 
             // Sử dụng trực tiếp giá bán SellPrice được cấu hình trong bảng HRK_ItemTemplates

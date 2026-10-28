@@ -44,7 +44,7 @@ public sealed class SummonCommandHandler(
             // RowVersion also rejects stale writes from other wallet-consuming features.
             await _unitOfWork.Sql.ExecuteProcedureAsync(GameStoredProcedures.LockPlayerWallet,
                 new { PlayerId = playerId }, ct);
-            var wallet = await _players.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+            var wallet = await _players.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
             var previous = await _unitOfWork.ReadOnlyRepository<HrkSummonBatch>().Query()
                 .SingleOrDefaultAsync(x => x.PlayerId == playerId && x.RequestId == request.RequestId, ct);
             if (previous != null)

@@ -1,4 +1,5 @@
 using GAME.Application.Templates;
+using Core.Common.Errors;
 using Core.Persistence.Repositories;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -20,7 +21,7 @@ public sealed class GameRewardGranter(IUnitOfWork unitOfWork, IGamePlayerService
     {
         var granted = new List<GenericRewardItemDto>();
         var pending = new List<GenericRewardItemDto>();
-        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         var inventory = await _unitOfWork.Repository<HrkPlayerInventory>().Query()
             .Where(i => i.PlayerId == playerId && i.IsActive)
             .ToListAsync(ct);

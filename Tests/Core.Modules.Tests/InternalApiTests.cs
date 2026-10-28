@@ -19,6 +19,28 @@ namespace Core.Modules.Tests;
 
 public sealed class InternalApiTests
 {
+    [Fact]
+    public async Task ExplicitlyAccepted503ReturnsTypedBodyWithoutChangingNormalGetBehavior()
+    {
+        using var server = Server(async context =>
+        {
+            context.Response.StatusCode = 503;
+            await context.Response.WriteAsJsonAsync(new Reply(7));
+        });
+        var services = NewServices();
+        services.AddInternalApi(Options());
+        UseServer(services, server);
+        await using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var client = scope.ServiceProvider.GetRequiredService<IInternalApiClient>();
+        var response = await client.GetResponseAsync<Reply>("TEST", "/health/dependencies",
+            [HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable]);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(7, response.Body.Value);
+        var error = await Assert.ThrowsAsync<InternalApiException>(() => client.GetAsync<Reply>("TEST", "/health/dependencies"));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, error.HttpStatusCode);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

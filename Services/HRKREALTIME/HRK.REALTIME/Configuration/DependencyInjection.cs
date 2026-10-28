@@ -5,7 +5,9 @@ using System.Text;
 using Core.Messaging.Contracts;
 using Core.RabbitMQ.DependencyInjection;
 using HRK.REALTIME.Authentication;
-using HRK.REALTIME.Health;
+using HRK.REALTIME.HealthChecks.Dependencies;
+using Core.HealthChecks;
+using Core.Caching;
 using HRK.REALTIME.Hubs;
 using HRK.REALTIME.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -87,7 +89,7 @@ public static class DependencyInjection
             .EnsureRabbitTopology()
             .AddNamedRabbitConsumer<ProcessStatusUpdatedV1, ProcessStatusUpdatedHandler>(
                 "RealtimeProcessStatus");
-        AddServiceHealthChecks(builder.Services);
+        AddServiceHealthChecks(builder.Services, builder.Configuration);
     }
 
     public static void AddRedisTelemetry(WebApplicationBuilder builder, ISignalRServerBuilder signalR)
@@ -95,6 +97,7 @@ public static class DependencyInjection
         if (builder.Configuration.GetValue<bool>("Redis:Enabled"))
         {
             builder.Services.AddHrkRedisTelemetry();
+            builder.Services.AddHrkRedisConnections();
             var redisConnection = builder.Configuration["Redis:ConnectionString"]
                 ?? throw new InvalidOperationException("Redis:ConnectionString is required when Redis is enabled.");
             signalR.AddStackExchangeRedis(redisConnection, options =>
@@ -108,6 +111,11 @@ public static class DependencyInjection
         }
     }
 
-    public static void AddServiceHealthChecks(IServiceCollection services) =>
-        services.AddHealthChecks().AddCheck<RabbitMqHealthCheck>("rabbitmq");
+    public static void AddServiceHealthChecks(IServiceCollection services, IConfiguration configuration)
+    {
+        var checks = services.AddHrkHealthChecks("HRK.REALTIME", configuration)
+            .AddDependency<RealtimeRabbitMqHealthCheck>("rabbitmq");
+        if (configuration.GetValue<bool>("Redis:Enabled"))
+            checks.AddDependency<RealtimeRedisHealthCheck>("redis");
+    }
 }

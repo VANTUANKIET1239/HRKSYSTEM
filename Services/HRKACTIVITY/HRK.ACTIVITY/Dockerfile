@@ -14,6 +14,10 @@ COPY ["CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
+COPY ["CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj", "CoreEngine/Core.HealthChecks/"]
+COPY ["CoreEngine/Core.Persistence/Core.Persistence.csproj", "CoreEngine/Core.Persistence/"]
+COPY ["CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj", "CoreEngine/Core.Persistence.Abstractions/"]
+COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
 RUN dotnet restore "Services/HRKACTIVITY/HRK.ACTIVITY/HRK.ACTIVITY.csproj"
 COPY . .
 RUN dotnet publish "Services/HRKACTIVITY/HRK.ACTIVITY/HRK.ACTIVITY.csproj" -c Release -o /app/publish /p:UseAppHost=false

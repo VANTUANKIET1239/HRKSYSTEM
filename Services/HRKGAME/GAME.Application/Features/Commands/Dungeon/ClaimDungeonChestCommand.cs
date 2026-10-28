@@ -48,7 +48,7 @@ public sealed class ClaimDungeonChestCommandHandler(
         int totalStars = await _starService.GetMapTotalStarsAsync(player.Id, chest.DungeonMapId, cancellationToken);
         if (totalStars < chest.RequiredStars)
         {
-            throw new BusinessException("INSUFFICIENT_DUNGEON_STARS", $"Chưa đủ số sao yêu cầu ({totalStars}/{chest.RequiredStars}) để mở rương.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INSUFFICIENT_DUNGEON_STARS", $"Chưa đủ số sao yêu cầu ({totalStars}/{chest.RequiredStars}) để mở rương.", BusinessErrorKind.Conflict);
         }
 
         ClaimStarChestResultDto? result = null;
@@ -65,7 +65,7 @@ public sealed class ClaimDungeonChestCommandHandler(
                 };
                 await _unitOfWork.Repository<HrkPlayerDungeonStarChestClaim>().AddAsync(claim);
                 // Add currencies to player wallet
-                var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+                var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
                 wallet.Gold += chest.GoldReward;
                 wallet.Diamonds += chest.DiamondReward;
                 wallet.UpgradeMaterials += chest.UpgradeMaterialsReward;

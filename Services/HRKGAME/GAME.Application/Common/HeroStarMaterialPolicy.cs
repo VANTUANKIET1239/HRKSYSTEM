@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using GAME.Application.DTOs;
 
 namespace GAME.Application.Common;
@@ -25,12 +26,12 @@ public static class HeroStarMaterialPolicy
             null => IsEnough(heroStone),
             "HERO" => true,
             "UNIVERSAL" => false,
-            _ => throw new InvalidOperationException("Loại đá tăng sao không hợp lệ.")
+            _ => throw new BusinessException("INVALID_STAR_MATERIAL", "Loại đá tăng sao không hợp lệ.", BusinessErrorKind.Validation)
         };
 
         if (!IsEnough(useHeroStone ? heroStone : universalStone))
         {
-            throw new InvalidOperationException("Không đủ loại đá đã chọn để tăng sao.");
+            throw new BusinessException("INSUFFICIENT_MATERIALS", "Không đủ loại đá đã chọn để tăng sao.", BusinessErrorKind.Conflict);
         }
 
         return useHeroStone;

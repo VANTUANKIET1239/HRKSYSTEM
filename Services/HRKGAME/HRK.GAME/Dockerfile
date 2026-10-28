@@ -12,6 +12,7 @@ COPY ["CoreEngine/Core.Scheduling/Core.Scheduling.csproj", "CoreEngine/Core.Sche
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
+COPY ["CoreEngine/Core.Localization/Core.Localization.csproj", "CoreEngine/Core.Localization/"]
 COPY ["Services/HRKGAME/GAME.Application/GAME.Application.csproj", "Services/HRKGAME/GAME.Application/"]
 COPY ["Services/HRKGAME/GAME.Domain/GAME.Domain.csproj", "Services/HRKGAME/GAME.Domain/"]
 COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
@@ -22,6 +23,7 @@ COPY ["Services/HRKGAME/GAME.Infrastructure/GAME.Infrastructure.csproj", "Servic
 COPY ["CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj", "CoreEngine/Core.Messaging.Contracts/"]
 COPY ["CoreEngine/Core.Caching/Core.Caching.csproj", "CoreEngine/Core.Caching/"]
 COPY ["CoreEngine/Core.Persistence/Core.Persistence.csproj", "CoreEngine/Core.Persistence/"]
+COPY ["CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj", "CoreEngine/Core.HealthChecks/"]
 RUN dotnet restore "./Services/HRKGAME/HRK.GAME/HRK.GAME.csproj"
 COPY . .
 WORKDIR "/src/Services/HRKGAME/HRK.GAME"

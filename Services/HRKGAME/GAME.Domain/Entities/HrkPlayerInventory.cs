@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using GAME.Domain.Exceptions;
 using GAME.Domain.ValueObjects;
 using System;
@@ -150,7 +151,7 @@ namespace GAME.Domain.Entities
                 throw new ArgumentOutOfRangeException(nameof(quantity), "Số lượng tiêu hao phải lớn hơn 0.");
 
             if (Count < quantity)
-                throw new InvalidOperationException($"Số lượng vật phẩm '{ItemTemplate?.Name ?? "ID: " + Id}' trong túi không đủ ({Count}/{quantity}).");
+                throw BusinessException.Localized("INSUFFICIENT_ITEM_QUANTITY", $"Số lượng vật phẩm '{ItemTemplate?.Name ?? "ID: " + Id}' trong túi không đủ ({Count}/{quantity}).");
 
             Count -= quantity;
             if (Count <= 0)

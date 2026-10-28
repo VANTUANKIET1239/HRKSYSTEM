@@ -82,7 +82,7 @@ public sealed class StartQuickClimbCommandHandler(
         var rules = TowerRules.Parse(ev.RulesJson);
         if (progress.QuickClimbRunsUsed >= rules.QuickClimbDailyLimit)
         {
-            throw new BusinessException("QUICK_CLIMB_DAILY_LIMIT", $"Đã sử dụng hết {rules.QuickClimbDailyLimit} lượt leo nhanh trong kỳ hôm nay.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("QUICK_CLIMB_DAILY_LIMIT", $"Đã sử dụng hết {rules.QuickClimbDailyLimit} lượt leo nhanh trong kỳ hôm nay.", BusinessErrorKind.Conflict);
         }
 
         // Build frozen snapshot

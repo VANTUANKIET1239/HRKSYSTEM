@@ -44,6 +44,10 @@ public sealed class GetCheckInCalendarQueryHandler(IUnitOfWork unitOfWork, IGame
         }).ToArray();
         return BaseResponse<CheckInCalendarDto>.SuccessResponse(new(calendar.Id, calendar.Name, calendar.MonthKey,
             current.GameDate, now, current.NextResetUtc, true, unlocked && !byDay.ContainsKey(current.GameDate.Day),
-            unlocked ? null : $"Cần đạt cấp {calendar.MinPlayerLevel} để điểm danh.", claims.Count, days));
+            unlocked ? null : $"Cần đạt cấp {calendar.MinPlayerLevel} để điểm danh.", claims.Count, days)
+        {
+            ReasonKey = unlocked ? null : "CHECKIN_LEVEL_REQUIRED",
+            ReasonArguments = unlocked ? null : new Dictionary<string, int> { ["level"] = calendar.MinPlayerLevel }
+        });
     }
 }

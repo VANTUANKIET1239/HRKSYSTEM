@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Admin.Application/Admin.Application.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.InternalApi/Core.InternalApi.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
+</Project>

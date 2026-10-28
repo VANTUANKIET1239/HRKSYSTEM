@@ -63,7 +63,7 @@ public sealed class SummonRewardGranter(
         }).ToList();
         var required = SummonInventoryPolicy.RequiredFreeSlots(count, capacities);
         if (inventory.Count + required > bagLimit)
-            throw new BusinessException("INVENTORY_FULL", $"Hãy để trống ít nhất {required} ô hành trang để nhận đủ phần thưởng chiêu mộ.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INVENTORY_FULL", $"Hãy để trống ít nhất {required} ô hành trang để nhận đủ phần thưởng chiêu mộ.", BusinessErrorKind.Conflict);
     }
 
     public async Task<IReadOnlyList<SummonRewardDto>> GrantAsync(long playerId, IReadOnlyList<HrkHeroTemplate> heroes, Guid requestId, int bagLimit, CancellationToken ct)

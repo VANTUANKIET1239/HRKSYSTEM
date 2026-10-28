@@ -25,7 +25,7 @@ namespace GAME.Domain.Entities
                 throw new ArgumentOutOfRangeException(nameof(amount), "Số vàng cần trừ không được là số âm.");
 
             if (Gold < amount)
-                throw new BusinessException("INSUFFICIENT_GOLD", $"Số dư Vàng không đủ. Cần: {amount:N0} Vàng (Hiện có: {Gold:N0} Vàng).", BusinessErrorKind.Conflict);
+                throw BusinessException.Localized("INSUFFICIENT_GOLD", $"Số dư Vàng không đủ. Cần: {amount:N0} Vàng (Hiện có: {Gold:N0} Vàng).", BusinessErrorKind.Conflict);
 
             Gold -= amount;
             UpdatedOn = DateTime.UtcNow;

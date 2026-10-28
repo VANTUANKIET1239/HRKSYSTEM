@@ -122,7 +122,7 @@ public sealed class RunBattleLabCommandHandler(
 
     private static List<PlayerHeroDto> BuildTeam(List<BattleLabSlotDto> slots, List<PlayerHeroDto> catalog) => slots.Select(slot =>
     {
-        var template = catalog.SingleOrDefault(h => h.HeroTemplateId == slot.HeroTemplateId) ?? throw new BusinessException("INVALID_REQUEST", $"Unknown hero template {slot.HeroTemplateId}.", BusinessErrorKind.Validation);
+        var template = catalog.SingleOrDefault(h => h.HeroTemplateId == slot.HeroTemplateId) ?? throw BusinessException.Localized("INVALID_REQUEST", $"Unknown hero template {slot.HeroTemplateId}.", BusinessErrorKind.Validation);
         return new PlayerHeroDto
         {
             Id = slot.Position,

@@ -37,9 +37,9 @@ public sealed class UpdatePositionsCommandHandler(
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
         var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
-            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var pf = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
-            .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy bản ghi đội hình cho trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(f => f.PlayerId == player.Id && f.FormationTemplateId == tmpl.Id && f.IsActive, cancellationToken) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy bản ghi đội hình cho trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         // Validate slots 1 to 5
         var positions = request?.Positions ?? new List<SlotHeroPositionDto>();
         if (positions.Any(p => p.Slot < 1 || p.Slot > 5))

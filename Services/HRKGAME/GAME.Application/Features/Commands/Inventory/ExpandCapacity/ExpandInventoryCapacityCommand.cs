@@ -36,7 +36,7 @@ public sealed class ExpandInventoryCapacityCommandHandler(
     {
         if (slotsToAdd <= 0 || slotsToAdd % _settings.SlotStepIncrement != 0)
         {
-            throw new BusinessException("INVALID_REQUEST", $"Số ô mở rộng phải là bội số của {_settings.SlotStepIncrement} và lớn hơn 0.", BusinessErrorKind.Validation);
+            throw BusinessException.Localized("INVALID_REQUEST", $"Số ô mở rộng phải là bội số của {_settings.SlotStepIncrement} và lớn hơn 0.", BusinessErrorKind.Validation);
         }
 
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken);
@@ -48,18 +48,18 @@ public sealed class ExpandInventoryCapacityCommandHandler(
         var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken);
         if (wallet == null)
         {
-            throw new KeyNotFoundException("Không tìm thấy ví người chơi.");
+            throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         }
 
         if (wallet.MaxCapacity + slotsToAdd > _settings.MaxBagCapacity)
         {
-            throw new BusinessException("MAX_INVENTORY_CAPACITY", $"Hành trang đã đạt giới hạn tối đa cho phép ({_settings.MaxBagCapacity} ô).", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("MAX_INVENTORY_CAPACITY", $"Hành trang đã đạt giới hạn tối đa cho phép ({_settings.MaxBagCapacity} ô).", BusinessErrorKind.Conflict);
         }
 
         int diamondCost = slotsToAdd * _settings.DiamondCostPerSlot;
         if (wallet.Diamonds < diamondCost)
         {
-            throw new BusinessException("INSUFFICIENT_DIAMONDS", $"Không đủ Kim Cương để mở rộng hành trang. Cần {diamondCost} Kim Cương (hiện có {wallet.Diamonds}).");
+            throw BusinessException.Localized("INSUFFICIENT_DIAMONDS", $"Không đủ Kim Cương để mở rộng hành trang. Cần {diamondCost} Kim Cương (hiện có {wallet.Diamonds}).");
         }
 
         wallet.Diamonds -= diamondCost;

@@ -51,9 +51,9 @@ public sealed class SwapHeroEquipmentCommandHandler(
 
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy thông tin người chơi.", BusinessErrorKind.NotFound);
         var sourceHero = await _unitOfWork.Repository<HrkPlayerHero>().Query()
-            .FirstOrDefaultAsync(h => h.Id == sourceHeroId && h.PlayerId == player.Id && h.IsActive, cancellationToken) ?? throw new BusinessException("HERO_NOT_FOUND", $"Không tìm thấy võ tướng nguồn (ID: {sourceHeroId}) hoặc không thuộc quyền sở hữu.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(h => h.Id == sourceHeroId && h.PlayerId == player.Id && h.IsActive, cancellationToken) ?? throw BusinessException.Localized("HERO_NOT_FOUND", $"Không tìm thấy võ tướng nguồn (ID: {sourceHeroId}) hoặc không thuộc quyền sở hữu.", BusinessErrorKind.NotFound);
         var targetHero = await _unitOfWork.Repository<HrkPlayerHero>().Query()
-            .FirstOrDefaultAsync(h => h.Id == targetHeroId && h.PlayerId == player.Id && h.IsActive, cancellationToken) ?? throw new BusinessException("HERO_NOT_FOUND", $"Không tìm thấy võ tướng đích (ID: {targetHeroId}) hoặc không thuộc quyền sở hữu.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(h => h.Id == targetHeroId && h.PlayerId == player.Id && h.IsActive, cancellationToken) ?? throw BusinessException.Localized("HERO_NOT_FOUND", $"Không tìm thấy võ tướng đích (ID: {targetHeroId}) hoặc không thuộc quyền sở hữu.", BusinessErrorKind.NotFound);
         await _unitOfWork.ExecuteStrategyAsync(async () =>
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);

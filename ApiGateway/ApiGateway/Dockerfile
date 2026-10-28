@@ -14,6 +14,7 @@ WORKDIR /src
 COPY ["ApiGateway/ApiGateway/ApiGateway.csproj", "ApiGateway/ApiGateway/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
+COPY ["CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj", "CoreEngine/Core.HealthChecks/"]
 RUN dotnet restore "./ApiGateway/ApiGateway/ApiGateway.csproj"
 COPY . .
 WORKDIR "/src/ApiGateway/ApiGateway"

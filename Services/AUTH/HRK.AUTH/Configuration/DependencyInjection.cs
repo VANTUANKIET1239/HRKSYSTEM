@@ -12,6 +12,9 @@ using Core.Application.DependencyInjection;
 using Core.RabbitMQ.DependencyInjection;
 using Core.RabbitMQ.Interfaces;
 using Oservability;
+using Core.Localization;
+using Core.HealthChecks;
+using HRK.AUTH.HealthChecks.Dependencies;
 namespace HRK.AUTH.Configuration
 {
     public static class DependencyInjection
@@ -70,6 +73,8 @@ namespace HRK.AUTH.Configuration
         public static void AddServices(IServiceCollection services, IConfiguration configuration)
         {
             services.AddHrkInternalApi(configuration);
+            services.AddHrkLocalization(configuration, "auth");
+            AddServiceHealthChecks(services, configuration);
             services.AddCoreJwt(configuration);
             services.AddCoreCookies(configuration);
 
@@ -98,6 +103,14 @@ namespace HRK.AUTH.Configuration
 
 
 
+        }
+
+        public static void AddServiceHealthChecks(IServiceCollection services, IConfiguration configuration)
+        {
+            var checks = services.AddHrkHealthChecks("HRK.AUTH", configuration)
+                .AddDependency<AuthDatabaseHealthCheck>("database");
+            if (configuration.GetValue("Localization:Enabled", true))
+                checks.AddDependency<AuthLocalizationRedisHealthCheck>("redis.localization");
         }
 
 

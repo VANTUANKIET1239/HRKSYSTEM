@@ -2,6 +2,7 @@ using Oservability;
 using HRK.GAME.Configuration;
 using Core.Web.Responses;
 using Core.Web.Compression;
+using Core.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddCustomDependency();
@@ -23,6 +24,6 @@ app.UseHrkIdentityLogging();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHrkHealthChecks();
 
 app.Run();

@@ -68,13 +68,13 @@ public sealed class EquipHeroItemCommandHandler(
 
         if (item.IsEquipped && item.EquippedHeroId.HasValue && item.EquippedHeroId.Value != heroId)
         {
-            throw new BusinessException("ITEM_EQUIPPED", $"Trang bị đang được mặc bởi võ tướng khác (ID: {item.EquippedHeroId.Value}). Vui lòng tháo trước khi chuyển.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("ITEM_EQUIPPED", $"Trang bị đang được mặc bởi võ tướng khác (ID: {item.EquippedHeroId.Value}). Vui lòng tháo trước khi chuyển.", BusinessErrorKind.Conflict);
         }
 
         var slotCode = (template.Category.Code ?? "").Trim().ToUpperInvariant();
         if (!ValidSlotCodes.Contains(slotCode))
         {
-            throw new BusinessException("INVALID_EQUIPMENT_SLOT", $"Danh mục trang bị '{slotCode}' không khớp với 6 vị trí trang bị trên võ tướng.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INVALID_EQUIPMENT_SLOT", $"Danh mục trang bị '{slotCode}' không khớp với 6 vị trí trang bị trên võ tướng.", BusinessErrorKind.Conflict);
         }
 
         await _unitOfWork.ExecuteStrategyAsync(async () =>

@@ -21,10 +21,10 @@ public sealed class PurchaseStaminaCommandHandler(IUnitOfWork unitOfWork, IGameP
         ResetDailyPurchaseCount(player);
         if (player.DailyStaminaPurchaseCount >= 10)
             throw new BusinessException("STAMINA_PURCHASE_DAILY_LIMIT", "Đã đạt giới hạn mua thể lực hôm nay.", BusinessErrorKind.Conflict);
-        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         var cost = PurchaseCost(player.DailyStaminaPurchaseCount);
         if (wallet.Diamonds < cost)
-            throw new BusinessException("INSUFFICIENT_DIAMONDS", $"Không đủ kim cương. Cần {cost} kim cương.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("INSUFFICIENT_DIAMONDS", $"Không đủ kim cương. Cần {cost} kim cương.", BusinessErrorKind.Conflict);
         wallet.Diamonds -= cost;
         wallet.UpdatedOn = DateTime.UtcNow;
         player.Stamina += 50;

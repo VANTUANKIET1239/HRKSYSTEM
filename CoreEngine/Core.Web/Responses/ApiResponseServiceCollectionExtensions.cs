@@ -36,8 +36,10 @@ public static class ApiResponseServiceCollectionExtensions
                 404 => "Resource not found.",
                 _ => "Request failed."
             };
-            await context.HttpContext.Response.WriteAsJsonAsync(ApiResponsePolicy.Failure(context.HttpContext, status,
-                BaseResponse<object>.DefaultCode(status), message), context.HttpContext.RequestAborted);
+            var response = ApiResponsePolicy.Failure(context.HttpContext, status,
+                BaseResponse<object>.DefaultCode(status), message);
+            await ApiResponseLocalizer.ApplyAsync(response, context.HttpContext);
+            await context.HttpContext.Response.WriteAsJsonAsync(response, context.HttpContext.RequestAborted);
         });
         return app;
     }

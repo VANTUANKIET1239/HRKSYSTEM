@@ -27,6 +27,7 @@ public static class DependencyInjection
             ? "Ocelot.docker.json"
             : "Ocelot.json";
         builder.Configuration.AddJsonFile(ocelotConfig, optional: false, reloadOnChange: true);
+        builder.AddGatewayHealthChecks();
         builder.Services.AddOcelot(builder.Configuration);
 
         // Add JWT authentication and authorization
@@ -69,7 +70,8 @@ public static class DependencyInjection
                     origins
                  )
                  .AllowAnyHeader()
-                 .AllowAnyMethod().WithExposedHeaders("X-Correlation-Id")
+                 .AllowAnyMethod()
+                 .WithExposedHeaders("X-Correlation-Id", "ETag", "Content-Language")
                  .AllowCredentials()
                 );
          });

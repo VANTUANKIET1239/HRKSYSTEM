@@ -63,7 +63,7 @@ public sealed class UpgradeHeroStarCommandHandler(
                     throw new BusinessException("UPGRADE_NOT_ALLOWED", preview.Message ?? "Không thể tăng sao.", BusinessErrorKind.Conflict);
                 }
 
-                var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(data.Player.Id, cancellationToken) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+                var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(data.Player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
                 wallet.DeductGold(data.Config.GoldCost);
                 var useHeroStone = HeroStarMaterialPolicy.UseHeroStone(materialType, preview.UniversalStone, preview.HeroStone);
                 var material = useHeroStone ? preview.HeroStone : preview.UniversalStone;

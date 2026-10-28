@@ -34,7 +34,7 @@ public sealed class GetFloorDetailQueryHandler(
         var floor = await _unitOfWork.ReadOnlyRepository<HrkTowerFloor>().Query()
             .Where(f => f.EventId == ev.Id && f.FloorNumber == floorNumber && f.IsActive)
             .Include(f => f.Enemies)
-            .FirstOrDefaultAsync(ct) ?? throw new BusinessException("FLOOR_NOT_FOUND", $"Không tìm thấy tầng {floorNumber}.", BusinessErrorKind.NotFound);
+            .FirstOrDefaultAsync(ct) ?? throw BusinessException.Localized("FLOOR_NOT_FOUND", $"Không tìm thấy tầng {floorNumber}.", BusinessErrorKind.NotFound);
         var chests = (await GetPeriodChestsAsync(period, ct)).FirstOrDefault(c => c.FloorNumber == floorNumber);
         var claimedChestIds = (await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query()
             .Where(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST")

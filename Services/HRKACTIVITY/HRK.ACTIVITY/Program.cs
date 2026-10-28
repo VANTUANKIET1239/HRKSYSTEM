@@ -1,7 +1,7 @@
 using Activity.Application;
 using Activity.Infrastructure;
 using HRK.ACTIVITY.Configuration;
-using Microsoft.EntityFrameworkCore;
+using Core.HealthChecks;
 using Oservability;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,9 +12,7 @@ app.UseHrkCorrelation();
 app.UseAuthentication();
 app.UseHrkIdentityLogging();
 app.UseAuthorization();
-app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
-app.MapGet("/health/ready", async (ActivityDbContext db, CancellationToken ct) =>
-    await db.Database.CanConnectAsync(ct) ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
+app.MapHrkHealthChecks();
 var api = app.MapGroup("/api/activities").RequireAuthorization("ActivityAdmin");
 api.MapGet("", async ([AsParameters] GetActivitiesQuery query,
     IActivityQueries queries, CancellationToken ct) =>

@@ -5,11 +5,15 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Core.Web.Filters;
 
-public sealed class ApiResponseFilter : IAlwaysRunResultFilter
+public sealed class ApiResponseFilter : IAsyncAlwaysRunResultFilter
 {
-    public void OnResultExecuting(ResultExecutingContext context)
+    public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
     {
-        if (context.Result is not ObjectResult result) return;
+        if (context.Result is not ObjectResult result || result.StatusCode == 304)
+        {
+            await next();
+            return;
+        }
         var response = result.Value as IApiResponse;
         if (response == null)
         {
@@ -19,7 +23,7 @@ public sealed class ApiResponseFilter : IAlwaysRunResultFilter
                     "VALIDATION_ERROR", "Dữ liệu yêu cầu không hợp lệ.", "validation", new Dictionary<string, string[]>(validation.Errors));
             else if (status >= 400)
                 response = ApiResponsePolicy.Failure(context.HttpContext, status, BaseResponse<object>.DefaultCode(status),
-                    (result.Value as ProblemDetails)?.Title ?? "Request failed.");
+                    (result.Value as string) ?? (result.Value as ProblemDetails)?.Title ?? "Request failed.");
             else
                 response = BaseResponse<object>.SuccessResponse(result.Value!);
             result.Value = response;
@@ -28,6 +32,7 @@ public sealed class ApiResponseFilter : IAlwaysRunResultFilter
         ApiResponsePolicy.Normalize(response, context.HttpContext,
             result.StatusCode is > 0 and not 200 ? result.StatusCode : response.StatusCode > 0 ? response.StatusCode : result.StatusCode);
         result.StatusCode = response.StatusCode;
+        await ApiResponseLocalizer.ApplyAsync(response, context.HttpContext);
         if (!response.Success)
         {
             // Ensure data is JSON null even when the original DTO is a value type.
@@ -38,6 +43,6 @@ public sealed class ApiResponseFilter : IAlwaysRunResultFilter
             };
             result.DeclaredType = typeof(BaseResponse<object>);
         }
+        await next();
     }
-    public void OnResultExecuted(ResultExecutedContext context) { }
 }

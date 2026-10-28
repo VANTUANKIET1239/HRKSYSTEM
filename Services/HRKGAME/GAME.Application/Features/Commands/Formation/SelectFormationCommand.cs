@@ -27,11 +27,11 @@ public sealed class SelectFormationCommandHandler(
         var player = await GetPlayerRequiredAsync(userId, cancellationToken);
         await EnsurePlayerFormationsInitializedAsync(player, cancellationToken);
         var tmpl = (await _templates.GetAllAsync<HrkFormationTemplate>(cancellationToken))
-            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw new BusinessException("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+            .FirstOrDefault(t => t.Code == formationCode && t.IsEnabled) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         var allPfs = await _unitOfWork.Repository<HrkPlayerFormation>().Query()
             .Where(f => f.PlayerId == player.Id && f.IsActive)
             .ToListAsync(cancellationToken);
-        var targetPf = allPfs.FirstOrDefault(f => f.FormationTemplateId == tmpl.Id) ?? throw new BusinessException("FEATURE_LOCKED", $"Người chơi chưa mở khóa trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+        var targetPf = allPfs.FirstOrDefault(f => f.FormationTemplateId == tmpl.Id) ?? throw BusinessException.Localized("FEATURE_LOCKED", $"Người chơi chưa mở khóa trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
         // Kiểm tra trận pháp có ít nhất 1 hero
         if (targetPf.Position1 == null && targetPf.Position2 == null && targetPf.Position3 == null && targetPf.Position4 == null && targetPf.Position5 == null)
         {

@@ -41,6 +41,13 @@ resolved per call. Uses `IHttpClientFactory` + `Microsoft.Extensions.Http.Resili
 (Polly) for connection pooling, bounded retry and a circuit breaker per service.
 Configuration changes require restart.
 
+For health probes that return JSON with HTTP 503, use
+`GetResponseAsync<ServiceHealthReport>(service, "/health/dependencies", [HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable], options, ct)`.
+The result contains `StatusCode` and the deserialized `Body`. Unaccepted non-success
+statuses still throw `InternalApiException`; existing `GetAsync` behavior is unchanged.
+Set `Retry.MaxRetries = 0`, `Retry.Enabled = false` and
+`CircuitBreaker.Enabled = false` for monitoring clients so every probe makes a fresh request.
+
 `Retry.Enabled` applies by default only to GET/HEAD/OPTIONS. Other methods do not
 retry automatically. Explicit `InternalCallOptions.RetryEnabled = true` can opt a
 call in; writes also require `IdempotencyKey` and receiver-side transactional

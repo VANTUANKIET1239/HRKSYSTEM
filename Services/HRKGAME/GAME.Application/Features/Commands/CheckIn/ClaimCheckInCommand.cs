@@ -42,7 +42,8 @@ public sealed class ClaimCheckInCommandHandler(IUnitOfWork unitOfWork, IGamePlay
                 .SingleOrDefaultAsync(x => x.PlayerId == player.Id && x.CalendarId == current.Calendar.Id && x.CheckInDate == current.GameDate, ct);
             if (previous is not null) { result = Replay(previous); return; }
             if (player.Level < current.Calendar.MinPlayerLevel)
-                throw new BusinessException("CHECKIN_LEVEL_REQUIRED", $"Cần đạt cấp {current.Calendar.MinPlayerLevel} để điểm danh.", BusinessErrorKind.Conflict);
+                throw new BusinessException("CHECKIN_LEVEL_REQUIRED", $"Cần đạt cấp {current.Calendar.MinPlayerLevel} để điểm danh.", BusinessErrorKind.Conflict)
+                { Arguments = new Dictionary<string, object?> { ["level"] = current.Calendar.MinPlayerLevel } };
             var day = current.Days[current.GameDate.Day];
             var (granted, pending, _) = await rewards.GrantAsync(player.Id, day.Rewards, "CHECK_IN", ct);
             if (pending.Count > 0)

@@ -15,6 +15,8 @@ COPY ["Services/AUTH/HRK.AUTH/HRK.AUTH.csproj", "Services/AUTH/HRK.AUTH/"]
 COPY ["CoreEngine/Core.RabbitMQ/Core.RabbitMQ.csproj", "CoreEngine/Core.RabbitMQ/"]
 COPY ["CoreEngine/Oservability/Oservability.csproj", "CoreEngine/Oservability/"]
 COPY ["CoreEngine/Core.InternalApi/Core.InternalApi.csproj", "CoreEngine/Core.InternalApi/"]
+COPY ["CoreEngine/Core.Localization/Core.Localization.csproj", "CoreEngine/Core.Localization/"]
+COPY ["CoreEngine/Core.Caching/Core.Caching.csproj", "CoreEngine/Core.Caching/"]
 COPY ["Services/AUTH/AUTH.Application/AUTH.Application.csproj", "Services/AUTH/AUTH.Application/"]
 COPY ["Services/AUTH/AUTH.Domain/AUTH.Domain.csproj", "Services/AUTH/AUTH.Domain/"]
 COPY ["CoreEngine/Core.Common/Core.Common.csproj", "CoreEngine/Core.Common/"]
@@ -24,6 +26,7 @@ COPY ["CoreEngine/Core.AUTH/Core.AUTH.csproj", "CoreEngine/Core.AUTH/"]
 COPY ["CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj", "CoreEngine/Core.Persistence.Abstractions/"]
 COPY ["Services/AUTH/AUTH.Infrastructure/AUTH.Infrastructure.csproj", "Services/AUTH/AUTH.Infrastructure/"]
 COPY ["CoreEngine/Core.Persistence/Core.Persistence.csproj", "CoreEngine/Core.Persistence/"]
+COPY ["CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj", "CoreEngine/Core.HealthChecks/"]
 RUN dotnet restore "./Services/AUTH/HRK.AUTH/HRK.AUTH.csproj"
 COPY . .
 WORKDIR "/src/Services/AUTH/HRK.AUTH"

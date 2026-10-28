@@ -18,4 +18,9 @@
   <ItemGroup>
     <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Caching/Core.Caching.csproj" />
+  </ItemGroup>
 </Project>

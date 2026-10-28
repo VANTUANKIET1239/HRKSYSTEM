@@ -12,6 +12,16 @@ internal sealed class InternalApiClient(IHttpClientFactory clients, IOptions<Int
     IInternalApiCredentialsProvider credentials, IInternalApiMetadataProvider metadataProvider,
     ILogger<InternalApiClient> logger) : IInternalApiClient
 {
+    public Task<InternalApiResponse<TResponse>> GetResponseAsync<TResponse>(string serviceName, string api,
+        IReadOnlyCollection<System.Net.HttpStatusCode> acceptedStatusCodes,
+        InternalCallOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(acceptedStatusCodes);
+        if (acceptedStatusCodes.Count == 0 || acceptedStatusCodes.Any(status => (int)status is < 100 or > 599))
+            throw new ArgumentException("Specify valid accepted HTTP status codes.", nameof(acceptedStatusCodes));
+        return SendCoreAsync<TResponse>(serviceName, HttpMethod.Get, api, null, options,
+            acceptedStatusCodes.ToHashSet(), cancellationToken);
+    }
     public Task<TResponse> GetAsync<TResponse>(string serviceName, string api,
         InternalCallOptions? options = null, CancellationToken cancellationToken = default) =>
         SendAsync<TResponse>(serviceName, HttpMethod.Get, api, options: options, cancellationToken: cancellationToken);
@@ -33,7 +43,12 @@ internal sealed class InternalApiClient(IHttpClientFactory clients, IOptions<Int
         SendAsync<TResponse>(serviceName, HttpMethod.Delete, api, options: options, cancellationToken: cancellationToken);
 
     public async Task<TResponse> SendAsync<TResponse>(string serviceName, HttpMethod method, string api, object? request = null,
-        InternalCallOptions? options = null, CancellationToken cancellationToken = default)
+        InternalCallOptions? options = null, CancellationToken cancellationToken = default) =>
+        (await SendCoreAsync<TResponse>(serviceName, method, api, request, options, null, cancellationToken)).Body;
+
+    private async Task<InternalApiResponse<TResponse>> SendCoreAsync<TResponse>(string serviceName, HttpMethod method,
+        string api, object? request, InternalCallOptions? options,
+        IReadOnlySet<System.Net.HttpStatusCode>? acceptedStatusCodes, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(method);
@@ -71,11 +86,11 @@ internal sealed class InternalApiClient(IHttpClientFactory clients, IOptions<Int
                 await message.Content.LoadIntoBufferAsync(budget.Token);
             }
             using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, budget.Token);
-            if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode && acceptedStatusCodes?.Contains(response.StatusCode) != true)
                 throw new InternalApiException(serviceName, api, InternalApiFailure.HttpError, httpStatusCode: response.StatusCode);
-            if (typeof(TResponse) == typeof(InternalApiEmpty)) return (TResponse)(object)new InternalApiEmpty();
+            if (typeof(TResponse) == typeof(InternalApiEmpty)) return new(response.StatusCode, (TResponse)(object)new InternalApiEmpty());
             var result = await response.Content.ReadFromJsonAsync<TResponse>(InternalApiJson.Options, budget.Token);
-            return result ?? throw new InternalApiException(serviceName, api, InternalApiFailure.InvalidResponse);
+            return new(response.StatusCode, result ?? throw new InternalApiException(serviceName, api, InternalApiFailure.InvalidResponse));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (OperationCanceledException ex)

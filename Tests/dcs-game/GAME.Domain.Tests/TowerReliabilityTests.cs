@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using GAME.Application.Common;
 using GAME.Application.DTOs;
 using GAME.Application.Interfaces;
@@ -96,12 +97,25 @@ public class TowerReliabilityTests
     {
         var now = DateTime.UtcNow;
         var ev = new HrkGameEvent { IsOpen = true, MinPlayerLevel = 10, StartTimeUtc = now.AddHours(1) };
-        Assert.Throws<InvalidOperationException>(() => EventAccessPolicy.EnsureCanEnter(ev, 10, now));
+        Assert.Equal("EVENT_CLOSED", Assert.Throws<BusinessException>(() => EventAccessPolicy.EnsureCanEnter(ev, 10, now)).Code);
         ev.StartTimeUtc = now.AddHours(-1);
-        Assert.Throws<InvalidOperationException>(() => EventAccessPolicy.EnsureCanEnter(ev, 9, now));
+        var level = Assert.Throws<BusinessException>(() => EventAccessPolicy.EnsureCanEnter(ev, 9, now));
+        Assert.Equal("PLAYER_LEVEL_REQUIRED", level.Code);
+        Assert.Equal("Cần đạt cấp {{p0}} để tham gia.", level.MessageTemplate);
+        Assert.Equal(10, level.Arguments!["p0"]);
         ev.MaxDailyRuns = 2;
-        Assert.Throws<InvalidOperationException>(() => EventAccessPolicy.EnsureNewRun(ev,
-            new() { RemainingLives = 0, CurrentRunNumber = 2 }));
+        Assert.Equal("DAILY_RUN_LIMIT", Assert.Throws<BusinessException>(() => EventAccessPolicy.EnsureNewRun(ev,
+            new() { RemainingLives = 0, CurrentRunNumber = 2 })).Code);
+    }
+
+    [Fact]
+    public void InvalidServerEventConfiguration_RemainsAnInternalFailure()
+    {
+        var ev = new HrkGameEvent { IsOpen = true, MinPlayerLevel = 0, InitialLives = 0 };
+        Assert.Throws<InvalidOperationException>(() => EventAccessPolicy.EnsureCanEnter(ev, 1, DateTime.UtcNow));
+        ev.InitialLives = 3;
+        ev.LifeConsumeMode = "INVALID";
+        Assert.Throws<InvalidOperationException>(() => EventAccessPolicy.EnsureCanEnter(ev, 1, DateTime.UtcNow));
     }
 
     [Fact]

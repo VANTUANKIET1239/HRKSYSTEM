@@ -15,6 +15,10 @@ services:
     environment: *observability
   hrk.realtime:
     environment: *observability
+  hrk.language:
+    environment: *observability
+  hrk.admin:
+    environment: *observability
 
   rabbitmq:
     volumes:

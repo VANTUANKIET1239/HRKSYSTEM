@@ -1,6 +1,35 @@
 {
   "Routes": [
     {
+      "DownstreamPathTemplate": "/api/admin/health/services",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "hrk.admin",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/admin/health/services",
+      "UpstreamHttpMethod": ["Get"],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/language/bundles/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "hrk.language",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/language/bundles/{everything}",
+      "UpstreamHttpMethod": [
+        "Get"
+      ]
+    },
+    {
       "DownstreamPathTemplate": "/api/auth/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

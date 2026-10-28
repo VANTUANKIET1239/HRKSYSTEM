@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Language.Infrastructure/Language.Infrastructure.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Web/Core.Web.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Oservability/Oservability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.HealthChecks/Core.HealthChecks.csproj" />
+  </ItemGroup>
+</Project>

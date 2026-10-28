@@ -27,6 +27,7 @@ namespace GAME.Application.Services
 
         public async Task<FormationBattleSnapshot> BuildAsync(long playerId, string? formationCode, IReadOnlyCollection<FormationPositionRequestDto>? positions, CancellationToken cancellationToken = default)
         {
+            var hasRequestedFormation = !string.IsNullOrWhiteSpace(formationCode);
             // 1. Resolve Formation Template & Player Formation
             var playerFormation = await TemplateHydration.FindPlayerFormationAsync(_unitOfWork, _templates, playerId, formationCode, cancellationToken);
             formationCode = string.IsNullOrWhiteSpace(formationCode) ? playerFormation?.FormationTemplate?.Code ?? "LUC_DO" : formationCode;
@@ -36,7 +37,9 @@ namespace GAME.Application.Services
                 .FirstOrDefault();
             if (tmpl == null)
             {
-                throw new KeyNotFoundException($"Không tìm thấy cấu hình trận pháp '{formationCode}'.");
+                if (hasRequestedFormation)
+                    throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy cấu hình trận pháp '{formationCode}'.", BusinessErrorKind.NotFound);
+                throw new InvalidOperationException($"Default formation template '{formationCode}' is missing or disabled.");
             }
 
             int level = playerFormation?.Level ?? 1;
@@ -204,7 +207,7 @@ namespace GAME.Application.Services
                     ValidationErrors = new List<string>()
                 };
             }
-            catch (BusinessException ex)
+            catch (BusinessException ex) when (ex.Kind is BusinessErrorKind.Validation or BusinessErrorKind.Conflict)
             {
                 return new FormationPreviewResponseDto
                 {

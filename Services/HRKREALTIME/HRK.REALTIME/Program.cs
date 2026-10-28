@@ -1,6 +1,7 @@
 using HRK.REALTIME.Configuration;
 using HRK.REALTIME.Hubs;
 using Oservability;
+using Core.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddCustomDependency();
@@ -12,6 +13,6 @@ app.UseCors("Spa");
 app.UseAuthentication();
 app.UseHrkIdentityLogging();
 app.UseAuthorization();
-app.MapHealthChecks("/health");
+app.MapHrkHealthChecks();
 app.MapHub<RealtimeHub>("/hubs/realtime").RequireAuthorization();
 app.Run();

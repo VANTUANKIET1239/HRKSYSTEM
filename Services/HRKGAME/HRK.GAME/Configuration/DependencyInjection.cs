@@ -32,9 +32,11 @@ using GAME.Domain.Battle.Targets;
 using GAME.Infrastructure.Messaging.Consumers;
 using Oservability;
 using Oservability.Tracing;
-using HRK.GAME.Health;
+using Core.HealthChecks;
+using HRK.GAME.HealthChecks.Dependencies;
 using HRK.GAME.Filters;
 using Core.Web.Responses;
+using Core.Localization;
 using Core.Web.Compression;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -66,9 +68,15 @@ namespace HRK.GAME.Configuration
                         configuration["Redis:ConnectionString"] ?? "localhost:6379,abortConnect=false"));
         }
 
-        public static void AddServiceHealthChecks(IServiceCollection services) => services.AddHealthChecks()
-            .AddCheck<GameDatabaseHealthCheck>("database")
-            .AddCheck<GameRabbitMqHealthCheck>("rabbitmq");
+        public static void AddServiceHealthChecks(IServiceCollection services, IConfiguration configuration)
+        {
+            var checks = services.AddHrkHealthChecks("HRK.GAME", configuration)
+                .AddDependency<GameDatabaseHealthCheck>("database")
+                .AddDependency<GameRabbitMqHealthCheck>("rabbitmq")
+                .AddDependency<GameRedisHealthCheck>("redis");
+            if (configuration.GetValue("Localization:Enabled", true))
+                checks.AddDependency<GameLocalizationRedisHealthCheck>("redis.localization");
+        }
         public static IServiceCollection AddCustomDependency(this IServiceCollection services, IConfiguration configuration,
             IHostEnvironment? environment = null)
         {
@@ -98,7 +106,7 @@ namespace HRK.GAME.Configuration
             AddSummonServices(services);
             AddEventServices(services);
             AddSchedulingServices(services, configuration);
-            AddServiceHealthChecks(services);
+            AddServiceHealthChecks(services, configuration);
             services.AddCoreApplication(typeof(IGameRequestContext).Assembly);
         }
 
@@ -119,8 +127,11 @@ namespace HRK.GAME.Configuration
         private static void AddResponseCompression(IServiceCollection services, IConfiguration configuration) =>
             services.AddHrkResponseCompression(configuration);
 
-        private static void AddInternalApiServices(IServiceCollection services, IConfiguration configuration) =>
+        private static void AddInternalApiServices(IServiceCollection services, IConfiguration configuration)
+        {
             services.AddHrkInternalApi(configuration);
+            services.AddHrkLocalization(configuration, "game");
+        }
 
         private static void AddSecurityServices(IServiceCollection services, IConfiguration configuration, bool isDevelopment)
         {

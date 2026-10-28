@@ -12,6 +12,7 @@ public sealed class ApiBusinessExceptionFilter : IExceptionFilter
     {
         var error = context.Exception as BusinessException;
         if (error == null && context.Exception is not UnauthorizedAccessException) return;
+        if (error is not null) context.HttpContext.Items[typeof(BusinessException)] = error;
         var status = error == null ? 401 : ApiResponsePolicy.StatusCode(error.Kind);
         var response = ApiResponsePolicy.Failure(context.HttpContext, status,
             error?.Code ?? "UNAUTHORIZED", error?.Message ?? "Authentication required.",

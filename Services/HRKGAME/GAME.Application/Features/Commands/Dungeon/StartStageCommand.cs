@@ -94,7 +94,7 @@ public sealed class StartStageCommandHandler(
                 };
                 if (victory)
                 {
-                    var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+                    var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
                     result.GoldGained = stage.GoldReward + (firstClear ? stage.FirstClearGoldReward : 0);
                     wallet.Gold += result.GoldGained;
                     wallet.UpdatedOn = DateTime.UtcNow;
@@ -168,7 +168,7 @@ public sealed class StartStageCommandHandler(
     private async Task ValidateStageAccess(HrkDungeonStage stage, HrkPlayer player, HashSet<int> cleared, CancellationToken ct)
     {
         if (player.Level < stage.DungeonMap.RequiredPlayerLevel)
-            throw new BusinessException("PLAYER_LEVEL_REQUIRED", $"Cần đạt cấp {stage.DungeonMap.RequiredPlayerLevel}.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("PLAYER_LEVEL_REQUIRED", $"Cần đạt cấp {stage.DungeonMap.RequiredPlayerLevel}.", BusinessErrorKind.Conflict);
         if (stage.StageNumber > 1)
         {
             var previousStageId = await _unitOfWork.ReadOnlyRepository<HrkDungeonStage>().Query()

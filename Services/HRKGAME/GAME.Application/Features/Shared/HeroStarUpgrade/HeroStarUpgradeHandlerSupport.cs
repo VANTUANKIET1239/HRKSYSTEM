@@ -61,7 +61,7 @@ public abstract class HeroStarUpgradeHandlerSupport
 
     protected async Task<HeroStarUpgradePreviewDto> BuildPreviewAsync(UpgradeData data, CancellationToken cancellationToken)
     {
-        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(data.Player.Id, cancellationToken) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+        var wallet = await _gamePlayerService.GetWalletByPlayerIdAsync(data.Player.Id, cancellationToken) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         var bonuses = await GetBonusAttributesAsync(data.Hero.Id, cancellationToken);
         var previousBonus = await GetGrowthBonusAsync(data.Template.RarityId, data.Hero.Stars, cancellationToken);
         var currentStats = _progressionStatService.Calculate(data.Template, data.Hero.Level, data.RarityConfig.StatGrowthRate, previousBonus, bonuses.Select(x => (x.Code, x.Value)));

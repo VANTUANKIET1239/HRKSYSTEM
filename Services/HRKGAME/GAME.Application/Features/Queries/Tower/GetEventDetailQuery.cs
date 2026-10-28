@@ -25,7 +25,7 @@ public sealed class GetEventDetailQueryHandler(
     private async Task<GameEventDto> GetEventDetailAsyncCore(string userId, string eventCode, CancellationToken ct = default)
     {
         var events = await GetEventsAsync(userId, ct);
-        var ev = events.FirstOrDefault(e => e.Code.Equals(eventCode, StringComparison.OrdinalIgnoreCase)) ?? throw new BusinessException("EVENT_NOT_FOUND", $"Không tìm thấy sự kiện '{eventCode}'.", BusinessErrorKind.NotFound);
+        var ev = events.FirstOrDefault(e => e.Code.Equals(eventCode, StringComparison.OrdinalIgnoreCase)) ?? throw BusinessException.Localized("EVENT_NOT_FOUND", $"Không tìm thấy sự kiện '{eventCode}'.", BusinessErrorKind.NotFound);
         return ev;
     }
 }

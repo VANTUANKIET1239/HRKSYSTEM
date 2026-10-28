@@ -1,15 +1,12 @@
 using Core.Common.Constants.Common;
+using Core.Common.Errors;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
 namespace Core.Web.CQRS
 {
-    public interface IHRKBaseQuery
-    {
-    }
-
-    public abstract class HRKBaseQuery
+    public abstract class HRKBaseQuery : IHRKBaseQuery
     {
         protected readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -60,7 +57,7 @@ namespace Core.Web.CQRS
             {
                 return sessionId;
             }
-            throw new Exception("CurrentLoginSessionId claim is missing or invalid.");
+            throw new BusinessException("INVALID_SESSION", "Phiên đăng nhập không hợp lệ.", BusinessErrorKind.Unauthorized);
         }
     }
 }

@@ -37,9 +37,9 @@ public sealed class ClaimMilestoneChestCommandHandler(
         var ev = await GetTowerEventAsync(ct);
         var period = await _towerEvents.GetOrCreateCurrentPeriodAsync(ev, ct);
         var progress = await _towerEvents.GetOrCreatePlayerPeriodProgressAsync(player.Id, ev, period, ct);
-        var chest = (await GetPeriodChestsAsync(period, ct)).FirstOrDefault(c => c.Id == chestId) ?? throw new KeyNotFoundException("Không tìm thấy cấu hình rương mốc.");
+        var chest = (await GetPeriodChestsAsync(period, ct)).FirstOrDefault(c => c.Id == chestId) ?? throw new BusinessException("TOWER_CHEST_NOT_FOUND", "Không tìm thấy cấu hình rương mốc.", BusinessErrorKind.NotFound);
         if (progress.HighestFloorInPeriod < chest.FloorNumber)
-            throw new BusinessException("MILESTONE_NOT_REACHED", $"Chưa đạt mốc Tầng {chest.FloorNumber} trong kỳ hiện tại để mở rương.", BusinessErrorKind.Conflict);
+            throw BusinessException.Localized("MILESTONE_NOT_REACHED", $"Chưa đạt mốc Tầng {chest.FloorNumber} trong kỳ hiện tại để mở rương.", BusinessErrorKind.Conflict);
         bool alreadyClaimed = await _unitOfWork.ReadOnlyRepository<HrkPlayerEventRewardClaim>().Query().AnyAsync(c => c.PlayerId == player.Id && c.EventPeriodId == period.Id && c.ClaimType == "MILESTONE_CHEST" && c.TargetId == chest.Id, ct);
         if (alreadyClaimed)
             throw new BusinessException("REWARD_ALREADY_CLAIMED", "Rương này đã được nhận trong kỳ hiện tại.", BusinessErrorKind.Conflict);

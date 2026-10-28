@@ -1,3 +1,4 @@
+using Core.Common.Errors;
 using GAME.Domain.Entities;
 
 namespace GAME.Application.Common;
@@ -11,9 +12,9 @@ public static class EventAccessPolicy
     public static void EnsureCanEnter(HrkGameEvent ev, int playerLevel, DateTime now)
     {
         if (!IsOpen(ev, now))
-            throw new InvalidOperationException("Sự kiện chưa mở hoặc đã kết thúc.");
+            throw new BusinessException("EVENT_CLOSED", "Sự kiện chưa mở hoặc đã kết thúc.", BusinessErrorKind.Conflict);
         if (playerLevel < ev.MinPlayerLevel)
-            throw new InvalidOperationException($"Cần đạt cấp {ev.MinPlayerLevel} để tham gia.");
+            throw BusinessException.Localized("PLAYER_LEVEL_REQUIRED", $"Cần đạt cấp {ev.MinPlayerLevel} để tham gia.", BusinessErrorKind.Conflict);
         if (ev.InitialLives <= 0)
             throw new InvalidOperationException("Cấu hình số mạng phải lớn hơn 0.");
         if (ev.LifeConsumeMode is not ("ON_ENTRY" or "ON_DEFEAT"))
@@ -26,10 +27,10 @@ public static class EventAccessPolicy
     public static void EnsureNewRun(HrkGameEvent ev, HrkPlayerEventPeriodProgress progress)
     {
         if (progress.IsCompleted)
-            throw new InvalidOperationException("Đã hoàn thành tháp trong kỳ này.");
+            throw new BusinessException("TOWER_COMPLETED", "Đã hoàn thành tháp trong kỳ này.", BusinessErrorKind.Conflict);
         if (progress.RemainingLives > 0)
-            throw new InvalidOperationException("Lượt leo hiện tại vẫn còn mạng.");
+            throw new BusinessException("RUN_STILL_ACTIVE", "Lượt leo hiện tại vẫn còn mạng.", BusinessErrorKind.Conflict);
         if (ev.MaxDailyRuns.HasValue && progress.CurrentRunNumber >= ev.MaxDailyRuns.Value)
-            throw new InvalidOperationException("Đã đạt giới hạn lượt leo trong kỳ.");
+            throw new BusinessException("DAILY_RUN_LIMIT", "Đã đạt giới hạn lượt leo trong kỳ.", BusinessErrorKind.Conflict);
     }
 }

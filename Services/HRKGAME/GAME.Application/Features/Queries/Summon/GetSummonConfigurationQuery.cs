@@ -25,7 +25,7 @@ public sealed class GetSummonConfigurationQueryHandler(IUnitOfWork unitOfWork, I
     {
         var player = await _players.GetPlayerByUserIdAsync(userId, ct) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
         var playerId = player.Id;
-        var wallet = await _players.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new InvalidOperationException("Không tìm thấy ví người chơi.");
+        var wallet = await _players.GetWalletByPlayerIdAsync(playerId, ct) ?? throw new BusinessException("PLAYER_WALLET_NOT_FOUND", "Không tìm thấy ví người chơi.", BusinessErrorKind.NotFound);
         var pools = (await GetPoolsAsync(ct))
             .Where(x => x.IsEnabled)
             .OrderBy(x => x.DisplayOrder)

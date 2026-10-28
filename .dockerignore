@@ -19,6 +19,9 @@
 **/node_modules
 **/npm-debug.log
 **/obj
+# Backend images do not use frontend assets or temporary publish output.
+HrkUi/
+.tmp/
 **/secrets.dev.yaml
 **/values.dev.yaml
 LICENSE

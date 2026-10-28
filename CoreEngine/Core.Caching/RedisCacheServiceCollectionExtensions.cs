@@ -8,6 +8,7 @@ namespace Core.Caching
     {
         public static IServiceCollection AddHrkRedisCache(this IServiceCollection services, IConfiguration configuration)
         {
+            services.AddHrkRedisConnections();
             var section = configuration.GetSection(RedisCacheOptions.SectionName);
             var options = section.Get<RedisCacheOptions>() ?? new RedisCacheOptions();
             services.Configure<RedisCacheOptions>(section);
