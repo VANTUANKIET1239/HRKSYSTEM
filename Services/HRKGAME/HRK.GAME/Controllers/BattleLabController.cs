@@ -1,4 +1,4 @@
-using MediatR;
+using Core.Application.CQRS;
 using Core.Web.Compression;
 using GAME.Application.Features.Commands.BattleLab;
 using GAME.Application.Features.Queries.BattleLab;
@@ -13,7 +13,7 @@ namespace HRK.GAME.Controllers;
 [Authorize]
 [Route("api/battle/lab")]
 public sealed class BattleLabController(
-    IMediator mediator,
+    ICqrsDispatcher dispatcher,
     IWebHostEnvironment environment,
     IConfiguration configuration)
     : HRKControllerBase
@@ -27,7 +27,7 @@ public sealed class BattleLabController(
     {
         if (!CanUseLab)
             return NotFound();
-        return HrkOk(await mediator.Send(new GetBattleLabCatalogQuery(), ct));
+        return HrkOk(await dispatcher.QueryAsync(new GetBattleLabCatalogQuery(), ct));
     }
 
     [HttpPost("run")]
@@ -43,7 +43,7 @@ public sealed class BattleLabController(
         timeout.CancelAfter(TimeSpan.FromSeconds(45));
         try
         {
-            return HrkOk(await mediator.Send(new RunBattleLabCommand(request), timeout.Token));
+            return HrkOk(await dispatcher.CommandAsync(new RunBattleLabCommand(request), timeout.Token));
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

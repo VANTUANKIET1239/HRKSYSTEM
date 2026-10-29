@@ -3,7 +3,7 @@ using Core.Web.Compression;
 using GAME.Application.DTOs;
 using GAME.Application.Features.Commands.Battle;
 using HRK.GAME.Common;
-using MediatR;
+using Core.Application.CQRS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,24 +13,24 @@ namespace HRK.GAME.Controllers
     [Route("api/battle")]
     public class BattleController : HRKControllerBase
     {
-        private readonly IMediator _mediator;
-        public BattleController(IMediator mediator)
+        private readonly ICqrsDispatcher _dispatcher;
+        public BattleController(ICqrsDispatcher dispatcher)
         {
-            _mediator = mediator;
+            _dispatcher = dispatcher;
         }
 
         [HttpPost("start")]
         [HrkResponseCompression("BattleReplay")]
         public async Task<IActionResult> Start([FromBody] StartBattleRequestDto request)
         {
-            var response = await _mediator.Send(new StartBattleCommand(request), HttpContext.RequestAborted);
+            var response = await _dispatcher.CommandAsync(new StartBattleCommand(request), HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("initial-state")]
         public async Task<IActionResult> GetInitialState()
         {
-            var response = await _mediator.Send(new GetBattleInitialStateQuery(), HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetBattleInitialStateQuery(), HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
@@ -38,7 +38,7 @@ namespace HRK.GAME.Controllers
         [HrkResponseCompression("BattleReplay")]
         public async Task<IActionResult> GetBattleLogs([FromQuery] string battleId)
         {
-            var response = await _mediator.Send(new GetBattleLogsQuery(battleId), HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetBattleLogsQuery(battleId), HttpContext.RequestAborted);
             return HrkOk(response);
         }
     }

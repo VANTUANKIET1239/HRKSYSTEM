@@ -5,7 +5,7 @@ using AUTH.Application.Features.Commands.LoginUser;
 using AUTH.Application.Features.Commands.RegisterUser;
 using AUTH.Application.Features.Commands.RefreshToken;
 using AUTH.Application.Features.Commands.LogoutUser;
-using MediatR;
+using Core.Application.CQRS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,13 +20,13 @@ namespace HRK.AUTH.Controllers
     [Route("api/[controller]")]
     public class AuthController : HRKControllerBase
     {
-        private readonly IMediator _mediator;
+        private readonly ICqrsDispatcher _dispatcher;
         private readonly IApplicationRouteConfigService _applicationRouteConfigs;
       //  private readonly IMessagePublisher _messagePublisher;
 
-        public AuthController(IMediator mediator, IApplicationRouteConfigService applicationRouteConfigs)
+        public AuthController(ICqrsDispatcher dispatcher, IApplicationRouteConfigService applicationRouteConfigs)
         {
-            _mediator = mediator;
+            _dispatcher = dispatcher;
             _applicationRouteConfigs = applicationRouteConfigs;
           //  this._messagePublisher = messagePublisher;
         }
@@ -51,7 +51,7 @@ namespace HRK.AUTH.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterUserCommand command)
         {
-            var result = await _mediator.Send(command);
+            var result = await _dispatcher.CommandAsync(command, HttpContext.RequestAborted);
             return Ok(result);
         }
 
@@ -60,7 +60,7 @@ namespace HRK.AUTH.Controllers
         public async Task<IActionResult> Logout()
         {
             LogouUserCommand command = new();
-            var response = await _mediator.Send(command);
+            var response = await _dispatcher.CommandAsync(command, HttpContext.RequestAborted);
 
             return HrkOk(response);
         }
@@ -68,7 +68,7 @@ namespace HRK.AUTH.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginUserCommand command)
         {
-            var response = await _mediator.Send(command);
+            var response = await _dispatcher.CommandAsync(command, HttpContext.RequestAborted);
 
             return HrkOk(response);
         }
@@ -76,7 +76,7 @@ namespace HRK.AUTH.Controllers
         [HttpPost("refresh-token")]  
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command)
         {
-            var response = await _mediator.Send(command);
+            var response = await _dispatcher.CommandAsync(command, HttpContext.RequestAborted);
 
 
             return HrkOk(response);

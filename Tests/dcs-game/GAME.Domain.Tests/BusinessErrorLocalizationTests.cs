@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using Core.Application.DependencyInjection;
 using Core.Common.Errors;
 using Core.InternalApi;
 using Core.Localization;
@@ -79,7 +80,7 @@ public sealed class BusinessErrorLocalizationTests
         services.AddSingleton<IUnitOfWork>(store);
         services.AddSingleton<IGamePlayerService>(TestGamePlayers.Create(store));
         services.AddSingleton<IGameRequestContext>(new Actor("owner"));
-        services.AddMediatR(options => options.RegisterServicesFromAssemblyContaining<ExpandInventoryCapacityCommandHandler>());
+        services.AddCoreApplication(typeof(ExpandInventoryCapacityCommandHandler).Assembly);
         services.AddAuthorization();
         services.AddControllers(options => options.AddGameApiFilters())
             .AddApplicationPart(typeof(InventoryController).Assembly).AddApplicationPart(typeof(BusinessErrorProbeController).Assembly);

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using Core.Application.DependencyInjection;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Common.Errors;
 using Core.Messaging.Contracts;
@@ -69,7 +70,7 @@ public sealed class GameCqrsHttpTests
     private static TestServer Server(CqrsTransportProbe probe) => new(new WebHostBuilder().ConfigureServices(services =>
     {
         services.AddSingleton(probe);
-        services.AddMediatR(options => options.RegisterServicesFromAssemblyContaining<GameCqrsHttpTests>());
+        services.AddCoreApplication(typeof(GameCqrsHttpTests).Assembly);
         services.AddAuthorization();
         services.AddControllers(options => options.AddGameApiFilters()).AddApplicationPart(typeof(PlayerController).Assembly);
         services.AddHrkApiResponses();

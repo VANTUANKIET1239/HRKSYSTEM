@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using Core.Application.DependencyInjection;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Web.Responses;
 using GAME.Application.Features.Commands.GameConfig;
@@ -37,7 +38,7 @@ public sealed class TemplateRefreshHttpTests
             services.Configure<GameTemplateCacheOptions>(options => options.AllowManualRefresh = enabled);
             services.AddSingleton<IGameTemplateRefresh>(publisher);
             services.AddScoped<IGameTemplateRefreshAccess, TemplateRefreshAccess>();
-            services.AddMediatR(options => options.RegisterServicesFromAssemblyContaining<RefreshTemplateCacheCommand>());
+            services.AddCoreApplication(typeof(RefreshTemplateCacheCommand).Assembly);
             services.AddControllers(options => options.AddGameApiFilters()).AddApplicationPart(typeof(GameConfigController).Assembly);
             services.AddHrkApiResponses();
         }).Configure(app =>

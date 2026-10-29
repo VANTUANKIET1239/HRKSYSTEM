@@ -1,6 +1,6 @@
 using GAME.Application.Features.Queries.Catalog;
 using HRK.GAME.Common;
-using MediatR;
+using Core.Application.CQRS;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HRK.GAME.Controllers
@@ -8,38 +8,38 @@ namespace HRK.GAME.Controllers
     [Route("api/catalog")]
     public class CatalogController : HRKControllerBase
     {
-        private readonly IMediator _mediator;
+        private readonly ICqrsDispatcher _dispatcher;
 
-        public CatalogController(IMediator mediator)
+        public CatalogController(ICqrsDispatcher dispatcher)
         {
-            _mediator = mediator;
+            _dispatcher = dispatcher;
         }
 
         [HttpGet("heroes")]
         public async Task<IActionResult> GetHeroTemplates()
         {
-            var response = await _mediator.Send(new GetHeroTemplatesQuery(),HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetHeroTemplatesQuery(),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("hero-detail")]
         public async Task<IActionResult> GetHeroTemplateById([FromQuery] int id)
         {
-            var response = await _mediator.Send(new GetHeroTemplateByIdQuery(id),HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetHeroTemplateByIdQuery(id),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("skills")]
         public async Task<IActionResult> GetSkillTemplates()
         {
-            var response = await _mediator.Send(new GetSkillTemplatesQuery(),HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetSkillTemplatesQuery(),HttpContext.RequestAborted);
             return HrkOk(response);
         }
 
         [HttpGet("items")]
         public async Task<IActionResult> GetItemTemplates([FromQuery] int? categoryId, [FromQuery] int? rarityId)
         {
-            var response = await _mediator.Send(new GetItemTemplatesQuery(categoryId, rarityId),HttpContext.RequestAborted);
+            var response = await _dispatcher.QueryAsync(new GetItemTemplatesQuery(categoryId, rarityId),HttpContext.RequestAborted);
             return HrkOk(response);
         }
     }

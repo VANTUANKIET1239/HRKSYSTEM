@@ -1,11 +1,13 @@
 # CQRS trong GAME
 
-Controller nhận dữ liệu HTTP, lấy danh tính đã xác thực và gửi request qua MediatR.
+Controller nhận dữ liệu HTTP, lấy danh tính đã xác thực và gửi request qua `ICqrsDispatcher` (`QueryAsync` / `CommandAsync`).
 Command/query handler sở hữu luồng nghiệp vụ; không gọi một service bao ngoài để thực hiện lại toàn bộ use case.
+
+Xem [hướng dẫn dispatcher](./cqrs-dispatcher.md) để đăng ký DI và tham khảo cách dùng trong controller.
 
 ```mermaid
 flowchart LR
-    HTTP[Controller] --> CQRS[Command / Query handler]
+    HTTP[Controller] --> Dispatcher[ICqrsDispatcher] --> CQRS[Command / Query handler]
     Rabbit[RabbitMQ adapter] --> CQRS
     CQRS --> Shared[Calculator / Policy / Factory / Reader]
     CQRS --> UOW[UnitOfWork]

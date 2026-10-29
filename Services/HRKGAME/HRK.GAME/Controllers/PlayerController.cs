@@ -1,6 +1,6 @@
 using GAME.Application.Features.Queries.Player;
 using HRK.GAME.Common;
-using MediatR;
+using Core.Application.CQRS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using GAME.Application.DTOs;
@@ -12,44 +12,44 @@ namespace HRK.GAME.Controllers;
 [Route("api/player")]
 public sealed class PlayerController : HRKControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly ICqrsDispatcher _dispatcher;
     private string UserId => RequireUserId();
 
-    public PlayerController(IMediator mediator)
+    public PlayerController(ICqrsDispatcher dispatcher)
     {
-        _mediator = mediator;
+        _dispatcher = dispatcher;
     }
 
     [HttpGet("me")]
     public async Task<IActionResult> GetGameInfo()
     {
-        return HrkOk(await _mediator.Send(new GetPlayerGameInfoQuery(UserId), HttpContext.RequestAborted));
+        return HrkOk(await _dispatcher.QueryAsync(new GetPlayerGameInfoQuery(UserId), HttpContext.RequestAborted));
     }
 
     [HttpGet("profile")]
     public async Task<IActionResult> GetProfile()
     {
-        var response = await _mediator.Send(new GetPlayerProfileQuery(), HttpContext.RequestAborted);
+        var response = await _dispatcher.QueryAsync(new GetPlayerProfileQuery(), HttpContext.RequestAborted);
         return HrkOk(response);
     }
 
     [HttpGet("wallet")]
     public async Task<IActionResult> GetWallet()
     {
-        var response = await _mediator.Send(new GetPlayerWalletQuery(), HttpContext.RequestAborted);
+        var response = await _dispatcher.QueryAsync(new GetPlayerWalletQuery(), HttpContext.RequestAborted);
         return HrkOk(response);
     }
 
     [HttpGet("avatars")]
     public async Task<IActionResult> GetAvatars()
     {
-        return HrkOk(await _mediator.Send(new GetPlayerAvatarsQuery(UserId), HttpContext.RequestAborted));
+        return HrkOk(await _dispatcher.QueryAsync(new GetPlayerAvatarsQuery(UserId), HttpContext.RequestAborted));
     }
 
     [HttpPut("avatar/template")]
     public async Task<IActionResult> SelectAvatar([FromBody] SelectAvatarRequest request)
     {
-        return HrkOk(await _mediator.Send(new SelectPlayerAvatarCommand(UserId, request.AvatarTemplateId), HttpContext.RequestAborted));
+        return HrkOk(await _dispatcher.CommandAsync(new SelectPlayerAvatarCommand(UserId, request.AvatarTemplateId), HttpContext.RequestAborted));
     }
 
     [HttpPut("avatar/custom")]
@@ -74,7 +74,7 @@ public sealed class PlayerController : HRKControllerBase
         var userId = GetUserId();
         if (string.IsNullOrEmpty(userId))
             return Unauthorized();
-        var profile = await _mediator.Send(new SavePlayerCustomAvatarCommand(userId, new CustomAvatarUploadDto { ImageData = bytes, ContentType = contentType, FileName = Path.GetFileName(file.FileName), Width = width, Height = height }), HttpContext.RequestAborted);
+        var profile = await _dispatcher.CommandAsync(new SavePlayerCustomAvatarCommand(userId, new CustomAvatarUploadDto { ImageData = bytes, ContentType = contentType, FileName = Path.GetFileName(file.FileName), Width = width, Height = height }), HttpContext.RequestAborted);
         return HrkOk(profile);
     }
 
@@ -82,7 +82,7 @@ public sealed class PlayerController : HRKControllerBase
     [HttpGet("avatar/custom/{playerId:long}")]
     public async Task<IActionResult> GetCustomAvatar(long playerId)
     {
-        var response = await _mediator.Send(new GetPlayerCustomAvatarQuery(playerId), HttpContext.RequestAborted);
+        var response = await _dispatcher.QueryAsync(new GetPlayerCustomAvatarQuery(playerId), HttpContext.RequestAborted);
         var avatar = response.Data;
         if (avatar == null)
             return NotFound();
@@ -94,7 +94,7 @@ public sealed class PlayerController : HRKControllerBase
     [HttpDelete("avatar/custom")]
     public async Task<IActionResult> DeleteCustomAvatar()
     {
-        return HrkOk(await _mediator.Send(new DeletePlayerCustomAvatarCommand(UserId), HttpContext.RequestAborted));
+        return HrkOk(await _dispatcher.CommandAsync(new DeletePlayerCustomAvatarCommand(UserId), HttpContext.RequestAborted));
     }
 
     private static bool TryReadImage(byte[] data, out string contentType, out int width, out int height)
