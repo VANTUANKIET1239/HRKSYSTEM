@@ -412,13 +412,9 @@ public sealed class SummonDatabaseFixture : IAsyncLifetime
     public async Task<HrkPlayer> PlayerAsync(long gold = 1000, int diamonds = 100, int capacity = 200)
     {
         await using var db = Context();
-        var user = new HrkUser
-        {
-            Id = Guid.NewGuid().ToString()
-        };
         var player = new HrkPlayer
         {
-            User = user,
+            UserId = Guid.NewGuid().ToString(),
             PlayerName = "Test" + Guid.NewGuid().ToString("N"),
             Wallet = new()
             {

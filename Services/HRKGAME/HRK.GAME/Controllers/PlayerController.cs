@@ -26,6 +26,13 @@ public sealed class PlayerController : HRKControllerBase
         return HrkOk(await _dispatcher.QueryAsync(new GetPlayerGameInfoQuery(UserId), HttpContext.RequestAborted));
     }
 
+    [HttpGet("initialization")]
+    public async Task<IActionResult> GetInitialization()
+    {
+        Response.Headers.CacheControl = "no-store";
+        return HrkOk(await _dispatcher.QueryAsync(new GetPlayerInitializationQuery(UserId), HttpContext.RequestAborted));
+    }
+
     [HttpGet("profile")]
     public async Task<IActionResult> GetProfile()
     {

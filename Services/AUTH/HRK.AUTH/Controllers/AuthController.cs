@@ -48,11 +48,12 @@ namespace HRK.AUTH.Controllers
             })));
         }
 
+        [AllowAnonymous]
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterUserCommand command)
         {
             var result = await _dispatcher.CommandAsync(command, HttpContext.RequestAborted);
-            return Ok(result);
+            return HrkOk(result);
         }
 
 

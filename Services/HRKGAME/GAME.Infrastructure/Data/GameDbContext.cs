@@ -12,7 +12,6 @@ namespace GAME.Infrastructure.Data
         {
         }
 
-        public DbSet<HrkUser> Users { get; set; } = null!;
         public DbSet<HrkRarity> Rarities { get; set; } = null!;
         public DbSet<HrkHeroFaction> HeroFactions { get; set; } = null!;
         public DbSet<HrkHeroClass> HeroClasses { get; set; } = null!;
@@ -97,6 +96,7 @@ namespace GAME.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            GAME.Infrastructure.Data.Configurations.PlayerInitializationMapping.ConfigurePlayerInitialization(modelBuilder);
             modelBuilder.ConfigureScheduling();
             modelBuilder.ConfigureCheckIn();
 
@@ -202,19 +202,6 @@ namespace GAME.Infrastructure.Data
                 entity.HasIndex(x => new { x.PlayerId, x.StarChestId }).IsUnique();
                 entity.HasOne(x => x.Player).WithMany(x => x.StarChestClaims).HasForeignKey(x => x.PlayerId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.StarChest).WithMany(x => x.Claims).HasForeignKey(x => x.StarChestId).OnDelete(DeleteBehavior.Cascade);
-            });
-
-            // 1. HRK_Users
-            modelBuilder.Entity<HrkUser>(entity =>
-            {
-                entity.ToTable("HRK_Users");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasMaxLength(450);
-                entity.Property(e => e.UserName).HasMaxLength(256);
-                entity.Property(e => e.NormalizedUserName).HasMaxLength(256);
-                entity.Property(e => e.Email).HasMaxLength(256);
-                entity.Property(e => e.NormalizedEmail).HasMaxLength(256);
-                entity.Property(e => e.FullName).HasMaxLength(256);
             });
 
             // 2. HRK_Rarities
@@ -585,11 +572,6 @@ namespace GAME.Infrastructure.Data
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedOn).HasDefaultValueSql("GETDATE()");
                 entity.Property(e => e.UpdatedOn).HasDefaultValueSql("GETDATE()");
-
-                entity.HasOne(d => d.User)
-                    .WithOne(p => p.Player)
-                    .HasForeignKey<HrkPlayer>(d => d.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(d => d.AvatarTemplate)
                     .WithMany(p => p.Players)

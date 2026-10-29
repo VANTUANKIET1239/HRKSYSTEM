@@ -22,7 +22,6 @@ namespace GAME.Domain.Entities
         public string AvatarType { get; set; } = "TEMPLATE";
         public int? AvatarTemplateId { get; set; }
 
-        public virtual HrkUser? User { get; set; }
         public virtual HrkPlayerWallet? Wallet { get; set; }
         public virtual HrkAvatarTemplate? AvatarTemplate { get; set; }
         public virtual HrkPlayerCustomAvatar? CustomAvatar { get; set; }

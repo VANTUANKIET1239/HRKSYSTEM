@@ -174,13 +174,15 @@ namespace HRK.GAME.Configuration
             services.AddSingleton<PlayerActivityEventMapper>();
             services.AddScoped<IPlayerActivityEvents, PlayerActivityEvents>();
             services.AddRabbitMqMessaging(configuration).EnsureRabbitTopology()
-                .AddNamedRabbitConsumer<ProcessQuickClimbFloorRequestedV1, QuickClimbFloorRequestedHandler>("QuickClimb");
+                .AddNamedRabbitConsumer<ProcessQuickClimbFloorRequestedV1, QuickClimbFloorRequestedHandler>("QuickClimb")
+                .AddNamedRabbitConsumer<AccountRegisteredV1, AccountRegisteredHandler>("AccountRegistered");
             services.AddTransactionalMessaging<GameDbContext>(configuration);
         }
 
         private static void AddPlayerServices(IServiceCollection services)
         {
             services.AddScoped<IGamePlayerService, GamePlayerService>();
+            services.AddScoped<NewPlayerHeroFactory>();
             services.AddScoped<IPlayerReadModels, PlayerReadModels>();
             services.AddScoped<IGameRequestContext, HttpGameRequestContext>();
         }

@@ -83,15 +83,7 @@ public sealed class SummonRewardGranter(
         var stoneItems = (await _templates.GetAllAsync<HrkItemTemplate>(ct))
             .Where(x => itemIds.Contains(x.Id))
             .ToDictionary(x => x.Id);
-        var growth = (await _templates.GetAllAsync<HrkHeroRarityUpgradeConfig>(ct))
-            .ToDictionary(x => x.RarityId);
-        var attributePool = (await _templates.GetAllAsync<HrkHeroStarAttributePool>(ct))
-            .Where(x => x.IsEnabled)
-            .OrderBy(x => x.Id)
-            .ToList();
-        var attributeCodes = (await _templates.GetAllAsync<HrkAttributeType>(ct))
-            .ToDictionary(x => x.Id, x => x.Code);
-        var exp = await levels.GetHeroRequirementAsync(1, ct);
+        var heroFactory = new NewPlayerHeroFactory(unitOfWork, stats, power, levels, random, _templates);
         var results = new List<SummonRewardDto>();
         for (var index = 0; index < heroes.Count; index++)
         {
@@ -101,41 +93,7 @@ public sealed class SummonRewardGranter(
             HrkItemTemplate? stoneItem = null;
             if (isNew)
             {
-                if (!growth.TryGetValue(template.RarityId, out var config))
-                    throw new InvalidOperationException("Missing hero progression configuration.");
-                var pool = attributePool.Where(x => x.RarityId == template.RarityId).ToList();
-                if (pool.Count == 0 || pool.Any(x => x.Weight <= 0 || x.MinValue > x.MaxValue))
-                    throw new InvalidOperationException("Missing or invalid initial star attribute pool.");
-                var total = checked(pool.Sum(x => x.Weight));
-                var roll = random.Next(total);
-                var attribute = pool[0];
-                foreach (var candidate in pool)
-                {
-                    if (roll < candidate.Weight)
-                    {
-                        attribute = candidate;
-                        break;
-                    }
-
-                    roll -= candidate.Weight;
-                }
-
-                // The same precision as the existing star attribute values.
-                var value = Math.Round(attribute.MinValue + (attribute.MaxValue - attribute.MinValue) * random.Next(1_000_000) / 1_000_000m, 4);
-                var calculated = stats.Calculate(template, 1, config.StatGrowthRate, 0, [(attributeCodes[attribute.AttributeTypeId], value)]);
-                var hero = new HrkPlayerHero
-                {
-                    PlayerId = playerId,
-                    HeroTemplateId = template.Id,
-                    Level = 1,
-                    Stars = 1,
-                    AuraTier = 1,
-                    MaxExp = exp.IsMaxLevel ? 0 : exp.RequiredExp,
-                    CurrentStats = JsonSerializer.Serialize(calculated),
-                    Power = await power.CalculateAsync(calculated, ct)
-                };
-                await unitOfWork.Repository<HrkPlayerHero>().AddAsync(hero);
-                await unitOfWork.Repository<HrkPlayerHeroBonusAttribute>().AddAsync(new HrkPlayerHeroBonusAttribute { PlayerHero = hero, UnlockedAtStar = 1, AttributeTypeId = attribute.AttributeTypeId, Value = value, IsPercentage = attribute.IsPercentage, RollSeed = Guid.NewGuid() });
+                await heroFactory.CreateAsync(playerId, template, ct);
             }
             else
             {

@@ -10,6 +10,20 @@ namespace Oservability.Tests;
 public class EventActivityTests
 {
     [Fact]
+    public void PlayerInitializationIsAcceptedWithPlayerOwnershipAndConfigVersion()
+    {
+        var activity = new GAME.Application.Events.PlayerInitializedEvent(42, "player", Guid.NewGuid(), 7, 2,
+            new { InitialGold = 10000 });
+        var message = new GAME.Infrastructure.Messaging.PlayerActivityEventMapper().Map(activity).Message;
+        var mapped = ActivityMapping.Map(new(message, message.EventId.ToString("N"), "registration", null));
+        Assert.Equal("PlayerInitialized", mapped.ActivityType);
+        Assert.Equal("Player", mapped.EntityType);
+        Assert.Equal("42", mapped.EntityId);
+        Assert.Contains("ConfigVersion", mapped.PayloadJson);
+        Assert.Null(mapped.GameEventId);
+    }
+
+    [Fact]
     public void CheckInActivityIsAcceptedWithDateAndCalendarMetadataWithoutTowerPeriod()
     {
         var activity = new GAME.Application.Events.CheckInClaimedEvent(42, "player", 10, "2026-10",

@@ -9,7 +9,7 @@ namespace AUTH.Infrastructure.Identity
 {
     public class ApplicationUser : IdentityUser
     {
-        // Add custom properties if needed
+        public string? FullName { get; set; }
     }
 
 }

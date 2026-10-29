@@ -27,6 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../../CoreEngine/Core.TransactionalMessaging/Core.TransactionalMessaging.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Common/Core.Common.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Application/Core.Application.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.AUTH/Core.AUTH.csproj" />

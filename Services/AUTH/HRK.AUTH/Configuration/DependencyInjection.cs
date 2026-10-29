@@ -15,6 +15,8 @@ using Oservability;
 using Core.Localization;
 using Core.HealthChecks;
 using HRK.AUTH.HealthChecks.Dependencies;
+using Core.TransactionalMessaging.DependencyInjection;
+using Core.Persistence.Repositories;
 namespace HRK.AUTH.Configuration
 {
     public static class DependencyInjection
@@ -79,6 +81,8 @@ namespace HRK.AUTH.Configuration
             services.AddCoreCookies(configuration);
 
             services.AddRepositoryUOW<ApplicationDbContext>();
+            services.AddScoped<IUnitOfWork<AuthDbContext>, UnitOfWork<AuthDbContext>>();
+            AddMessagingServices(services, configuration);
 
             services.AddScoped<IIdentityService, IdentityService>();
             services.AddScoped<IRefreshTokenService, RefreshTokenService>();
@@ -105,10 +109,17 @@ namespace HRK.AUTH.Configuration
 
         }
 
+        private static void AddMessagingServices(IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddRabbitMqMessaging(configuration).EnsureRabbitTopology();
+            services.AddTransactionalMessaging<AuthDbContext>(configuration);
+        }
+
         public static void AddServiceHealthChecks(IServiceCollection services, IConfiguration configuration)
         {
             var checks = services.AddHrkHealthChecks("HRK.AUTH", configuration)
-                .AddDependency<AuthDatabaseHealthCheck>("database");
+                .AddDependency<AuthDatabaseHealthCheck>("database")
+                .AddDependency<AuthRabbitMqHealthCheck>("rabbitmq");
             if (configuration.GetValue("Localization:Enabled", true))
                 checks.AddDependency<AuthLocalizationRedisHealthCheck>("redis.localization");
         }

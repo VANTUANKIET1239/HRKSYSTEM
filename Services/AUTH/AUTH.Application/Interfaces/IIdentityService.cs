@@ -21,7 +21,8 @@ namespace AUTH.Application.Interfaces
         
         Task ResetAccessFailedCountAsync(string userId);
         
-        Task<(bool Succeeded, string? Errors)> CreateUserAsync(string email, string password);
+        Task<(bool Succeeded, string? Errors)> CreateUserAsync(string email, string password,
+            string fullName, string appCode, CancellationToken ct = default);
 
         Task SignOutAsync();
     }

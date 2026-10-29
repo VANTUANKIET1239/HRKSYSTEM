@@ -12,6 +12,9 @@ public abstract record PlayerActivityEvent(long PlayerId, string UserId)
 public sealed record GameEventActivityEvent(long PlayerId, string UserId, string ActivityType,
     string SourceId, object Metadata) : PlayerActivityEvent(PlayerId, UserId);
 
+public sealed record PlayerInitializedEvent(long PlayerId, string UserId, Guid RegistrationEventId,
+    long ConfigId, int ConfigVersion, object Rewards) : PlayerActivityEvent(PlayerId, UserId);
+
 public sealed record CheckInClaimedEvent(long PlayerId, string UserId, long CalendarId, string MonthKey,
     DateOnly CheckInDate, Guid RequestId, int ConfigVersion, object Rewards) : PlayerActivityEvent(PlayerId, UserId);
 

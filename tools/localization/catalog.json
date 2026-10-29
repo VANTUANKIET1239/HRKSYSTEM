@@ -1,5 +1,15 @@
 {
   "common": [
+    ["Tên hiển thị", "Display name"],
+    ["Nhập tên hiển thị", "Enter your display name"],
+    ["Tên hiển thị cần từ 3 đến 60 ký tự.", "Display names must contain 3 to 60 characters."],
+    ["Display name must contain between 3 and 60 characters.", "Display name must contain between 3 and 60 characters.", "Tên hiển thị cần từ 3 đến 60 ký tự."],
+    ["Chuẩn bị hành trình", "Preparing your journey"],
+    ["Đang chuẩn bị nhân vật và tài nguyên khởi đầu của bạn.", "Preparing your character and starter resources."],
+    ["Nhân vật hiện không khả dụng. Vui lòng liên hệ hỗ trợ.", "Your character is currently unavailable. Please contact support."],
+    ["Quá trình chuẩn bị đang mất nhiều thời gian hơn dự kiến. Vui lòng thử lại sau.", "Preparation is taking longer than expected. Please try again shortly."],
+    ["Quay lại đăng nhập", "Back to sign in"],
+    ["Unknown or inactive application.", "Unknown or inactive application.", "Ứng dụng không tồn tại hoặc đang tạm ngừng hoạt động."],
     ["Thông báo","Notification"],
     ["Thông báo trò chơi","Game notifications"],
     ["Đóng thông báo","Dismiss notification"],

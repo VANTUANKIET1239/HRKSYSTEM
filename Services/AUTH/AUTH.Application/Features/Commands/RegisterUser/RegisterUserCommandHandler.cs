@@ -1,7 +1,6 @@
 using AUTH.Application.Interfaces;
 using Core.Common.Entity.MyCompany.Shared.Responses;
 using Core.Application.CQRS;
-using MediatR;
 
 namespace AUTH.Application.Features.Commands.RegisterUser
 {
@@ -16,7 +15,8 @@ namespace AUTH.Application.Features.Commands.RegisterUser
 
         public async Task<BaseResponse<RegisterUserResponse>> Handle(RegisterUserCommand request, CancellationToken cancellationToken)
         {
-            var result = await _identityService.CreateUserAsync(request.Email, request.Password);
+            var result = await _identityService.CreateUserAsync(request.Email.Trim(), request.Password,
+                request.FullName.Trim(), request.AppCode.Trim().ToLowerInvariant(), cancellationToken);
 
             if (result.Succeeded)
             {

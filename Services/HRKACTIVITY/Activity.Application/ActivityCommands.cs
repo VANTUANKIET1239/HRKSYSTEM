@@ -35,7 +35,7 @@ public static class ActivityMapping
 {
     private static readonly HashSet<string> AllowedTypes = new(StringComparer.Ordinal)
     {
-        "CheckInClaimed",
+        "CheckInClaimed", "PlayerInitialized",
         "QuickClimbStarted", "QuickClimbCompleted", "QuickClimbFailed", "QuickClimbCancelled",
         "ItemEnhanced", "BattleCompleted", "PlayerLoggedIn", "RewardGranted", "CurrencyChanged",
         "ContentPublished", "ContentActivated", "AdminConfigurationChanged",

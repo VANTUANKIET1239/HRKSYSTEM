@@ -14,6 +14,8 @@ public sealed class PlayerActivityEventMapper
     {
         return activity switch
         {
+            PlayerInitializedEvent e => Create(e, "PlayerInitialized", "Player", e.PlayerId.ToString(),
+                $"player:{e.UserId}:initialized", new { e.RegistrationEventId, e.ConfigId, e.ConfigVersion, e.Rewards }),
             CheckInClaimedEvent e => Create(e, "CheckInClaimed", "CheckInCalendar", e.CalendarId.ToString(),
                 FormattableString.Invariant($"checkin:{e.PlayerId}:{e.CalendarId}:{e.CheckInDate:yyyy-MM-dd}"),
                 new { e.CalendarId, e.MonthKey, e.CheckInDate, e.RequestId, e.ConfigVersion, e.Rewards }),

@@ -4,6 +4,12 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using AUTH.Application.Interfaces;
 using Microsoft.AspNetCore.Identity;
+using AUTH.Infrastructure.Data;
+using AUTH.Domain.Entities;
+using Core.Persistence.Repositories;
+using Core.Messaging.Contracts;
+using Core.TransactionalMessaging.Outbox;
+using Microsoft.EntityFrameworkCore;
 
 namespace AUTH.Infrastructure.Identity
 {
@@ -11,11 +17,18 @@ namespace AUTH.Infrastructure.Identity
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IUnitOfWork<AuthDbContext> _unitOfWork;
+        private readonly IUnitOfWork<ApplicationDbContext> _application;
+        private readonly IOutboxWriter _outbox;
 
-        public IdentityService(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public IdentityService(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager,
+            IUnitOfWork<AuthDbContext> unitOfWork, IUnitOfWork<ApplicationDbContext> application, IOutboxWriter outbox)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _unitOfWork = unitOfWork;
+            _application = application;
+            _outbox = outbox;
         }
 
         public async Task<IdentityUserDto?> FindByNameOrEmailAsync(string identifier)
@@ -59,24 +72,33 @@ namespace AUTH.Infrastructure.Identity
             await _userManager.ResetAccessFailedCountAsync(user);
         }
 
-        public async Task<(bool Succeeded, string? Errors)> CreateUserAsync(string email, string password)
+        public async Task<(bool Succeeded, string? Errors)> CreateUserAsync(string email, string password,
+            string fullName, string appCode, CancellationToken ct = default)
         {
-            var user = new ApplicationUser
+            if (!await _application.ReadOnlyRepository<HRK_ApplicationRouteConfig>().Query()
+                .AnyAsync(x => x.AppCode == appCode && x.IsActive, ct))
+                return (false, "Unknown or inactive application.");
+
+            var userId = Guid.NewGuid().ToString();
+            var eventId = Guid.NewGuid();
+            (bool Succeeded, string? Errors) outcome = (false, null);
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                UserName = email,
-                Email = email,
-                NormalizedUserName = email.ToUpper(),
-            };
-
-            var result = await _userManager.CreateAsync(user, password);
-
-            if (result.Succeeded)
-            {
-                return (true, null);
-            }
-
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return (false, errors);
+                // Recover an ambiguous commit on an execution-strategy retry of this same call.
+                if (await _unitOfWork.ReadOnlyRepository<ApplicationUser>().Query().AnyAsync(x => x.Id == userId, ct))
+                {
+                    outcome = (true, null);
+                    return;
+                }
+                var user = new ApplicationUser { Id = userId, UserName = email, Email = email, FullName = fullName };
+                var result = await _userManager.CreateAsync(user, password);
+                outcome = (result.Succeeded, result.Succeeded ? null : string.Join(", ", result.Errors.Select(e => e.Description)));
+                if (!result.Succeeded) return;
+                _outbox.Add(new AccountRegisteredV1(eventId, user.Id, appCode, fullName, DateTimeOffset.UtcNow),
+                    AccountContractNames.RegisteredV1, AccountContractNames.Publisher,
+                    AccountContractNames.RegisteredV1, partitionKey: user.Id);
+            }, ct);
+            return outcome;
         }
 
         public async Task SignOutAsync()

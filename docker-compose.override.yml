@@ -3,7 +3,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
-      - Database__ConnectionString=Server=host.docker.internal,1433;Database=HRK;User Id=sa1;Password=Kite!1239kK10;Encrypt=True;TrustServerCertificate=True;
+      - Database__ConnectionString=${AUTH_DATABASE_CONNECTION:?Set AUTH_DATABASE_CONNECTION to HRK_AUTH}
     ports:
       - "8080"
 

@@ -24,9 +24,16 @@ services:
     build:
       context: .
       dockerfile: Services/AUTH/HRK.AUTH/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "5001:8080"
     environment:
+      Database__ConnectionString: "${AUTH_DATABASE_CONNECTION:?Set AUTH_DATABASE_CONNECTION to the HRK_AUTH SQL Server connection string}"
+      RabbitMq__HostName: "rabbitmq"
+      RabbitMq__UserName: "${RABBITMQ_USER:-guest}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:-guest}"
       InternalApi__Services__language__BaseAddress: "http://hrk.language:8080"
       Localization__RedisConnectionString: "redis:6379,abortConnect=false,connectTimeout=1000,asyncTimeout=1000"
       Localization__RedisKeyPrefix: "${LOCALIZATION_REDIS_PREFIX:-hrk:dev:i18n:}"
