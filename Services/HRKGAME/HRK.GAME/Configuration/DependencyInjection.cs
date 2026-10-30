@@ -6,6 +6,7 @@ using Core.RabbitMQ.DependencyInjection;
 using Core.Messaging.Contracts;
 using Core.TransactionalMessaging.DependencyInjection;
 using GAME.Application.Configuration;
+using GAME.Application.DependencyInjection;
 using GAME.Application.Interfaces;
 using GAME.Domain.Interfaces;
 using GAME.Domain.Services;
@@ -91,6 +92,7 @@ namespace HRK.GAME.Configuration
         {
             AddOptions(services, configuration);
             AddPersistenceServices(services, configuration);
+            AddTransactionLockServices(services);
             AddApiServices(services);
             AddResponseCompression(services, configuration);
             AddSecurityServices(services, configuration, environment?.IsDevelopment() == true);
@@ -107,7 +109,8 @@ namespace HRK.GAME.Configuration
             AddEventServices(services);
             AddSchedulingServices(services, configuration);
             AddServiceHealthChecks(services, configuration);
-            services.AddCoreApplication(typeof(IGameRequestContext).Assembly);
+            services.AddCoreApplication(typeof(IGameRequestContext).Assembly)
+                .AddPlayerPowerChangePipeline();
         }
 
         private static void AddPersistenceServices(IServiceCollection services, IConfiguration configuration)
@@ -123,6 +126,9 @@ namespace HRK.GAME.Configuration
             services.AddControllers(options => options.AddGameApiFilters());
             services.AddHrkApiResponses();
         }
+
+        private static void AddTransactionLockServices(IServiceCollection services) =>
+            services.AddScoped<IGameTransactionLock, global::GAME.Infrastructure.Locking.SqlServerGameTransactionLock>();
 
         private static void AddResponseCompression(IServiceCollection services, IConfiguration configuration) =>
             services.AddHrkResponseCompression(configuration);
@@ -183,8 +189,18 @@ namespace HRK.GAME.Configuration
         {
             services.AddScoped<IGamePlayerService, GamePlayerService>();
             services.AddScoped<NewPlayerHeroFactory>();
+            AddRankingServices(services);
             services.AddScoped<IPlayerReadModels, PlayerReadModels>();
             services.AddScoped<IGameRequestContext, HttpGameRequestContext>();
+        }
+
+        private static void AddRankingServices(IServiceCollection services)
+        {
+            services.AddScoped<IPlayerRankingStatsStore, PlayerRankingStatsStore>();
+            services.AddScoped<IPlayerRankingWriter, PlayerRankingWriter>();
+            services.AddScoped<IDiamondSpendingService, DiamondSpendingService>();
+            services.AddScoped<ILeaderboardReader, LeaderboardReader>();
+            services.AddHostedService<global::GAME.Infrastructure.Ranking.LeaderboardInitializationWorker>();
         }
 
         private static void AddFormationServices(IServiceCollection services)

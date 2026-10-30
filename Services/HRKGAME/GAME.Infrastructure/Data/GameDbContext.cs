@@ -99,6 +99,7 @@ namespace GAME.Infrastructure.Data
             GAME.Infrastructure.Data.Configurations.PlayerInitializationMapping.ConfigurePlayerInitialization(modelBuilder);
             modelBuilder.ConfigureScheduling();
             modelBuilder.ConfigureCheckIn();
+            GAME.Infrastructure.Data.Configurations.PlayerRankingMapping.ConfigurePlayerRanking(modelBuilder);
 
             modelBuilder.Entity<HrkHeroLevelConfig>(entity =>
             {

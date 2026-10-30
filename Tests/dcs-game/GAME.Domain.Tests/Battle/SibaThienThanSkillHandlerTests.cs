@@ -7,7 +7,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests.Battle;
 
-public sealed class SibaThienThanSkillHandlerTests
+public sealed partial class SibaThienThanSkillHandlerTests
 {
     private static BattleSkillEffectParameter DecimalParam(string code, decimal val) =>
         new(code, val, (int)val, null, null);
@@ -626,12 +626,5 @@ public sealed class SibaThienThanSkillHandlerTests
         Assert.DoesNotContain(deadAlly.Id, result.TargetedCombatantIds);
         Assert.DoesNotContain(result.Events, e => e.TargetId == deadAlly.Id);
         Assert.Equal(0, deadAlly.Hp);
-    }
-
-    private sealed class DeterministicRandom : Random
-    {
-        private readonly int _fixedValue;
-        public DeterministicRandom(int fixedValue) => _fixedValue = fixedValue;
-        public override int Next(int minValue, int maxValue) => _fixedValue;
     }
 }

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public class SqlExecutorTests
+public partial class SqlExecutorTests
 {
     [Fact]
     public void DirectInjectionAliasesTheScopedUnitOfWorkExecutor()
@@ -75,6 +75,4 @@ public class SqlExecutorTests
 
     private static ProbeContext Context() => new(new DbContextOptionsBuilder<ProbeContext>()
         .UseSqlServer("Server=localhost;Database=Unused;Integrated Security=true").Options);
-
-    public sealed class ProbeContext(DbContextOptions<ProbeContext> options) : DbContext(options);
 }

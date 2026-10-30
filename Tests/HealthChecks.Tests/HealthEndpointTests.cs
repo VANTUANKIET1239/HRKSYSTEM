@@ -11,7 +11,7 @@ using Xunit;
 
 namespace HealthChecks.Tests;
 
-public sealed class HealthEndpointTests
+public sealed partial class HealthEndpointTests
 {
     [Fact]
     public async Task LivenessNeverActivatesDependencies()
@@ -121,40 +121,4 @@ public sealed class HealthEndpointTests
             app.UseRouting();
             app.UseEndpoints(endpoints => endpoints.MapHrkHealthChecks());
         }));
-
-    public sealed class ThrowingCheck() : DependencyHealthCheck("DatabaseUnavailable")
-    {
-        public static int Calls;
-        protected override Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref Calls);
-            throw new InvalidOperationException("sensitive-password");
-        }
-    }
-
-    public sealed class SlowCheck() : DependencyHealthCheck("Slow")
-    {
-        protected override async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
-        {
-            await Task.Delay(Timeout.Infinite, cancellationToken);
-            return true;
-        }
-    }
-
-    public sealed class ScopedResource : IDisposable
-    {
-        public static int Created, Disposed;
-        public ScopedResource() => Interlocked.Increment(ref Created);
-        public void Dispose() => Interlocked.Increment(ref Disposed);
-    }
-
-    public sealed class ScopedCheck(ScopedResource resource) : DependencyHealthCheck("Scoped")
-    {
-        protected override async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
-        {
-            await Task.Delay(10, cancellationToken);
-            GC.KeepAlive(resource);
-            return true;
-        }
-    }
 }

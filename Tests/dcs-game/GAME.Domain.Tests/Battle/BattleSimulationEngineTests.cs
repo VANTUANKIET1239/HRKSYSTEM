@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests.Battle;
 
-public sealed class BattleSimulationEngineTests
+public sealed partial class BattleSimulationEngineTests
 {
     private readonly BattleSimulationEngine _engine = new();
 
@@ -323,26 +323,4 @@ public sealed class BattleSimulationEngineTests
 
     private static string EventSignature(BattleEvent x) =>
         $"{x.Sequence}|{x.EventType}|{x.ActorId}|{x.TargetId}|{x.SkillId}|{x.Value}|{x.IsCrit}";
-
-    private sealed class TestEffectHandler : IBattleEffectHandler
-    {
-        public string EffectTypeCode => "CUSTOM";
-        public bool WasCalled { get; private set; }
-        public IReadOnlyList<PendingBattleEvent> Apply(BattleEffectContext context)
-        {
-            WasCalled = true;
-            return [];
-        }
-    }
-
-    private sealed class TestTargetSelector : IBattleTargetSelector
-    {
-        public string TargetTypeCode => "CUSTOM_TARGET";
-        public bool WasCalled { get; private set; }
-        public IReadOnlyList<BattleCombatant> Select(BattleTargetContext context)
-        {
-            WasCalled = true;
-            return context.Enemies.Take(1).ToList();
-        }
-    }
 }

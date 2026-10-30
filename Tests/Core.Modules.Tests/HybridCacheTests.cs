@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public sealed class HybridCacheTests
+public sealed partial class HybridCacheTests
 {
     [Fact]
     public async Task ConcurrentMissesUseOneFactoryAndAnotherNodeReadsL2()
@@ -50,8 +50,4 @@ public sealed class HybridCacheTests
         services.AddHrkHybridCache(new ConfigurationBuilder().Build());
         return services.BuildServiceProvider();
     }
-
-    // HybridCache deliberately bypasses the exact MemoryDistributedCache type.
-    // A distinct backend type lets this test exercise its real L2 serialization path.
-    private sealed class DistributedBackend() : MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
 }

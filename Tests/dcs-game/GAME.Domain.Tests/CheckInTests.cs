@@ -103,9 +103,3 @@ public sealed class CheckInTests
         Assert.Equal("CheckInClaimed", first.ActivityType);
     }
 }
-
-internal sealed class CheckInClock(DateTime utcNow) : TimeProvider
-{
-    public DateTime UtcNow { get; set; } = utcNow;
-    public override DateTimeOffset GetUtcNow() => new(DateTime.SpecifyKind(UtcNow, DateTimeKind.Utc));
-}

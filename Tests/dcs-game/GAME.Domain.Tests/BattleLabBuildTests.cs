@@ -7,7 +7,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class BattleLabBuildTests
+public sealed partial class BattleLabBuildTests
 {
     private static (BattleLabBuildResolver resolver, TowerTestStore store) Setup()
     {
@@ -75,12 +75,5 @@ public sealed class BattleLabBuildTests
         var seed = Guid.Parse("11111111-2222-3333-4444-555555555555");
         Assert.Equal(HeroStarRollCalculator.Roll(pool, seed, 1), HeroStarRollCalculator.Roll(pool, seed, 1));
         Assert.InRange(HeroStarRollCalculator.Roll(pool, seed, 1).Value, 1m, 5m);
-    }
-
-    private sealed class Power : ICombatPowerService
-    {
-        public Task<List<CombatPowerConfigDto>> GetConfigsAsync(CancellationToken ct = default) => Task.FromResult(new List<CombatPowerConfigDto>());
-        public int Calculate(CalculatedStatsDto stats, IReadOnlyCollection<CombatPowerConfigDto> configs) => stats.Atk;
-        public Task<int> CalculateAsync(CalculatedStatsDto stats, CancellationToken ct = default) => Task.FromResult(stats.Atk);
     }
 }

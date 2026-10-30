@@ -6,7 +6,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Activity.Infrastructure;
 
-public sealed class ActivityMessageHandler(IActivityRecorder recorder, MessageContext context)
+public sealed partial class ActivityMessageHandler(IActivityRecorder recorder, MessageContext context)
     : IMessageHandler<PlayerActivityRecordedV1>
 {
     public async Task HandleAsync(PlayerActivityRecordedV1 message, CancellationToken ct = default)
@@ -23,7 +23,4 @@ public sealed class ActivityMessageHandler(IActivityRecorder recorder, MessageCo
             throw;
         }
     }
-
-    private sealed class ActivityPersistenceException(Exception inner)
-        : Exception("Activity persistence is temporarily unavailable.", inner), ITransientMessageException;
 }

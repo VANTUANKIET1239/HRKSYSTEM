@@ -9,12 +9,6 @@ using Xunit;
 
 namespace Language.Tests;
 
-public sealed class LanguageRedisFactAttribute : FactAttribute
-{
-    public LanguageRedisFactAttribute()
-    { if (Environment.GetEnvironmentVariable("HRK_LANGUAGE_REDIS_TESTS") != "1") Skip = "Set HRK_LANGUAGE_REDIS_TESTS=1 and HRK_LANGUAGE_REDIS_CONNECTION to use an isolated key prefix."; }
-}
-
 public sealed class RedisTranslationTests
 {
     [LanguageRedisFact]

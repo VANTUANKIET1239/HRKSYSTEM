@@ -43,8 +43,3 @@ public sealed class BattleEffectHandlerRegistry
         new Skills.NghiaPhucPrime.NghiaPhucPrimeReactionHandler()
     }.ToRegistry();
 }
-
-internal static class BattleEffectHandlerRegistryExtensions
-{
-    public static BattleEffectHandlerRegistry ToRegistry(this IEnumerable<IBattleEffectHandler> handlers) => new(handlers);
-}

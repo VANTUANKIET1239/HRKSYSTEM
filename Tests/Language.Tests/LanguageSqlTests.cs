@@ -14,12 +14,6 @@ using Xunit;
 
 namespace Language.Tests;
 
-public sealed class LanguageSqlFactAttribute : FactAttribute
-{
-    public LanguageSqlFactAttribute()
-    { if (Environment.GetEnvironmentVariable("HRK_LANGUAGE_SQL_TESTS") != "1") Skip = "Set HRK_LANGUAGE_SQL_TESTS=1 to use an isolated LocalDB test database."; }
-}
-
 public sealed class LanguageSqlTests : IAsyncLifetime
 {
     private readonly string database = "HRK_LanguageTests_" + Guid.NewGuid().ToString("N");

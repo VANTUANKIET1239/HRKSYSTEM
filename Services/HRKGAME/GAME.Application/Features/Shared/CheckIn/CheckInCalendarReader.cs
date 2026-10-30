@@ -7,9 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Application.Features.Shared.CheckIn;
 
-internal sealed record CurrentCheckInCalendar(HrkCheckInCalendar Calendar, DateOnly GameDate, DateTime NextResetUtc,
-    IReadOnlyDictionary<int, (HrkCheckInRewardConfig Config, List<GenericRewardItemDto> Rewards)> Days);
-
 internal static class CheckInCalendarReader
 {
     public static async Task<CurrentCheckInCalendar?> LoadAsync(IUnitOfWork unitOfWork, DateTime now, CancellationToken ct)

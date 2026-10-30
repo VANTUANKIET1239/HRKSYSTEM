@@ -114,8 +114,3 @@ public sealed class BattleLabTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.RunAsync(Request(), cancellation.Token));
     }
 }
-
-internal sealed class BattleLabHarness(TowerTestStore store)
-{
-    public async Task<BattleLabReportDto> RunAsync(BattleLabRequestDto request, CancellationToken ct) => (await new GAME.Application.Features.Commands.BattleLab.RunBattleLabCommandHandler(store, new BattleSimulationEngine(), null).Handle(new(request), ct)).Data!;
-}

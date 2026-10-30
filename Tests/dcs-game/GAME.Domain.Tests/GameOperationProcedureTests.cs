@@ -16,8 +16,10 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
     {
         await using var db = database.Context();
         await using var uow = new UnitOfWork<GameDbContext>(db);
-        var tower = await Assert.ThrowsAsync<SqlException>(() =>
-            new TowerOperationRunner(uow).LockAsync("tower:player:" + Guid.NewGuid(), default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new TowerOperationRunner(uow, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow)).LockAsync("tower:player:" + Guid.NewGuid(), default));
+        var tower = await Assert.ThrowsAsync<SqlException>(() => uow.Sql.ExecuteProcedureAsync(
+            GameStoredProcedures.AcquireTransactionLock, new { Resource = "test:no-transaction" }));
         var wallet = await Assert.ThrowsAsync<SqlException>(() =>
             uow.Sql.ExecuteProcedureAsync(GameStoredProcedures.LockPlayerWallet, new { PlayerId = -1L }));
         Assert.Equal(51001, tower.Number);
@@ -34,10 +36,10 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
         await using var contender = new UnitOfWork<GameDbContext>(contenderDb);
         var resource = "tower:player:O'Brien;--:" + Guid.NewGuid();
         await owner.BeginTransactionAsync();
-        await new TowerOperationRunner(owner).LockAsync(resource, default);
+        await new TowerOperationRunner(owner, RankingTestSupport.Writer(owner), RankingTestSupport.Locks(owner)).LockAsync(resource, default);
         await contender.BeginTransactionAsync();
         // A different player can continue while the first resource is locked.
-        await new TowerOperationRunner(contender).LockAsync(resource + ":other", default);
+        await new TowerOperationRunner(contender, RankingTestSupport.Writer(contender), RankingTestSupport.Locks(contender)).LockAsync(resource + ":other", default);
         var error = await Assert.ThrowsAsync<SqlException>(() => contender.Sql.ExecuteProcedureAsync(
             GameStoredProcedures.AcquireTowerPlayerLock, new { Resource = resource, LockTimeoutMilliseconds = 50 }));
         Assert.Equal(51000, error.Number);
@@ -46,7 +48,7 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
         await contender.RollbackTransactionAsync();
         await owner.RollbackTransactionAsync();
         await contender.BeginTransactionAsync();
-        await new TowerOperationRunner(contender).LockAsync(resource, default);
+        await new TowerOperationRunner(contender, RankingTestSupport.Writer(contender), RankingTestSupport.Locks(contender)).LockAsync(resource, default);
         await contender.CommitTransactionAsync();
     }
 
@@ -60,7 +62,7 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
         await using var contender = new UnitOfWork<GameDbContext>(contenderDb);
         var before = await ownerDb.PlayerWallets.AsNoTracking().SingleAsync(wallet => wallet.PlayerId == player.Id);
         await owner.BeginTransactionAsync();
-        await owner.Sql.ExecuteProcedureAsync(GameStoredProcedures.LockPlayerWallet, new { PlayerId = player.Id });
+        await RankingTestSupport.Locks(owner).LockWalletAsync(player.Id);
 
         await contender.BeginTransactionAsync();
         // Test-only session setting bounds the lock wait; production keeps its existing timeout policy.
@@ -85,7 +87,7 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
     {
         await using var db = database.Context();
         await using var uow = new UnitOfWork<GameDbContext>(db);
-        var runner = new TowerOperationRunner(uow);
+        var runner = new TowerOperationRunner(uow, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow));
         var userId = Guid.NewGuid().ToString("N");
         var result = await runner.RunAsync(userId, () =>
         {
@@ -102,22 +104,32 @@ public class GameOperationProcedureTests(SummonDatabaseFixture database) : IClas
             new { Resource = "tower:player:" + userId, LockTimeoutMilliseconds = 50 });
         await contender.RollbackTransactionAsync();
     }
-}
 
-internal static class GameOperationSqlScript
-{
-    public static async Task ApplyAsync(GameDbContext db)
+    [SummonSqlFact]
+    public async Task SharedLockCoordinatesWithLegacyProcedureAndRetriesAFailedAcquisition()
     {
-        const string relative = "Services/HRKGAME/GAME.Infrastructure/Data/Scripts/Create_GameOperationProcedures.sql";
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, relative)))
-            directory = directory.Parent;
-        if (directory == null)
-            throw new FileNotFoundException("Cannot locate the GAME operation procedure deployment script.", relative);
+        await using var ownerDb = database.Context();
+        await using var contenderDb = database.Context();
+        await using var owner = new UnitOfWork<GameDbContext>(ownerDb);
+        await using var contender = new UnitOfWork<GameDbContext>(contenderDb);
+        var locks = RankingTestSupport.Locks(contender);
+        var resource = "tower:player:" + Guid.NewGuid();
+        await owner.BeginTransactionAsync();
+        await owner.Sql.ExecuteProcedureAsync(GameStoredProcedures.AcquireTowerPlayerLock, new { Resource = resource });
+        await contender.BeginTransactionAsync();
+        var error = await Assert.ThrowsAsync<SqlException>(() => locks.AcquireAsync(resource, timeoutMilliseconds: 50));
+        Assert.Equal(51000, error.Number);
+        await owner.RollbackTransactionAsync();
+        await locks.AcquireAsync(resource, timeoutMilliseconds: 50);
+        await contender.CommitTransactionAsync();
 
-        var script = await File.ReadAllTextAsync(Path.Combine(directory.FullName, relative));
-        foreach (var batch in Regex.Split(script, @"^[ \t]*GO[ \t]*\r?$", RegexOptions.Multiline | RegexOptions.IgnoreCase))
-            if (!string.IsNullOrWhiteSpace(batch))
-                await db.Database.ExecuteSqlRawAsync(batch);
+        // The same service must go to SQL again after the previous transaction ends.
+        await owner.BeginTransactionAsync();
+        await owner.Sql.ExecuteProcedureAsync(GameStoredProcedures.AcquireTowerPlayerLock, new { Resource = resource });
+        await contender.BeginTransactionAsync();
+        error = await Assert.ThrowsAsync<SqlException>(() => locks.AcquireAsync(resource, timeoutMilliseconds: 50));
+        Assert.Equal(51000, error.Number);
+        await contender.RollbackTransactionAsync();
+        await owner.RollbackTransactionAsync();
     }
 }

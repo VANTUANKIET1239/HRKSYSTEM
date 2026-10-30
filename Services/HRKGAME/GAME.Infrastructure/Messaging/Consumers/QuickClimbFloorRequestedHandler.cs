@@ -21,5 +21,3 @@ public sealed class QuickClimbFloorRequestedHandler(IMediator mediator) : IMessa
         }
     }
 }
-
-public sealed class QuickClimbTransientMessageException(string message, Exception innerException) : Exception(message, innerException), ITransientMessageException;

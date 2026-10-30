@@ -1,7 +1,5 @@
 namespace GAME.Application.Common;
 
-public sealed record SummonStoneCapacity(int QuantityPerDuplicate, int StackLimit, long ExistingFreeUnits);
-
 public static class SummonInventoryPolicy
 {
     // Reserve for the worst possible draw sequence before rolling. Rejecting only

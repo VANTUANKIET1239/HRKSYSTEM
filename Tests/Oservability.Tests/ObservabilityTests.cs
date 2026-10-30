@@ -19,7 +19,7 @@ using Xunit;
 
 namespace Oservability.Tests;
 
-public class ObservabilityTests
+public partial class ObservabilityTests
 {
     [Theory]
     [InlineData(null)]
@@ -103,11 +103,5 @@ public class ObservabilityTests
         Assert.Equal(TimeSpan.Zero, mapped.OccurredAt.Offset);
         Assert.Equal("enhance-1", mapped.CorrelationId);
         Assert.Throws<ArgumentException>(() => ActivityMapping.Map(new(message, Guid.NewGuid().ToString("N"), null, null)));
-    }
-
-    private sealed class CapturingSink : ILogEventSink
-    {
-        public List<LogEvent> Events { get; } = [];
-        public void Emit(LogEvent logEvent) => Events.Add(logEvent);
     }
 }

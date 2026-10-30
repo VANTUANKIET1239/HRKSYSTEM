@@ -9,6 +9,7 @@
     <ProjectReference Include="../GAME.Domain/GAME.Domain.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Common/Core.Common.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Application/Core.Application.csproj" />
+    <ProjectReference Include="../../../CoreEngine/Core.Web/Core.Web.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Persistence.Abstractions/Core.Persistence.Abstractions.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Caching/Core.Caching.csproj" />
     <ProjectReference Include="../../../CoreEngine/Core.Messaging.Contracts/Core.Messaging.Contracts.csproj" />

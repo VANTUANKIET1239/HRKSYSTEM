@@ -15,7 +15,7 @@ using Xunit;
 
 namespace HealthChecks.Tests;
 
-public sealed class GatewayHealthTests
+public sealed partial class GatewayHealthTests
 {
     [Fact]
     public async Task ArbitraryTargetUsesConfiguredAddressPathNameAndIdentityWithoutOcelotRoutes()
@@ -160,15 +160,6 @@ public sealed class GatewayHealthTests
         Assert.All(requests, path => Assert.Equal("/health/live", path));
     }
 
-    private sealed class UnreachableHandler(List<string> requests) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            lock (requests) requests.Add(request.RequestUri!.AbsolutePath);
-            throw new HttpRequestException("unreachable test target");
-        }
-    }
-
     private static WebApplicationBuilder ConfiguredBuilder(Dictionary<string, string?> overrides)
     {
         var builder = WebApplication.CreateBuilder();
@@ -213,10 +204,4 @@ public sealed class GatewayHealthTests
             Checks = [new() { Name = "self", Status = HealthStatuses.Healthy }]
         })
     };
-
-    private sealed class DelegateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            handler(request, cancellationToken);
-    }
 }

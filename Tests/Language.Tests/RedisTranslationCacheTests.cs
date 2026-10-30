@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Language.Tests;
 
-public sealed class RedisTranslationCacheTests
+public sealed partial class RedisTranslationCacheTests
 {
     [Fact]
     public async Task ACurrentBundleIsReadWithOneRedisCommand()
@@ -74,22 +74,10 @@ public sealed class RedisTranslationCacheTests
     private static RedisTranslationCache Cache(IDatabase database) => new(new Connection(database),
         Options.Create(new LocalizationOptions { RedisKeyPrefix = "test:" }));
 
-    private sealed class Connection(IDatabase database) : IRedisConnectionProvider
-    {
-        public Task<IDatabase> GetDatabaseAsync(string configuration, CancellationToken cancellationToken = default)
-        { cancellationToken.ThrowIfCancellationRequested(); return Task.FromResult(database); }
-    }
-
     private static IDatabase Database(Func<MethodInfo, object?[]?, object?> handler)
     {
         var database = DispatchProxy.Create<IDatabase, DatabaseStub>();
         ((DatabaseStub)database).Handler = handler;
         return database;
-    }
-
-    public class DatabaseStub : DispatchProxy
-    {
-        public Func<MethodInfo, object?[]?, object?> Handler { get; set; } = null!;
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Handler(targetMethod!, args);
     }
 }

@@ -1,5 +1,7 @@
 {
   "Routes": [
+    {"DownstreamPathTemplate":"/api/leaderboards","DownstreamScheme":"http","DownstreamHostAndPorts":[{"Host":"localhost","Port":5298}],"UpstreamPathTemplate":"/gateway/dcs-game/leaderboards","UpstreamHttpMethod":["Get"],"AuthenticationOptions":{"AuthenticationProviderKey":"Bearer"}},
+    {"DownstreamPathTemplate":"/api/leaderboards/{everything}","DownstreamScheme":"http","DownstreamHostAndPorts":[{"Host":"localhost","Port":5298}],"UpstreamPathTemplate":"/gateway/dcs-game/leaderboards/{everything}","UpstreamHttpMethod":["Get"],"AuthenticationOptions":{"AuthenticationProviderKey":"Bearer"}},
     {
       "DownstreamPathTemplate": "/api/admin/health/services",
       "DownstreamScheme": "http",

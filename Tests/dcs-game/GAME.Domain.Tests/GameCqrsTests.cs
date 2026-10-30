@@ -25,7 +25,7 @@ using GAME.Infrastructure.Scheduling;
 
 namespace GAME.Domain.Tests;
 
-public sealed class GameCqrsTests
+public sealed partial class GameCqrsTests
 {
     [Fact]
     public void Production_registration_resolves_every_game_handler_in_a_scope()
@@ -152,6 +152,4 @@ public sealed class GameCqrsTests
         accessor.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", " ")], "test"));
         Assert.Throws<UnauthorizedAccessException>(() => new HttpGameRequestContext(accessor).UserId);
     }
-
-    private sealed record Actor(string UserId) : IGameRequestContext;
 }

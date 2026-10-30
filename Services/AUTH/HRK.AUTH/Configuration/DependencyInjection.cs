@@ -19,7 +19,7 @@ using Core.TransactionalMessaging.DependencyInjection;
 using Core.Persistence.Repositories;
 namespace HRK.AUTH.Configuration
 {
-    public static class DependencyInjection
+    public static partial class DependencyInjection
     {
         public static WebApplicationBuilder AddCustomDependency(this WebApplicationBuilder builder)
         {
@@ -122,32 +122,6 @@ namespace HRK.AUTH.Configuration
                 .AddDependency<AuthRabbitMqHealthCheck>("rabbitmq");
             if (configuration.GetValue("Localization:Enabled", true))
                 checks.AddDependency<AuthLocalizationRedisHealthCheck>("redis.localization");
-        }
-
-
-        //public static void IdentityConfiguration(IServiceCollection services)
-        //{
-        //    services.AddIdentity<ApplicationUser, IdentityRole>()
-        //        .AddEntityFrameworkStores<AuthDbContext>()
-        //        .AddDefaultTokenProviders();
-
-
-
-        //}
-
-        public sealed record DemoMessage(Guid Id, string Name, DateTime CreatedAtUtc);
-
-        public sealed class DemoMessageHandler : IMessageHandler<DemoMessage>
-        {
-            private readonly ILogger<DemoMessageHandler> _log;
-            public DemoMessageHandler(ILogger<DemoMessageHandler> log) => _log = log;
-
-            public Task HandleAsync(DemoMessage message, CancellationToken ct)
-            {
-                _log.LogInformation("Handled DemoMessage {Id} - {Name} at {At}", message.Id, message.Name, message.CreatedAtUtc);
-                // do work...
-                return Task.CompletedTask;
-            }
         }
     }
 }

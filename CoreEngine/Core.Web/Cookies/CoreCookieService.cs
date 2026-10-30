@@ -12,19 +12,6 @@ namespace Core.Web.Cookies
     using Microsoft.Extensions.Options;
     using System;
 
-    public interface ICoreCookieService
-    {
-        void SetCookie(string key, string value, Expiration expirationType = Expiration.Day, int? expirationTime = null, bool isEssential = false);
-        string? GetCookie(string key);
-        void DeleteCookie(string key, bool isEssential);
-    }
-
-    public enum Expiration {
-        Minute = 1,
-        Hour = 2,
-        Day = 3
-    }   
-
     public class CoreCookieService : ICoreCookieService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;

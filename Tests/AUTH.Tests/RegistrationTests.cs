@@ -14,15 +14,6 @@ using Xunit;
 
 namespace AUTH.Tests;
 
-public sealed class AuthSqlFactAttribute : FactAttribute
-{
-    public AuthSqlFactAttribute()
-    {
-        if (Environment.GetEnvironmentVariable("HRK_AUTH_SQL_TESTS") != "1")
-            Skip = "Set HRK_AUTH_SQL_TESTS=1 for isolated SQL Server LocalDB tests.";
-    }
-}
-
 public sealed class RegistrationTests
 {
     [Fact]

@@ -17,7 +17,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public sealed class InternalApiTests
+public sealed partial class InternalApiTests
 {
     [Fact]
     public async Task ExplicitlyAccepted503ReturnsTypedBodyWithoutChangingNormalGetBehavior()
@@ -565,28 +565,4 @@ public sealed class InternalApiTests
 
     private static void UseServer(IServiceCollection services, TestServer server) =>
         services.AddHttpClient(InternalApiClientNames.Rest("TEST")).ConfigurePrimaryHttpMessageHandler(server.CreateHandler);
-
-    public sealed record Request(int Value);
-    public sealed record Reply(int Value);
-
-    private sealed class Credentials : IInternalApiCredentialsProvider
-    {
-        public ValueTask<string?> GetAuthorizationAsync(string serviceName, CancellationToken cancellationToken) => new("Bearer service-test");
-    }
-
-    private sealed class MetadataProvider : IInternalApiMetadataProvider
-    {
-        public ValueTask<IReadOnlyDictionary<string, string>> GetMetadataAsync(CancellationToken cancellationToken) =>
-            new(new Dictionary<string, string> { ["x-tenant"] = "provider", ["x-correlation-id"] = "provider-id" });
-    }
-
-    private sealed class NetworkFailureHandler : HttpMessageHandler
-    {
-        public int Calls;
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (++Calls == 1) throw new HttpRequestException("transient test error");
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new Reply(9)) });
-        }
-    }
 }

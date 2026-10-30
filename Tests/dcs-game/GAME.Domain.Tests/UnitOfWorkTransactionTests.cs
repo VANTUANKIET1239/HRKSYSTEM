@@ -10,7 +10,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public class UnitOfWorkTransactionTests
+public partial class UnitOfWorkTransactionTests
 {
     [Fact]
     public async Task DetachingFailedInsertPreservesOtherPendingChanges()
@@ -204,7 +204,7 @@ public class UnitOfWorkTransactionTests
         await using var uow = new UnitOfWork<GameDbContext>(db);
         await uow.BeginTransactionAsync();
         var outer = db.Database.CurrentTransaction;
-        var runner = new TowerOperationRunner(uow);
+        var runner = new TowerOperationRunner(uow, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow));
         await runner.RunAsync("one", () => Task.FromResult(1), default);
         await runner.RunAsync("two", () => Task.FromResult(2), default);
         Assert.Equal(new[] { "tower:player:one", "tower:player:two" }, connection.LockResources);
@@ -213,83 +213,46 @@ public class UnitOfWorkTransactionTests
         await uow.RollbackTransactionAsync();
     }
 
+    [Fact]
+    public async Task SharedLockAcquiresOncePerResourcePerTransactionAndReacquiresAfterCommitOrRollback()
+    {
+        using var connection = new ProbeConnection();
+        await using var db = CreateContext(connection);
+        await using var uow = new UnitOfWork<ProbeContext>(db);
+        var locks = RankingTestSupport.Locks(uow);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => locks.AcquireAsync("feature:one"));
+        for (var i = 0; i < 3; i++)
+        {
+            await uow.BeginTransactionAsync();
+            await locks.AcquireAsync("feature:one");
+            await locks.AcquireAsync("feature:one");
+            await locks.AcquireAsync("feature:two");
+            Assert.Equal((i + 1) * 2, connection.LockResources.Count);
+            if (i == 1) await uow.RollbackTransactionAsync();
+            else await uow.CommitTransactionAsync();
+        }
+        Assert.Equal(new[] { "feature:one", "feature:two", "feature:one", "feature:two", "feature:one", "feature:two" }, connection.LockResources);
+    }
+
+    [Fact]
+    public async Task SharedLockValidatesResourceTimeoutAndCancellationBeforeDatabaseAccess()
+    {
+        using var connection = new ProbeConnection();
+        await using var db = CreateContext(connection);
+        await using var uow = new UnitOfWork<ProbeContext>(db);
+        var locks = RankingTestSupport.Locks(uow);
+        await Assert.ThrowsAsync<ArgumentException>(() => locks.AcquireAsync(" "));
+        await Assert.ThrowsAsync<ArgumentException>(() => locks.AcquireAsync(new string('x', 256)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => locks.AcquireAsync("feature:one", timeoutMilliseconds: -1));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => locks.LockWalletAsync(0));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => locks.AcquireAsync("feature:one", new CancellationToken(true)));
+        Assert.Empty(connection.LockResources);
+    }
+
     private static ProbeContext CreateContext(ProbeConnection connection, bool retries = false) =>
         new(new DbContextOptionsBuilder<ProbeContext>()
             .UseSqlServer(connection, options =>
             {
                 if (retries) options.EnableRetryOnFailure(1, TimeSpan.Zero, null);
             }).Options);
-
-    private sealed class Probe { public int Id { get; set; } }
-    private sealed class ProbeContext(DbContextOptions<ProbeContext> options) : DbContext(options)
-    {
-        public int SaveCount { get; private set; }
-        protected override void OnModelCreating(ModelBuilder builder) => builder.Entity<Probe>().HasKey(x => x.Id);
-        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            SaveCount++;
-            ChangeTracker.AcceptAllChanges();
-            return Task.FromResult(1);
-        }
-    }
-
-    // Exercise EF's real relational transaction lifecycle without a database server.
-    private sealed class ProbeConnection : DbConnection
-    {
-        private ConnectionState _state;
-        public int Commits, Rollbacks;
-        public bool FailCommit;
-        public List<string> LockResources { get; } = new();
-        [AllowNull]
-        public override string ConnectionString { get; set; } = "Server=localhost;Database=Probe;Trusted_Connection=True";
-        public override string Database => "Probe";
-        public override string DataSource => "localhost";
-        public override string ServerVersion => "16.0";
-        public override ConnectionState State => _state;
-        public override void Open() => _state = ConnectionState.Open;
-        public override void Close() => _state = ConnectionState.Closed;
-        public override void ChangeDatabase(string databaseName) { }
-        protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) => new ProbeTransaction(this, isolationLevel);
-        protected override DbCommand CreateDbCommand() => new ProbeCommand(this);
-    }
-
-    private sealed class ProbeTransaction(ProbeConnection connection, IsolationLevel isolationLevel) : DbTransaction
-    {
-        public override IsolationLevel IsolationLevel => isolationLevel;
-        protected override DbConnection DbConnection => connection;
-        public override void Commit()
-        {
-            connection.Commits++;
-            if (connection.FailCommit) throw new TimeoutException("Commit acknowledgement lost.");
-        }
-        public override void Rollback() => connection.Rollbacks++;
-    }
-
-    private sealed class ProbeCommand(ProbeConnection connection) : DbCommand
-    {
-        private readonly SqlCommand _parameters = new();
-        [AllowNull]
-        public override string CommandText { get; set; } = "";
-        public override int CommandTimeout { get; set; }
-        public override CommandType CommandType { get; set; }
-        public override bool DesignTimeVisible { get; set; }
-        public override UpdateRowSource UpdatedRowSource { get; set; }
-        protected override DbConnection? DbConnection { get; set; } = connection;
-        protected override DbTransaction? DbTransaction { get; set; }
-        protected override DbParameterCollection DbParameterCollection => _parameters.Parameters;
-        protected override DbParameter CreateDbParameter() => new SqlParameter();
-        public override void Cancel() { }
-        public override void Prepare() { }
-        public override int ExecuteNonQuery()
-        {
-            Assert.Equal(CommandType.StoredProcedure, CommandType);
-            Assert.Equal("[dbo].[usp_HRK_AcquireTowerPlayerLock]", CommandText);
-            Assert.NotNull(DbTransaction);
-            connection.LockResources.Add(Assert.IsType<string>(Parameters["Resource"].Value));
-            return 0;
-        }
-        public override object? ExecuteScalar() => throw new NotSupportedException();
-        protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) => throw new NotSupportedException();
-    }
 }

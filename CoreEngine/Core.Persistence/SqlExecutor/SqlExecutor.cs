@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Core.Persistence.SqlExecutor;
 
-public sealed class SqlExecutor(DbContext context) : ISqlExecutor
+public sealed partial class SqlExecutor(DbContext context) : ISqlExecutor
 {
     // Scoped with the UOW, never shared between contexts, databases or tenants.
     private readonly Dictionary<string, string[]> _functionParameters = new(StringComparer.Ordinal);
@@ -173,10 +173,5 @@ public sealed class SqlExecutor(DbContext context) : ISqlExecutor
             if (!arguments.TryAdd(key.TrimStart('@'), value))
                 throw new ArgumentException($"Duplicate TVF argument '{key}'.", nameof(parameters));
         }
-    }
-
-    private sealed class FunctionParameter
-    {
-        public string? ParameterName { get; set; }
     }
 }

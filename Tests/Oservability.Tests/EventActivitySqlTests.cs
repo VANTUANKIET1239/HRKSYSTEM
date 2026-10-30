@@ -10,15 +10,6 @@ using Xunit;
 
 namespace Oservability.Tests;
 
-public sealed class ActivitySqlFactAttribute : FactAttribute
-{
-    public ActivitySqlFactAttribute()
-    {
-        if (Environment.GetEnvironmentVariable("HRK_ACTIVITY_SQL_TESTS") != "1")
-            Skip = "Set HRK_ACTIVITY_SQL_TESTS=1 to run isolated SQL Server LocalDB activity tests.";
-    }
-}
-
 public class EventActivitySqlTests
 {
     [ActivitySqlFact]

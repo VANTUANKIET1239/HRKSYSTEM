@@ -1,0 +1,31 @@
+@gateway = http://localhost:5000/gateway/dcs-game
+@token = replace-with-game-access-token
+@playerId = 1
+@heroId = 1
+
+### Highest historical default-formation power
+GET {{gateway}}/leaderboards?type=power&page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Lifetime diamonds spent (not wallet balance)
+GET {{gateway}}/leaderboards?type=diamonds-spent&page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Inspect a player's current formation
+GET {{gateway}}/leaderboards/players/{{playerId}}
+Authorization: Bearer {{token}}
+
+### Inspect one hero in that formation
+GET {{gateway}}/leaderboards/players/{{playerId}}/heroes/{{heroId}}
+Authorization: Bearer {{token}}
+
+### Invalid category: 400
+GET {{gateway}}/leaderboards?type=wallet-balance
+Authorization: Bearer {{token}}
+
+### Unknown player: 404
+GET {{gateway}}/leaderboards/players/9223372036854775807
+Authorization: Bearer {{token}}
+
+### Unauthenticated: 401
+GET {{gateway}}/leaderboards

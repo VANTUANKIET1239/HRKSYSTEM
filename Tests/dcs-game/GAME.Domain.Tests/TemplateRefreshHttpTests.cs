@@ -21,7 +21,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class TemplateRefreshHttpTests
+public sealed partial class TemplateRefreshHttpTests
 {
     [Theory]
     [InlineData("Development", false, false, true)]
@@ -73,13 +73,5 @@ public sealed class TemplateRefreshHttpTests
         var context = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         var access = new TemplateRefreshAccess(context, new CacheEnvironment { EnvironmentName = "Development" }, Options.Create(new GameTemplateCacheOptions()));
         Assert.False(access.CanRefresh);
-    }
-
-    private sealed class Publisher : IGameTemplateRefresh
-    {
-        public int Calls;
-        public Task<TemplateRefreshResult> RefreshAsync<T>(CancellationToken cancellationToken = default) where T : class => RefreshAsync(cancellationToken);
-        public Task<TemplateRefreshResult> RefreshAsync(CancellationToken cancellationToken = default)
-        { Calls++; return Task.FromResult(new TemplateRefreshResult("revision", DateTimeOffset.UtcNow, 41, 12)); }
     }
 }

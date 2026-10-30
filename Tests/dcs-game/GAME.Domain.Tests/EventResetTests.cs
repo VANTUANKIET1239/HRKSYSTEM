@@ -11,7 +11,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public class EventResetTests
+public partial class EventResetTests
 {
     [Fact]
     public async Task Settlement_ClosesMissedDaysOnce_PreservesCurrentAndOtherPlayers_UsesFrozenRewards()
@@ -131,21 +131,4 @@ public class EventResetTests
         PeriodKey = end.AddDays(-1).ToString("yyyy-MM-dd"), EventPeriod = new()
         { Id = id, EventId = 1, PeriodKey = end.AddDays(-1).ToString("yyyy-MM-dd"), StartAtUtc = end.AddDays(-1), EndAtUtc = end }
     };
-
-    private sealed class MidnightSchedule : IEventResetSchedule
-    {
-        public Task<(string TimeZoneId, TimeSpan ResetTime)> GetAsync(HrkGameEvent gameEvent, CancellationToken ct) => Task.FromResult(("UTC", TimeSpan.Zero));
-    }
-    private sealed class ActivityCapture : IPlayerActivityEvents
-    {
-        public List<PlayerActivityEvent> Events { get; } = [];
-        public void Raise(PlayerActivityEvent activity) => Events.Add(activity);
-    }
-    private sealed class OutboxCapture : IOutboxWriter
-    {
-        public List<object> Messages { get; } = [];
-        public OutboxMessage Add<T>(T message, string eventName, string publisherName, string routingKey,
-            int eventVersion = 1, string? partitionKey = null, long? sequence = null)
-        { Messages.Add(message!); return new(); }
-    }
 }

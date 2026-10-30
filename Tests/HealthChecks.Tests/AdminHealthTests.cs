@@ -22,7 +22,7 @@ using Xunit;
 
 namespace HealthChecks.Tests;
 
-public sealed class AdminHealthTests
+public sealed partial class AdminHealthTests
 {
     private const string SigningKey = "health-test-signing-key-at-least-32-bytes-long";
 
@@ -344,21 +344,4 @@ public sealed class AdminHealthTests
         Checks = [new() { Name = kind == HealthKinds.Liveness ? "self" : "database",
             Status = healthy ? HealthStatuses.Healthy : HealthStatuses.Unhealthy }]
     };
-
-    private sealed class DelegateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            handler(request, cancellationToken);
-    }
-
-    private sealed class QueryTrackingBehavior : IPipelineBehavior<GetServicesHealthQuery, BaseResponse<SystemHealthReport>>
-    {
-        public int Calls;
-        public Task<BaseResponse<SystemHealthReport>> Handle(GetServicesHealthQuery request,
-            RequestHandlerDelegate<BaseResponse<SystemHealthReport>> next, CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref Calls);
-            return next();
-        }
-    }
 }

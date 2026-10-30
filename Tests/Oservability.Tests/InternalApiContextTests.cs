@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Oservability.Tests;
 
-public sealed class InternalApiContextTests
+public sealed partial class InternalApiContextTests
 {
     [Fact]
     public async Task HrkClient_PropagatesScopedCorrelationWithoutLeakingBetweenCalls()
@@ -41,6 +41,4 @@ public sealed class InternalApiContextTests
         }
         Assert.Equal(new[] { "request-1", "message-2" }, seen);
     }
-
-    public sealed record Reply(int Value);
 }

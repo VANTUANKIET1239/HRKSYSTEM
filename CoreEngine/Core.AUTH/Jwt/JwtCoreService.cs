@@ -12,22 +12,6 @@ using System.Threading.Tasks;
 
 namespace Core.AUTH.Jwt
 {
-
-   
-
-    public interface IJwtCoreService
-    {
-        AccessTokenResponse GenerateToken(IEnumerable<Claim> claims, string audience);
-        ClaimsPrincipal? ValidateToken(string token);
-
-        //string CreateRefreshToken(string userId);
-
-        public string NewSecureRandomToken(int bytes = 64);
-
-        public bool VerifyToken(string raw, string stored);
-
-        public string HashToken(string raw);
-    }
     class JwtCoreService : IJwtCoreService
     {
 

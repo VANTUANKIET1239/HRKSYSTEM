@@ -265,13 +265,3 @@ public sealed class TowerEventService : ITowerEventService
         return EventPeriodCalculator.CalculatePeriodBoundaries(DateTime.UtcNow, timeZoneId, resetTime);
     }
 }
-
-public sealed record EventChestSnapshot(int Id, int FloorNumber, string? RewardsJson,
-    string ChestName = "Milestone chest", string? ChestIcon = null, string? Description = null)
-{
-    public HrkTowerChestConfig ToConfiguration(int eventId) => new()
-    {
-        Id = Id, EventId = eventId, FloorNumber = FloorNumber, RewardsJson = RewardsJson,
-        ChestName = ChestName, ChestIcon = ChestIcon, Description = Description, IsActive = true
-    };
-}

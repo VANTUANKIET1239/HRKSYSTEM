@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public class ManagedSchedulingTests
+public partial class ManagedSchedulingTests
 {
     [Fact]
     public async Task Runner_RetriesInFreshScopes_AndKeepsConfigurationSnapshot()
@@ -97,50 +97,5 @@ public class ManagedSchedulingTests
             Assert.False(await scheduler.CheckExists(new JobKey("job-1", "managed")));
         }
         finally { await scheduler.Shutdown(true); }
-    }
-
-    private sealed class ProbeState
-    {
-        public bool FailFirst;
-        public bool WaitForCancellation;
-        public int Calls;
-        public ConcurrentQueue<Guid> Scopes { get; } = new();
-        public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
-
-    private sealed class ProbeHandler(ProbeState state) : IScheduledJobHandler
-    {
-        private readonly Guid _scope = Guid.NewGuid();
-        public string HandlerKey => "PROBE";
-        public async Task<ScheduledJobResult> ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
-        {
-            state.Scopes.Enqueue(_scope);
-            int call = Interlocked.Increment(ref state.Calls);
-            if (state.FailFirst && call == 1) throw new InvalidOperationException("Retry probe");
-            if (state.WaitForCancellation) await Task.Delay(Timeout.Infinite, ct);
-            state.Completed.TrySetResult();
-            return new(1);
-        }
-    }
-
-    private sealed class MemoryStore : ISchedulingStore
-    {
-        public JobDefinition Definition { get; } = new()
-        {
-            Id = 1, JobCode = "probe", HandlerKey = "PROBE", CronExpression = "0 0 0 1 1 ? 2099",
-            ConfigVersion = 7, RetryDelaySeconds = 0, RecoveryIntervalSeconds = 0
-        };
-        public ConcurrentDictionary<Guid, JobExecution> Executions { get; } = new();
-        public Task<List<JobDefinition>> GetDefinitionsAsync(CancellationToken ct) => Task.FromResult(new List<JobDefinition> { Definition });
-        public Task<JobDefinition?> GetDefinitionAsync(long id, CancellationToken ct) => Task.FromResult(
-            id == Definition.Id ? JsonSerializer.Deserialize<JobDefinition>(JsonSerializer.Serialize(Definition)) : null);
-        public Task StartAsync(JobExecution execution, CancellationToken ct) { Executions[execution.Id] = execution; return Task.CompletedTask; }
-        public Task FinishAsync(Guid id, string status, int attempts, string? resultJson, string? error, CancellationToken ct)
-        {
-            var value = Executions[id];
-            value.Status = status; value.Attempts = attempts; value.ResultJson = resultJson;
-            value.Error = error; value.CompletedAtUtc = DateTime.UtcNow;
-            return Task.CompletedTask;
-        }
     }
 }

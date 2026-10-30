@@ -10,16 +10,3 @@ using GAME.Application.Features.Shared.Tower;
 namespace GAME.Application.Features.Queries.Tower;
 
 public sealed record GetBattleDetailQuery(string UserId, string BattleId) : IQuery<BaseResponse<StartTowerBattleResultDto?>>;
-
-public sealed class GetBattleDetailQueryHandler(
-    TowerBattleExecutor executor,
-    IUnitOfWork unitOfWork,
-    IGamePlayerService gamePlayerService,
-    IFormationSnapshotService formationSnapshotService,
-    IFormationPowerQueryService formationPowerQueryService,
-    ITowerEventService towerEvents)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetBattleDetailQuery, BaseResponse<StartTowerBattleResultDto?>>
-{
-    public async Task<BaseResponse<StartTowerBattleResultDto?>> Handle(GetBattleDetailQuery message, CancellationToken ct) => BaseResponse<StartTowerBattleResultDto?>.SuccessResponse(await ExecuteAsync(message.UserId, message.BattleId, ct) ?? throw new BusinessException("BATTLE_NOT_FOUND", $"Không tìm thấy trận đánh.", BusinessErrorKind.NotFound));
-    private Task<StartTowerBattleResultDto?> ExecuteAsync(string userId, string battleId, CancellationToken ct = default) => GetBattleDetailAsync(userId, battleId, ct);
-}

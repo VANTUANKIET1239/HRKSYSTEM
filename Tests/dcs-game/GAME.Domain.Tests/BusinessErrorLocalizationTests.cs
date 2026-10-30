@@ -23,7 +23,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class BusinessErrorLocalizationTests
+public sealed partial class BusinessErrorLocalizationTests
 {
     [Theory]
     [InlineData("/api/inventory/expand-capacity", "{\"slotsToAdd\":5}")]
@@ -100,25 +100,4 @@ public sealed class BusinessErrorLocalizationTests
         app.UseAuthorization();
         app.UseEndpoints(endpoints => endpoints.MapControllers());
     }));
-
-    private sealed record Actor(string UserId) : IGameRequestContext;
-    private sealed class Translations : ITranslationCache
-    {
-        public Task<TranslationBundle?> GetCurrentAsync(string group, string culture, CancellationToken ct) =>
-            Task.FromResult<TranslationBundle?>(new(group, culture, 1, new Dictionary<string, string>
-            {
-                [TranslationIdentity.TextKey("Không tìm thấy ví người chơi.")] = "Player wallet not found.",
-                [TranslationIdentity.TextKey("Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.")] = "A system error occurred. Please try again later."
-            }));
-        public Task PublishAsync(TranslationBundle bundle, CancellationToken ct) => throw new NotSupportedException();
-    }
-}
-
-[ApiController, Route("business-error-probe")]
-public sealed class BusinessErrorProbeController : ControllerBase
-{
-    [HttpGet("configuration")]
-    public IActionResult ConfigurationFailure() => throw new InvalidOperationException("private diagnostic: missing server configuration");
-    [HttpGet("unexpected-key")]
-    public IActionResult UnexpectedLookupFailure() => throw new KeyNotFoundException("private diagnostic: unexpected dictionary lookup");
 }

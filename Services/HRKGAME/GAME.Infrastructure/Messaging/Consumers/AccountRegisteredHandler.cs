@@ -18,6 +18,3 @@ public sealed class AccountRegisteredHandler(ICqrsDispatcher dispatcher) : IMess
         }
     }
 }
-
-public sealed class PlayerInitializationTransientException(Exception inner)
-    : Exception("Player initialization storage is temporarily unavailable.", inner), ITransientMessageException;

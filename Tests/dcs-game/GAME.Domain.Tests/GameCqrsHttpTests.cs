@@ -17,6 +17,8 @@ using GAME.Application.Features.Commands.QuickClimb;
 using GAME.Application.Features.Commands.Tower;
 using GAME.Application.Features.Queries.Formation;
 using GAME.Application.Features.Queries.Player;
+using GAME.Application.Features.Queries.Leaderboard;
+using GAME.Application.DTOs.Leaderboard;
 using GAME.Application.Features.Queries.Tower;
 using GAME.Infrastructure.Messaging.Consumers;
 using HRK.GAME.Controllers;
@@ -32,6 +34,32 @@ namespace GAME.Domain.Tests;
 
 public sealed class GameCqrsHttpTests
 {
+    [Fact]
+    public async Task LeaderboardsPassPaginationToCqrsAndExposeOnlyGetInspectionRoutes()
+    {
+        var probe = new CqrsTransportProbe();
+        using var server = Server(probe);
+        using var client = server.CreateClient();
+        using var page = await client.GetAsync("/api/leaderboards?type=diamonds-spent&page=2&pageSize=7");
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.True(page.Headers.CacheControl!.NoStore);
+        Assert.Equal(new GetLeaderboardQuery("diamonds-spent", 2, 7), Assert.IsType<GetLeaderboardQuery>(Assert.Single(probe.Requests)));
+        probe.Requests.Clear();
+        using var profile = await client.GetAsync("/api/leaderboards/players/42");
+        Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
+        Assert.Equal(42, Assert.IsType<GetPublicPlayerProfileQuery>(Assert.Single(probe.Requests)).PlayerId);
+        probe.Requests.Clear();
+        using var hero = await client.GetAsync("/api/leaderboards/players/42/heroes/12");
+        Assert.Equal(HttpStatusCode.OK, hero.StatusCode);
+        Assert.Equal(new GetPublicPlayerHeroQuery(42, 12), Assert.IsType<GetPublicPlayerHeroQuery>(Assert.Single(probe.Requests)));
+        probe.Requests.Clear();
+        using var invalid = await client.GetAsync("/api/leaderboards?page=0&pageSize=101");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        Assert.Empty(probe.Requests);
+        using var mutation = await client.PostAsJsonAsync("/api/leaderboards/players/42/heroes/12", new { level = 999 });
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, mutation.StatusCode);
+    }
+
     [Fact]
     public async Task CheckInRoutesUseAuthenticatedPlayerAndDoNotRunTowerLifecycle()
     {
@@ -153,86 +181,5 @@ public sealed class GameCqrsHttpTests
         Assert.Equal(message.ExpectedFloor, command.ExpectedFloor);
         Assert.Equal(message.Version, command.ExpectedVersion);
         Assert.StartsWith("rabbit-", command.WorkerId);
-    }
-}
-
-public sealed class CqrsTransportProbe
-{
-    public List<object> Requests { get; } = [];
-}
-
-public sealed class TowerLifecycleProbeHandler(CqrsTransportProbe probe)
-    : IRequestHandler<RefreshTowerPeriodCommand, BaseResponse<bool>>,
-      IRequestHandler<GetEventsQuery, BaseResponse<List<GameEventDto>>>,
-      IRequestHandler<GetPlayerProgressQuery, BaseResponse<PlayerEventProgressDto>>,
-      IRequestHandler<GetPendingRewardsQuery, BaseResponse<List<PlayerPendingRewardDto>>>
-{
-    public Task<BaseResponse<bool>> Handle(RefreshTowerPeriodCommand request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<bool>.SuccessResponse(true));
-    }
-
-    public Task<BaseResponse<List<GameEventDto>>> Handle(GetEventsQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<List<GameEventDto>>.SuccessResponse([]));
-    }
-
-    public Task<BaseResponse<PlayerEventProgressDto>> Handle(GetPlayerProgressQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<PlayerEventProgressDto>.SuccessResponse(new()));
-    }
-
-    public Task<BaseResponse<List<PlayerPendingRewardDto>>> Handle(GetPendingRewardsQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<List<PlayerPendingRewardDto>>.SuccessResponse([]));
-    }
-}
-
-public sealed class FormationInitializationProbeHandler(CqrsTransportProbe probe) : IRequestHandler<InitializePlayerFormationsCommand, BaseResponse<bool>>
-{
-    public Task<BaseResponse<bool>> Handle(InitializePlayerFormationsCommand request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<bool>.SuccessResponse(true));
-    }
-}
-
-public sealed class FormationDetailProbeHandler(CqrsTransportProbe probe) : IRequestHandler<GetFormationDetailQuery, BaseResponse<FormationDetailDto?>>
-{
-    public Task<BaseResponse<FormationDetailDto?>> Handle(GetFormationDetailQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<FormationDetailDto?>.SuccessResponse(new() { Code = request.FormationCode, Name = "Formation" }));
-    }
-}
-
-public sealed class TowerBattleProbeHandler(CqrsTransportProbe probe) : IRequestHandler<GetBattleDetailQuery, BaseResponse<StartTowerBattleResultDto?>>
-{
-    public Task<BaseResponse<StartTowerBattleResultDto?>> Handle(GetBattleDetailQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        throw new BusinessException("BATTLE_NOT_FOUND", "Battle was not found.", BusinessErrorKind.NotFound);
-    }
-}
-
-public sealed class AvatarFileProbeHandler(CqrsTransportProbe probe) : IRequestHandler<GetPlayerCustomAvatarQuery, BaseResponse<PlayerCustomAvatarDto?>>
-{
-    public Task<BaseResponse<PlayerCustomAvatarDto?>> Handle(GetPlayerCustomAvatarQuery request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        return Task.FromResult(BaseResponse<PlayerCustomAvatarDto?>.SuccessResponse(request.PlayerId == 42 ? new() { ImageData = [1, 2, 3], ContentType = "image/png", ContentHash = "hash" } : null));
-    }
-}
-
-public sealed class QuickClimbWorkerProbeHandler(CqrsTransportProbe probe) : IRequestHandler<ProcessQuickClimbFloorCommand, BaseResponse<bool>>
-{
-    public Task<BaseResponse<bool>> Handle(ProcessQuickClimbFloorCommand request, CancellationToken ct)
-    {
-        probe.Requests.Add(request);
-        throw new QuickClimbTransientException("Retry floor", new TimeoutException());
     }
 }

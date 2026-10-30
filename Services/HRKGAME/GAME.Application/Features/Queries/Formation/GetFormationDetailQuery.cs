@@ -10,15 +10,3 @@ using GAME.Application.Features.Shared.Formation;
 namespace GAME.Application.Features.Queries.Formation;
 
 public sealed record GetFormationDetailQuery(string UserId, string FormationCode) : IQuery<BaseResponse<FormationDetailDto?>>;
-
-public sealed class GetFormationDetailQueryHandler(
-    IUnitOfWork unitOfWork,
-    IGamePlayerService gamePlayerService,
-    IFormationStatService formationStatService,
-    ICombatPowerService combatPowerService,
-    IHeroStatCalculationService heroStatCalculationService, IGameTemplateCatalog? templates = null)
-    : FormationHandlerSupport(unitOfWork, gamePlayerService, formationStatService, combatPowerService, heroStatCalculationService, templates), IQueryHandler<GetFormationDetailQuery, BaseResponse<FormationDetailDto?>>
-{
-    public async Task<BaseResponse<FormationDetailDto?>> Handle(GetFormationDetailQuery message, CancellationToken ct) => BaseResponse<FormationDetailDto?>.SuccessResponse(await ExecuteAsync(message.UserId, message.FormationCode, ct) ?? throw BusinessException.Localized("FORMATION_NOT_FOUND", $"Không tìm thấy thông tin trận pháp '{message.FormationCode}'.", BusinessErrorKind.NotFound));
-    private Task<FormationDetailDto?> ExecuteAsync(string userId, string formationCode, CancellationToken cancellationToken = default) => GetFormationDetailAsync(userId, formationCode, cancellationToken);
-}

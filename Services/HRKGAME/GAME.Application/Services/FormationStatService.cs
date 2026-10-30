@@ -76,8 +76,8 @@ namespace GAME.Application.Services
                 int basePower = _combatPowerService.Calculate(baseStats, powerConfigs);
                 var formationStats = ApplyFormationBonus(baseStats, bonus);
                 int heroPower = _combatPowerService.Calculate(formationStats, powerConfigs);
-                totalBasePower += basePower;
-                totalFormationPower += heroPower;
+                totalBasePower = checked(totalBasePower + basePower);
+                totalFormationPower = checked(totalFormationPower + heroPower);
                 result.HeroBasePowers[hero.Id] = basePower;
                 result.HeroTotalPowers[hero.Id] = heroPower;
                 result.HeroBaseStats[hero.Id] = baseStats;

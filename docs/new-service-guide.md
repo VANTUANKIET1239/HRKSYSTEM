@@ -35,6 +35,8 @@ Services/HRKEXAMPLE/
 - Infrastructure tham chiếu Application và triển khai các interface do Application định nghĩa.
 - Application dùng `Core.Application`/`Core.Common`; không tham chiếu API hoặc Infrastructure.
 - Mỗi class, record, interface và options nằm trong file riêng, tên file theo tên type.
+- Tách command/query khỏi handler và response/DTO. Giữ record khi cần equality theo giá trị hoặc biểu thức `with`.
+- Với helper lồng nhau cần giữ phạm vi private, dùng file `ClassCha.Helper.cs` và khai báo class cha là partial; không đưa helper thành public chỉ để tách file. Xem [thống kê và quy ước C#](./csharp-type-layout.md).
 - Chỉ tạo folder/module khi có nội dung sử dụng.
 
 Khi có entity, value object và quy tắc nghiệp vụ riêng, thêm `Example.Domain`.

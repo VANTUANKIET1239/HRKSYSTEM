@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public sealed class SessionContextErrorTests
+public sealed partial class SessionContextErrorTests
 {
     [Theory]
     [InlineData(null)]
@@ -42,9 +42,4 @@ public sealed class SessionContextErrorTests
                 new[] { new Claim(Constants.JSON_WEB_TOKEN.SESSIONID, session) }, "test"))
         }
     };
-
-    private sealed class Command(IHttpContextAccessor accessor) : HRKBaseCommand(accessor)
-    { public Guid Session() => GetCurrentLoginSession(); }
-    private sealed class Query(IHttpContextAccessor accessor) : HRKBaseQuery(accessor)
-    { public Guid Session() => GetCurrentLoginSession(); }
 }

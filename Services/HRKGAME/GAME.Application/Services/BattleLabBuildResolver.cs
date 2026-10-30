@@ -11,7 +11,7 @@ using GAME.Domain.Entities;
 
 namespace GAME.Application.Services;
 // All entities below are transient. Never add them to a repository.
-public sealed class BattleLabBuildResolver(
+public sealed partial class BattleLabBuildResolver(
 
     IUnitOfWork store,
 
@@ -122,13 +122,5 @@ public sealed class BattleLabBuildResolver(
             .SingleOrDefault(a => a.HeroTemplateId == hero.HeroTemplateId && a.StarLevel == build.Stars && a.IsActive);
         hero.StarAura = GameDtoMapper.MapStarAura(aura);
         return result;
-    }
-
-    private sealed class SeededRandom(int seed) : IRandomService
-    {
-        private readonly System.Random random = new(seed);
-        public double NextDouble() => random.NextDouble();
-        public int Next(int minValue, int maxValue) => random.Next(minValue, maxValue);
-        public decimal NextDecimal(decimal minValue, decimal maxValue, int decimals = 4) => Math.Round(minValue + (maxValue - minValue) * (decimal)random.NextDouble(), decimals);
     }
 }

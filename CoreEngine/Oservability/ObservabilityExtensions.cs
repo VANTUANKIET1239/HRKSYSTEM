@@ -22,7 +22,7 @@ using Serilog.Formatting.Compact;
 
 namespace Oservability;
 
-public static class ObservabilityExtensions
+public static partial class ObservabilityExtensions
 {
     public static WebApplicationBuilder AddHrkObservability(this WebApplicationBuilder builder, string serviceName)
     {
@@ -114,8 +114,6 @@ public static class ObservabilityExtensions
             using (LogContext.PushProperty("UserId", http.User.FindFirstValue(ClaimTypes.NameIdentifier)))
                 await next(http);
         });
-
-    private sealed record ServiceMetadata(string Name, string Version);
     private static void ConfigureExporter(OtlpExporterOptions options, IConfiguration configuration, string signal)
     {
         if (Enum.TryParse<OtlpExportProtocol>(configuration["Telemetry:Otlp:Protocol"], true, out var protocol))
@@ -124,20 +122,5 @@ public static class ObservabilityExtensions
             // Setting Endpoint directly is signal-specific; HTTP exporter doesn't append /v1/* itself.
             options.Endpoint = new Uri(options.Protocol == OtlpExportProtocol.HttpProtobuf
                 ? $"{endpoint.TrimEnd('/')}/v1/{signal}" : endpoint);
-    }
-    private sealed class StartupLoggingService(ILogger<StartupLoggingService> logger, ServiceMetadata metadata,
-        IHostEnvironment environment) : IHostedService
-    {
-        public Task StartAsync(CancellationToken ct)
-        {
-            logger.LogInformation("Starting {ServiceName} version {ApplicationVersion} in {Environment}",
-                metadata.Name, metadata.Version, environment.EnvironmentName);
-            return Task.CompletedTask;
-        }
-        public Task StopAsync(CancellationToken ct)
-        {
-            logger.LogInformation("Stopping {ServiceName}", metadata.Name);
-            return Task.CompletedTask;
-        }
     }
 }

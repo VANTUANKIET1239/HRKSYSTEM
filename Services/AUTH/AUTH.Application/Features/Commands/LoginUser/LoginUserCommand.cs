@@ -6,15 +6,6 @@ using System.ComponentModel.DataAnnotations;
 namespace AUTH.Application.Features.Commands.LoginUser
 {
 
-    public class LoginUserResponse
-    {
-        public string UserId { get; set; }  
-        public string UserName { get; set; }    
-        public string UserEmail { get; set; }   
-        public string? AccessToken { get; set; }
-        public DateTime? AccessTokenExpiresAt { get; set; }
-    }
-
     public class LoginUserCommand : ICommand<BaseResponse<LoginUserResponse>>
     {
         public required string Email { get; set; }

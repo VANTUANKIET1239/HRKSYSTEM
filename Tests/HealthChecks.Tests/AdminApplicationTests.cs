@@ -13,7 +13,7 @@ using Xunit;
 
 namespace HealthChecks.Tests;
 
-public sealed class AdminApplicationTests
+public sealed partial class AdminApplicationTests
 {
     [Fact]
     public async Task ApplicationQueryRunsWithoutApiHostOrHttpClientRegistrations()
@@ -92,12 +92,4 @@ public sealed class AdminApplicationTests
             Checks = [new() { Name = kind == HealthKinds.Liveness ? "self" : "database", Status = HealthStatuses.Healthy }]
         }
     };
-
-    private sealed class DelegateProbe(
-        Func<MonitoredService, CancellationToken, Task<EndpointHealth>> live,
-        Func<MonitoredService, CancellationToken, Task<EndpointHealth>> dependencies) : IServiceHealthProbe
-    {
-        public Task<EndpointHealth> CheckLivenessAsync(MonitoredService target, CancellationToken cancellationToken) => live(target, cancellationToken);
-        public Task<EndpointHealth> CheckDependenciesAsync(MonitoredService target, CancellationToken cancellationToken) => dependencies(target, cancellationToken);
-    }
 }

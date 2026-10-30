@@ -10,7 +10,7 @@ namespace HRK.GAME.Controllers;
 
 [Authorize]
 [Route("api/player")]
-public sealed class PlayerController : HRKControllerBase
+public sealed partial class PlayerController : HRKControllerBase
 {
     private readonly ICqrsDispatcher _dispatcher;
     private string UserId => RequireUserId();
@@ -182,6 +182,4 @@ public sealed class PlayerController : HRKControllerBase
 
         return false;
     }
-
-    public sealed record SelectAvatarRequest(int AvatarTemplateId);
 }

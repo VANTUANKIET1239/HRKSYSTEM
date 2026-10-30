@@ -18,7 +18,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
+public partial class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
 {
     [SummonSqlFact]
     public async Task SettlementAndOutbox_RollBackTogether_AndConcurrentRetriesCloseThePeriodOnce()
@@ -46,7 +46,7 @@ public class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<
             var writer = new EfOutboxWriter<GameDbContext>(attempt);
             var events = new PlayerActivityEvents(writer, new(), uow);
             var settlement = new TowerEventService(uow, events, writer, new EventResetSchedule(uow));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new TowerOperationRunner(uow).RunAsync<bool>(player.UserId, async () =>
+            await Assert.ThrowsAsync<InvalidOperationException>(() => new TowerOperationRunner(uow, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow)).RunAsync<bool>(player.UserId, async () =>
             {
                 await settlement.CloseExpiredPeriodsAsync(player.Id, gameEvent, cutoff, Guid.NewGuid(), default);
                 throw new InvalidOperationException("Injected failure after the intermediate SaveChanges.");
@@ -65,7 +65,7 @@ public class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<
             var writer = new EfOutboxWriter<GameDbContext>(db);
             var events = new PlayerActivityEvents(writer, new(), uow);
             var settlement = new TowerEventService(uow, events, writer, new EventResetSchedule(uow));
-            return await new TowerOperationRunner(uow).RunAsync(player.UserId,
+            return await new TowerOperationRunner(uow, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow)).RunAsync(player.UserId,
                 () => settlement.CloseExpiredPeriodsAsync(player.Id, gameEvent, cutoff, Guid.NewGuid(), default), default);
         }
         var closed = await Task.WhenAll(CloseAsync(), CloseAsync());
@@ -108,7 +108,9 @@ public class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<
         services.AddScoped<IOutboxWriter, EfOutboxWriter<GameDbContext>>();
         services.AddSingleton<PlayerActivityEventMapper>();
         services.AddScoped<IPlayerActivityEvents, PlayerActivityEvents>();
+        services.AddScoped<GAME.Application.Interfaces.IPlayerRankingWriter>(sp => RankingTestSupport.Writer(sp.GetRequiredService<IUnitOfWork>()));
         services.AddScoped<TowerOperationRunner>();
+        services.AddScoped<GAME.Application.Interfaces.IGameTransactionLock>(sp => RankingTestSupport.Locks(sp.GetRequiredService<IUnitOfWork>()));
         services.AddScoped<ITowerEventService, TowerEventService>();
         services.AddGameScheduling(new ConfigurationBuilder().Build());
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
@@ -215,17 +217,6 @@ public class EventResetSqlTests(SummonDatabaseFixture database) : IClassFixture<
         Assert.Equal("SUCCEEDED", execution.Status);
         Assert.Equal(1, execution.Attempts);
         Assert.NotNull(execution.CompletedAtUtc);
-    }
-
-    private sealed class ProbeState
-    {
-        public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
-    private sealed class ProbeHandler(ProbeState state) : IScheduledJobHandler
-    {
-        public string HandlerKey => "SQL_PROBE";
-        public Task<ScheduledJobResult> ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
-        { state.Completed.TrySetResult(); return Task.FromResult(new ScheduledJobResult(1)); }
     }
     private static async Task<string> ReadAsync(string relative)
     {

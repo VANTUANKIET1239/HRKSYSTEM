@@ -9,16 +9,3 @@ using GAME.Application.Features.Shared.Tower;
 namespace GAME.Application.Features.Queries.Tower;
 
 public sealed record GetPendingRewardsQuery(string UserId) : IQuery<BaseResponse<List<PlayerPendingRewardDto>>>;
-
-public sealed class GetPendingRewardsQueryHandler(
-    TowerBattleExecutor executor,
-    IUnitOfWork unitOfWork,
-    IGamePlayerService gamePlayerService,
-    IFormationSnapshotService formationSnapshotService,
-    IFormationPowerQueryService formationPowerQueryService,
-    ITowerEventService towerEvents)
-    : TowerHandlerSupport(executor, unitOfWork, gamePlayerService, formationSnapshotService, formationPowerQueryService, towerEvents), IQueryHandler<GetPendingRewardsQuery, BaseResponse<List<PlayerPendingRewardDto>>>
-{
-    public async Task<BaseResponse<List<PlayerPendingRewardDto>>> Handle(GetPendingRewardsQuery message, CancellationToken ct) => BaseResponse<List<PlayerPendingRewardDto>>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
-    private Task<List<PlayerPendingRewardDto>> ExecuteAsync(string userId, CancellationToken ct = default) => GetPendingRewardsAsync(userId, ct);
-}

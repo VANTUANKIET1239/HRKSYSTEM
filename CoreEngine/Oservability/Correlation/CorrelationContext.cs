@@ -1,10 +1,5 @@
 namespace Oservability.Correlation;
 
-public interface ICorrelationContext
-{
-    string? CorrelationId { get; }
-}
-
 // One instance per request or message scope, never shared across deliveries.
 public sealed class CorrelationContext : ICorrelationContext
 {

@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 namespace GAME.Infrastructure.Templates;
 
 /// <summary>One HybridCache entry per table; a small revision marker coordinates nodes.</summary>
-public sealed class GameTemplateStore(IServiceScopeFactory scopes, IDistributedCache redis, IHybridCacheService hybrid,
+public sealed partial class GameTemplateStore(IServiceScopeFactory scopes, IDistributedCache redis, IHybridCacheService hybrid,
     TemplateTableRegistry registry, IOptions<GameTemplateCacheOptions> settings, IHostEnvironment environment,
     ILogger<GameTemplateStore> logger) : IGameTemplateRefresh
 {
@@ -172,6 +172,4 @@ public sealed class GameTemplateStore(IServiceScopeFactory scopes, IDistributedC
         if (Encoding.UTF8.GetByteCount(rows.GetRawText()) > settings.Value.MaximumTableBytes)
             throw new InvalidOperationException($"Template table {type.Name} exceeds MaximumTableBytes.");
     }
-
-    internal sealed class TemplateTableExpiredException(string table) : InvalidOperationException($"Template table {table} is unavailable for this revision; retry with the current template revision.");
 }

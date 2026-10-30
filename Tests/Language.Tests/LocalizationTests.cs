@@ -22,7 +22,7 @@ using Xunit;
 
 namespace Language.Tests;
 
-public sealed class LocalizationTests
+public sealed partial class LocalizationTests
 {
     [Fact]
     public void InterpolatedBusinessErrorsPreserveTheTemplateAndRawArguments()
@@ -197,33 +197,4 @@ public sealed class LocalizationTests
         return services;
     }
     internal static TranslationBundle Bundle(long revision, string text) => new("game", "en-US", revision, new Dictionary<string,string> { ["GREETING"] = text });
-    private sealed class ResponseHandler(Func<HttpRequestMessage, TranslationBundle> response) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        { ct.ThrowIfCancellationRequested(); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(response(request)) }); }
-    }
-    private sealed class StubReader : IPublishedLanguageReader
-    {
-        public Task<TranslationBundle?> GetAsync(string group, string culture, CancellationToken ct) => Task.FromResult<TranslationBundle?>(Bundle(7, "Hello"));
-        public Task<TranslationBundle?> GetFromDatabaseAsync(string group, string culture, CancellationToken ct) => GetAsync(group, culture, ct);
-    }
-}
-
-[ApiController, Route("localization-probe")]
-public sealed class LocalizationProbeController : ControllerBase
-{
-    [HttpGet]
-    public IActionResult Get() => throw new BusinessException("LEVEL", "Cần đạt cấp 8.")
-    { Arguments = new Dictionary<string,object?> { ["level"] = 8 } };
-    [HttpGet("interpolated")]
-    public IActionResult Interpolated() => throw BusinessException.Localized("BALANCE", $"Cần {1234:N0} Vàng, hiện có {500:N0}.");
-}
-
-internal sealed class MemoryTranslations : ITranslationCache
-{
-    public Dictionary<(string,string), TranslationBundle> Bundles { get; } = new();
-    public bool Failure { get; init; }
-    public Task<TranslationBundle?> GetCurrentAsync(string group, string culture, CancellationToken ct)
-    { ct.ThrowIfCancellationRequested(); if (Failure) throw new IOException("Redis offline"); return Task.FromResult(Bundles.GetValueOrDefault((group,culture))); }
-    public Task PublishAsync(TranslationBundle bundle, CancellationToken ct) { Bundles[(bundle.Group,bundle.Culture)] = bundle; return Task.CompletedTask; }
 }

@@ -12,17 +12,6 @@ using Microsoft.Extensions.Logging;
 
 namespace GAME.Application.Services;
 
-public sealed record EventResetParameters(int BatchSize = 100)
-{
-    public static EventResetParameters Parse(string json)
-    {
-        var value = JsonSerializer.Deserialize<EventResetParameters>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-            ?? throw new ArgumentException("Invalid event reset parameters.");
-        if (value.BatchSize is < 1 or > 1000) throw new ArgumentException("BatchSize must be between 1 and 1000.");
-        return value;
-    }
-}
-
 public sealed class EventResetJobHandler(IUnitOfWork unitOfWork, ITowerEventService towerEvents,
     TowerOperationRunner runner, IOutboxWriter outbox,
     ILogger<EventResetJobHandler> logger) : IScheduledJobHandler

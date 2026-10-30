@@ -7,8 +7,13 @@ Xem [hướng dẫn dispatcher](./cqrs-dispatcher.md) để đăng ký DI và th
 
 ```mermaid
 flowchart LR
-    HTTP[Controller] --> Dispatcher[ICqrsDispatcher] --> CQRS[Command / Query handler]
-    Rabbit[RabbitMQ adapter] --> CQRS
+    HTTP[Controller] --> Dispatcher[ICqrsDispatcher / MediatR]
+    Rabbit[RabbitMQ adapter] --> Dispatcher
+    Dispatcher --> Validation[ValidationBehavior]
+    Validation --> Decision{Command có marker power?}
+    Decision -->|Có| Power[PlayerPowerChangeBehavior]
+    Decision -->|Không| CQRS[Command / Query handler]
+    Power --> CQRS
     CQRS --> Shared[Calculator / Policy / Factory / Reader]
     CQRS --> UOW[UnitOfWork]
     Shared --> UOW
@@ -64,6 +69,9 @@ Query được gọi độc lập sẽ chỉ đọc, không có tác dụng kh�
 
 DB access đi qua `IUnitOfWork`; command quyết định phạm vi transaction theo nghiệp vụ.
 Không áp dụng transaction behavior chung cho mọi request.
+
+- [PlayerPowerChangeBehavior](../Services/HRKGAME/GAME.Application/Behaviors/PlayerPowerChangeBehavior.cs) chạy sau validation, chỉ bọc command implement [IPlayerPowerChangeCommand](../Services/HRKGAME/GAME.Application/Interfaces/IPlayerPowerChangeCommand.cs). Behavior lấy khóa, gọi handler, tính và lưu lực chiến trước commit qua ranking writer. Handler của các command này không mở transaction riêng hoặc dispatch command có marker lồng nhau.
+- Composition root gọi `AddPlayerPowerChangePipeline()` sau `AddCoreApplication(...)`. Gọi handler trực tiếp bỏ qua behavior; các test cần transaction/cập nhật lực chiến gửi request qua dispatcher/MediatR. Xem [luồng xếp hạng](./player-leaderboards.md).
 
 - Chiêu mộ giữ transaction, khóa wallet, RowVersion và receipt theo `(PlayerId, RequestId)` để chống trừ tiền/cấp thưởng lặp.
 - Tháp và Quick Climb giữ `TowerOperationRunner`, khóa theo người chơi và cơ chế retry/clear tracking.

@@ -6,8 +6,6 @@ using GAME.Application.Events;
 
 namespace GAME.Infrastructure.Messaging;
 
-public sealed record MappedPlayerActivity(PlayerActivityRecordedV1 Message, string? PartitionKey, long? Sequence);
-
 public sealed class PlayerActivityEventMapper
 {
     public MappedPlayerActivity Map(PlayerActivityEvent activity)

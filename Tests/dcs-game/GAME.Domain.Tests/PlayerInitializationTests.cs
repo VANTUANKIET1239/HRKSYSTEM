@@ -17,7 +17,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class PlayerInitializationTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
+public sealed partial class PlayerInitializationTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
 {
     [Fact]
     public void GameModelDoesNotOwnIdentityTables()
@@ -130,7 +130,7 @@ public sealed class PlayerInitializationTests(SummonDatabaseFixture database) : 
         IPlayerActivityEvents activities = fail ? new FailedActivity() :
             new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(db), new PlayerActivityEventMapper(), uow);
         var handler = new InitializePlayerCommandHandler(uow, new InboxExecutor<GameDbContext>(db,
-            new SqlServerInboxStore<GameDbContext>(db)), levels, factory, rewards, activities);
+            new SqlServerInboxStore<GameDbContext>(db)), levels, factory, rewards, activities, RankingTestSupport.Writer(uow), RankingTestSupport.Locks(uow));
         await handler.Handle(new(account), default);
     }
 
@@ -159,24 +159,5 @@ public sealed class PlayerInitializationTests(SummonDatabaseFixture database) : 
         db.Add(new HrkPlayerInitializationItem { ConfigId = config.Id, ItemTemplateId = await db.ItemTemplates.Select(x => x.Id).FirstAsync(), Quantity = 10 });
         await db.SaveChangesAsync();
         return config.Id;
-    }
-
-    private sealed class ZeroRandom : ISummonRandom { public int Next(int exclusiveMaximum) => 0; }
-    private sealed class FailedActivity : IPlayerActivityEvents { public void Raise(PlayerActivityEvent activity) => throw new InvalidOperationException("Injected failure after all grants."); }
-    private sealed class NoEquipment : IEquipmentInstanceFactory
-    {
-        public Task<EquipmentInstanceCreationResult> CreateAsync(long playerId, HrkItemTemplate template, EquipmentAcquisitionContext context, CancellationToken cancellationToken = default)
-            => throw new InvalidOperationException("This fixture grants materials only.");
-    }
-    private sealed class Levels : ILevelExperienceService
-    {
-        public Task<LevelExperienceRequirement> GetHeroRequirementAsync(int level, CancellationToken ct = default) => Task.FromResult(new LevelExperienceRequirement(level, 123, false));
-        public Task<LevelExperienceRequirement> GetPlayerRequirementAsync(int level, CancellationToken ct = default) => Task.FromResult(new LevelExperienceRequirement(level, 100, false));
-    }
-    private sealed class Power : ICombatPowerService
-    {
-        public Task<List<CombatPowerConfigDto>> GetConfigsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new List<CombatPowerConfigDto>());
-        public int Calculate(CalculatedStatsDto stats, IReadOnlyCollection<CombatPowerConfigDto> configs) => 999;
-        public Task<int> CalculateAsync(CalculatedStatsDto stats, CancellationToken cancellationToken = default) => Task.FromResult(999);
     }
 }

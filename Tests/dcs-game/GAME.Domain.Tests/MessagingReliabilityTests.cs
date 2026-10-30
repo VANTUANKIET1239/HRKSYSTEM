@@ -12,7 +12,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class MessagingReliabilityTests
+public sealed partial class MessagingReliabilityTests
 {
     [Fact]
     public void OutboxWriter_UsesContractEventIdAsStableMessageId()
@@ -142,10 +142,4 @@ public sealed class MessagingReliabilityTests
 
         Assert.Equal(expected, classifier.Classify(exception));
     }
-
-    private sealed class TransientTestException : Exception, ITransientMessageException;
-
-    private sealed class PermanentTestException : Exception, IPermanentMessageException;
-
-    private sealed class DuplicateTestException : Exception, IDuplicateMessageException;
 }

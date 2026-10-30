@@ -11,12 +11,6 @@ using GAME.Domain.Battle.Reactions;
 
 namespace GAME.Domain.Battle;
 
-public interface IBattleSimulationEngine
-{
-    bool CanHandleEffect(string effectTypeCode);
-    BattleSimulationResult Simulate(BattleSimulationRequest request);
-}
-
 public sealed class BattleSimulationEngine : IBattleSimulationEngine
 {
     private readonly BattleEffectHandlerRegistry _effectHandlers;

@@ -22,7 +22,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public class ModuleRegistrationTests
+public partial class ModuleRegistrationTests
 {
     private static IConfiguration Configuration() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
@@ -105,16 +105,5 @@ public class ModuleRegistrationTests
         using var scope = provider.CreateScope();
         Assert.Equal(7, await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new ProbeQuery()));
         Assert.Null(scope.ServiceProvider.GetService<IUnitOfWork>());
-    }
-
-    public sealed record ProbeQuery : IQuery<int>;
-    public sealed class ProbeHandler : IQueryHandler<ProbeQuery, int>
-    {
-        public Task<int> Handle(ProbeQuery request, CancellationToken cancellationToken) => Task.FromResult(7);
-    }
-    public sealed class Probe { public int Id { get; set; } }
-    public sealed class ProbeContext(DbContextOptions<ProbeContext> options) : DbContext(options)
-    {
-        protected override void OnModelCreating(ModelBuilder builder) => builder.Entity<Probe>().HasKey(x => x.Id);
     }
 }

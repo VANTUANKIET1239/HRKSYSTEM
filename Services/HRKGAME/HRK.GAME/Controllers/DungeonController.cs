@@ -55,9 +55,9 @@ public sealed class DungeonController : HRKControllerBase
     }
 
     [HttpPost("stamina/purchase")]
-    public async Task<IActionResult> PurchaseStamina(CancellationToken ct)
+    public async Task<IActionResult> PurchaseStamina(CancellationToken ct, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] PurchaseStaminaRequest? request = null)
     {
-        return HrkOk(await _dispatcher.CommandAsync(new PurchaseStaminaCommand(UserId), ct));
+        return HrkOk(await _dispatcher.CommandAsync(new PurchaseStaminaCommand(UserId, request?.RequestId ?? default), ct));
     }
 
     [HttpPost("chests/{chestId:int}/claim")]

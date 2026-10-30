@@ -190,93 +190,82 @@ namespace GAME.Application.Features.Commands.Inventory.EnhanceEquipment
                 // 8. Build Value Object EnhancementMaterials (Enforces max stone slots invariant)
                 var materialsVo = new EnhancementMaterials(stoneMaterialItems, charmMaterialItem, levelConfig.MaxStoneSlots);
                 // 9. Execute Domain Service (Pure Domain Rules + RNG + Aggregate State Transition)
-                // Option A: Enhancement roll occurs before retryable transactional delegate
+                // This roll belongs to the current transactional attempt. Rollback discards its result.
                 using var operation = new GameOperation("inventory.enhancement");
                 var executionResult = _enhancementDomainService.ExecuteAttempt(calculationEquipment, levelConfig, materialsVo);
                 equipment.Enhancement = executionResult.NewEnhancement;
                 equipment.UpdatedOn = calculationEquipment.UpdatedOn;
-                // 10. Atomic Database Transaction (Application Layer Orchestration)
-                await _unitOfWork.ExecuteStrategyAsync(async () =>
+                // 10. Apply the attempt in the transaction owned by the ranking wrapper.
+
+                // A. Recalculate and update Equipment Instance Attributes & Snapshot Stats cache
+                decimal growthPercent = equipment.EnhancementGrowthPercent ?? 10.0m;
+                int safeStars = Math.Max(0, equipment.Stars);
+                decimal starMultiplier = 1.0m + (safeStars * 0.10m);
+                if (equipment.Attributes != null && equipment.Attributes.Count > 0)
                 {
-                    await _unitOfWork.BeginTransactionAsync(cancellationToken);
-                    try
+                    foreach (var attr in equipment.Attributes)
                     {
-                        // A. Recalculate and update Equipment Instance Attributes & Snapshot Stats cache
-                        decimal growthPercent = equipment.EnhancementGrowthPercent ?? 10.0m;
-                        int safeStars = Math.Max(0, equipment.Stars);
-                        decimal starMultiplier = 1.0m + (safeStars * 0.10m);
-                        if (equipment.Attributes != null && equipment.Attributes.Count > 0)
-                        {
-                            foreach (var attr in equipment.Attributes)
-                            {
-                                bool isPercentage = attributeTypes.GetValueOrDefault(attr.AttributeTypeId)?.IsPercentage ?? false;
-                                decimal mult = 1.0m + (executionResult.NewEnhancement * growthPercent / 100.0m);
-                                attr.CurrentValue = isPercentage ? Math.Round(attr.BaseRolledValue * mult, 4) : Math.Round(attr.BaseRolledValue * mult * starMultiplier, 2);
-                                attr.UpdatedOn = DateTime.UtcNow;
-                                _unitOfWork.Repository<HrkPlayerInventoryAttribute>().Update(attr);
-                            }
-                        }
-
-                        var currentStatsJson = _statCalculationService.CalculateCurrentStatsJson(calculationEquipment, executionResult.NewEnhancement);
-                        equipment.UpdateCurrentStatsCache(currentStatsJson);
-                        _unitOfWork.Repository<HrkPlayerInventory>().Update(equipment);
-                        // B. Deduct Gold via Wallet Domain Method
-                        wallet.DeductGold(levelConfig.GoldCost);
-                        _unitOfWork.Repository<HrkPlayerWallet>().Update(wallet);
-                        // C. Consume Stones via Inventory Domain Method
-                        foreach (var (invId, requiredQty) in stoneGroups)
-                        {
-                            var stoneInv = stoneInventories.First(s => s.Id == invId);
-                            stoneInv.ConsumeQuantity(requiredQty);
-                            _unitOfWork.Repository<HrkPlayerInventory>().Update(stoneInv);
-                        }
-
-                        // D. Consume Charm via Inventory Domain Method (if used)
-                        if (charmInventory != null)
-                        {
-                            charmInventory.ConsumeQuantity(1);
-                            _unitOfWork.Repository<HrkPlayerInventory>().Update(charmInventory);
-                        }
-
-                        // E. Save Business Audit Log (HRK_EquipmentEnhancementHistory)
-                        var usedMaterialsSnapshot = new
-                        {
-                            stones = consumedStonesList,
-                            charm = consumedCharmDto
-                        };
-                        var usedMaterialsJson = JsonSerializer.Serialize(usedMaterialsSnapshot);
-                        var historyRecord = new HrkEquipmentEnhancementHistory
-                        {
-                            RequestId = req.RequestId,
-                            PlayerId = player.Id,
-                            PlayerInventoryId = equipment.Id,
-                            ItemTemplateId = equipment.ItemTemplateId,
-                            OldEnhancement = executionResult.OldEnhancement,
-                            TargetEnhancement = executionResult.TargetEnhancement,
-                            NewEnhancement = executionResult.NewEnhancement,
-                            BaseSuccessRate = executionResult.BaseSuccessRate,
-                            StoneBonusRate = executionResult.StoneBonusRate,
-                            CharmBonusRate = executionResult.CharmBonusRate,
-                            FinalSuccessRate = executionResult.FinalSuccessRate,
-                            IsSuccess = executionResult.IsSuccess,
-                            FailureDropLevels = executionResult.FailureDropLevels,
-                            WasLevelProtected = executionResult.WasLevelProtected,
-                            GoldCost = levelConfig.GoldCost,
-                            UsedMaterialsJson = usedMaterialsJson,
-                            CreatedOn = DateTime.UtcNow
-                        };
-                        await _unitOfWork.Repository<HrkEquipmentEnhancementHistory>().AddAsync(historyRecord);
-                        _activityEvents.Raise(new ItemEnhancedEvent(player.Id, userId, req.RequestId, equipment.Id, equipment.ItemTemplateId, executionResult.OldEnhancement, executionResult.NewEnhancement, executionResult.IsSuccess, levelConfig.GoldCost));
-                        // Commit everything atomically
-                        await _unitOfWork.SaveChangesAsync(cancellationToken);
-                        await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                        bool isPercentage = attributeTypes.GetValueOrDefault(attr.AttributeTypeId)?.IsPercentage ?? false;
+                        decimal mult = 1.0m + (executionResult.NewEnhancement * growthPercent / 100.0m);
+                        attr.CurrentValue = isPercentage ? Math.Round(attr.BaseRolledValue * mult, 4) : Math.Round(attr.BaseRolledValue * mult * starMultiplier, 2);
+                        attr.UpdatedOn = DateTime.UtcNow;
+                        _unitOfWork.Repository<HrkPlayerInventoryAttribute>().Update(attr);
                     }
-                    catch
-                    {
-                        await _unitOfWork.RollbackTransactionAsync();
-                        throw;
-                    }
-                }, cancellationToken);
+                }
+
+                var currentStatsJson = _statCalculationService.CalculateCurrentStatsJson(calculationEquipment, executionResult.NewEnhancement);
+                equipment.UpdateCurrentStatsCache(currentStatsJson);
+                _unitOfWork.Repository<HrkPlayerInventory>().Update(equipment);
+                // B. Deduct Gold via Wallet Domain Method
+                wallet.DeductGold(levelConfig.GoldCost);
+                _unitOfWork.Repository<HrkPlayerWallet>().Update(wallet);
+                // C. Consume Stones via Inventory Domain Method
+                foreach (var (invId, requiredQty) in stoneGroups)
+                {
+                    var stoneInv = stoneInventories.First(s => s.Id == invId);
+                    stoneInv.ConsumeQuantity(requiredQty);
+                    _unitOfWork.Repository<HrkPlayerInventory>().Update(stoneInv);
+                }
+
+                // D. Consume Charm via Inventory Domain Method (if used)
+                if (charmInventory != null)
+                {
+                    charmInventory.ConsumeQuantity(1);
+                    _unitOfWork.Repository<HrkPlayerInventory>().Update(charmInventory);
+                }
+
+                // E. Save Business Audit Log (HRK_EquipmentEnhancementHistory)
+                var usedMaterialsSnapshot = new
+                {
+                    stones = consumedStonesList,
+                    charm = consumedCharmDto
+                };
+                var usedMaterialsJson = JsonSerializer.Serialize(usedMaterialsSnapshot);
+                var historyRecord = new HrkEquipmentEnhancementHistory
+                {
+                    RequestId = req.RequestId,
+                    PlayerId = player.Id,
+                    PlayerInventoryId = equipment.Id,
+                    ItemTemplateId = equipment.ItemTemplateId,
+                    OldEnhancement = executionResult.OldEnhancement,
+                    TargetEnhancement = executionResult.TargetEnhancement,
+                    NewEnhancement = executionResult.NewEnhancement,
+                    BaseSuccessRate = executionResult.BaseSuccessRate,
+                    StoneBonusRate = executionResult.StoneBonusRate,
+                    CharmBonusRate = executionResult.CharmBonusRate,
+                    FinalSuccessRate = executionResult.FinalSuccessRate,
+                    IsSuccess = executionResult.IsSuccess,
+                    FailureDropLevels = executionResult.FailureDropLevels,
+                    WasLevelProtected = executionResult.WasLevelProtected,
+                    GoldCost = levelConfig.GoldCost,
+                    UsedMaterialsJson = usedMaterialsJson,
+                    CreatedOn = DateTime.UtcNow
+                };
+                await _unitOfWork.Repository<HrkEquipmentEnhancementHistory>().AddAsync(historyRecord);
+                _activityEvents.Raise(new ItemEnhancedEvent(player.Id, userId, req.RequestId, equipment.Id, equipment.ItemTemplateId, executionResult.OldEnhancement, executionResult.NewEnhancement, executionResult.IsSuccess, levelConfig.GoldCost));
+                // Commit everything atomically
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
                 // 11. Build Response DTO
                 operation.Complete(executionResult.IsSuccess ? "success" : "roll_failure");
                 var calculatedStats = _statCalculationService.CalculateCurrentStats(calculationEquipment, executionResult.NewEnhancement);

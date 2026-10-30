@@ -9,16 +9,3 @@ using GAME.Application.Features.Shared.Dungeon;
 namespace GAME.Application.Features.Queries.Dungeon;
 
 public sealed record GetStaminaQuery(string UserId) : IQuery<BaseResponse<DungeonStaminaDto>>;
-
-public sealed class GetStaminaQueryHandler(IUnitOfWork unitOfWork, IGamePlayerService gamePlayerService) : DungeonHandlerSupport(unitOfWork), IQueryHandler<GetStaminaQuery, BaseResponse<DungeonStaminaDto>>
-{
-    private readonly IGamePlayerService _gamePlayerService = gamePlayerService;
-    public async Task<BaseResponse<DungeonStaminaDto>> Handle(GetStaminaQuery message, CancellationToken ct) => BaseResponse<DungeonStaminaDto>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
-    private async Task<DungeonStaminaDto> ExecuteAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);
-        ApplyStaminaRecovery(player);
-        ResetDailyPurchaseCount(player);
-        return ToStaminaDto(player);
-    }
-}

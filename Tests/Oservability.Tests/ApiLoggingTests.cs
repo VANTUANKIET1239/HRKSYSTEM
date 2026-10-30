@@ -18,7 +18,7 @@ using Xunit;
 
 namespace Oservability.Tests;
 
-public class ApiLoggingTests
+public partial class ApiLoggingTests
 {
     [Fact]
     public void HostConfigs_EnableLifecycleAndDisableBodiesByDefault()
@@ -224,15 +224,4 @@ public class ApiLoggingTests
     }
     private static string? Value(LogEvent e, string key) =>
         e.Properties.TryGetValue(key, out var value) ? (value as ScalarValue)?.Value?.ToString() : null;
-    private sealed class Sink : ILogEventSink
-    {
-        public ConcurrentQueue<LogEvent> Events { get; } = new();
-        public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
-    }
-    private sealed class Monitor(ApiLoggingOptions value) : IOptionsMonitor<ApiLoggingOptions>
-    {
-        public ApiLoggingOptions CurrentValue => value;
-        public ApiLoggingOptions Get(string? name) => value;
-        public IDisposable? OnChange(Action<ApiLoggingOptions, string?> listener) => null;
-    }
 }

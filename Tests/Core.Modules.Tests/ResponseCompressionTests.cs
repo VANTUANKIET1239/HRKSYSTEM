@@ -393,31 +393,3 @@ public sealed class ResponseCompressionTests
         Assert.Empty(response.Content.Headers.ContentEncoding);
     }
 }
-
-[ApiController]
-[Route("compression-probe")]
-[HrkResponseCompression]
-public sealed class CompressionProbeController : ControllerBase
-{
-    [HttpGet("disabled")]
-    [HrkResponseCompression(Enabled = false)]
-    public IActionResult Disabled() => Ok(new { name = "disabled" });
-
-    [HttpGet("large")]
-    public IActionResult Large() => Ok(Enumerable.Range(0, 4000).Select(sequence => new { sequence, name = "Chiêu mộ tướng", damage = 123 }));
-
-    [HttpGet("business")]
-    public IActionResult Business() => throw new BusinessException("ITEM_LOCKED", "Item locked.");
-
-    [HttpGet("system")]
-    public IActionResult SystemFailure() => throw new InvalidOperationException("secret");
-}
-
-[ApiController]
-[Route("compression-unmarked")]
-public sealed class UnmarkedCompressionProbeController : ControllerBase
-{
-    [HttpGet("unmarked")]
-    public IActionResult Unmarked() => Ok(new { name = "unmarked" });
-
-}

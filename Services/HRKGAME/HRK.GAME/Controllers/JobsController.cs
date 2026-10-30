@@ -14,10 +14,6 @@ using System.Text;
 
 namespace HRK.GAME.Controllers;
 
-public sealed record UpdateJobRequest(long ConfigVersion, string CronExpression, string TimeZoneId,
-    string ParametersJson, bool IsEnabled, string MisfirePolicy, int MaxRetryAttempts,
-    int RetryDelaySeconds, int TimeoutSeconds, int RecoveryIntervalSeconds);
-
 [ApiController]
 [Authorize(Roles = "Admin")]
 [Route("api/admin/jobs")]

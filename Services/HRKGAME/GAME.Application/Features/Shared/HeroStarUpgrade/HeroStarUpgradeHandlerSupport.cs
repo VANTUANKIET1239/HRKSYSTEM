@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GAME.Application.Features.Shared.HeroStarUpgrade;
 
-public abstract class HeroStarUpgradeHandlerSupport
+public abstract partial class HeroStarUpgradeHandlerSupport
 {
     protected readonly IGameTemplateCatalog _templates;
     protected readonly IUnitOfWork _unitOfWork;
@@ -24,21 +24,6 @@ public abstract class HeroStarUpgradeHandlerSupport
         this._progressionStatService = progressionStatService;
         this._combatPowerService = combatPowerService;
     }
-
-    protected sealed record UpgradeData(
-
-        HrkPlayer Player,
-
-        HrkPlayerHero Hero,
-
-        HrkHeroRarityUpgradeConfig RarityConfig,
-
-        HrkHeroStarUpgradeConfig Config,
-
-        HrkHeroStoneConfig StoneConfig,
-        HrkHeroTemplate Template
-
-    );
     protected async Task<UpgradeData> LoadUpgradeDataAsync(string userId, long heroId, CancellationToken cancellationToken)
     {
         var player = await _gamePlayerService.GetPlayerByUserIdAsync(userId, cancellationToken) ?? throw new BusinessException("PLAYER_NOT_FOUND", "Không tìm thấy người chơi.", BusinessErrorKind.NotFound);

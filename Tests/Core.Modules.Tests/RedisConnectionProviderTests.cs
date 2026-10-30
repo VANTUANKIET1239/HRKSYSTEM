@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Core.Modules.Tests;
 
-public sealed class RedisConnectionProviderTests
+public sealed partial class RedisConnectionProviderTests
 {
     [Fact]
     public async Task ConcurrentCallersShareOneConnectionAndCancellationDoesNotCancelOtherWaiters()
@@ -94,11 +94,5 @@ public sealed class RedisConnectionProviderTests
         var stub = DispatchProxy.Create<T, RedisStub>();
         ((RedisStub)(object)stub).Handler = handler;
         return stub;
-    }
-
-    public class RedisStub : DispatchProxy
-    {
-        public Func<MethodInfo, object?[]?, object?> Handler { get; set; } = null!;
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Handler(targetMethod!, args);
     }
 }

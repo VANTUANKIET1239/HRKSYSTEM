@@ -17,7 +17,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public sealed class CheckInSqlTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>, IAsyncLifetime
+public sealed partial class CheckInSqlTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>, IAsyncLifetime
 {
     public async Task InitializeAsync()
     {
@@ -199,11 +199,7 @@ public sealed class CheckInSqlTests(SummonDatabaseFixture database) : IClassFixt
         var unit = new UnitOfWork<GameDbContext>(db);
         var players = TestGamePlayers.Create(unit);
         return new(unit, players, new GameRewardGranter(unit, players, null!, database.Templates()),
-            activities ?? new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(db), new PlayerActivityEventMapper(), unit), clock);
-    }
-    private sealed class FailActivity : IPlayerActivityEvents
-    {
-        public void Raise(PlayerActivityEvent activity) => throw new InvalidOperationException("simulated activity staging failure");
+            activities ?? new PlayerActivityEvents(new EfOutboxWriter<GameDbContext>(db), new PlayerActivityEventMapper(), unit), clock, RankingTestSupport.Locks(unit));
     }
     private static async Task Script(GameDbContext db, string file)
     {

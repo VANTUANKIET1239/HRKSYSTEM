@@ -25,20 +25,8 @@ using Xunit;
 
 namespace Oservability.Tests;
 
-[CollectionDefinition("Docker", DisableParallelization = true)]
-public sealed class DockerCollection;
-
-public sealed class DockerFactAttribute : FactAttribute
-{
-    public DockerFactAttribute()
-    {
-        if (Environment.GetEnvironmentVariable("HRK_RUN_INTEGRATION") != "1")
-            Skip = "Set HRK_RUN_INTEGRATION=1 to run isolated SQL Server/RabbitMQ containers.";
-    }
-}
-
 [Collection("Docker")]
-public class MessagingIntegrationTests
+public partial class MessagingIntegrationTests
 {
     [Fact]
     public void Outbox_CapturesRequestContextSeparatelyFromPartitionKey()
@@ -164,22 +152,4 @@ public class MessagingIntegrationTests
             Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<ActivityDbContext>().PlayerActivities.CountAsync());
         await app.StopAsync();
     }
-
-    public sealed class RetryState { public int Count; }
-    private sealed class FailOnceRecorder(ActivityStore store, RetryState state, ActivityDbContext db, IInboxExecutor inbox) : IActivityRecorder
-    {
-        public async Task RecordAsync(RecordPlayerActivityCommand command, CancellationToken ct)
-        {
-            if (Interlocked.Increment(ref state.Count) == 1)
-                await inbox.ExecuteAsync<bool>(ActivityStore.ConsumerName, command.MessageId, async token =>
-                {
-                    db.PlayerActivities.Add(ActivityMapping.Map(command));
-                    await db.SaveChangesAsync(token);
-                    throw new IntentionalTransientFailure();
-                }, ct);
-            else await store.RecordAsync(command, ct);
-        }
-    }
-    private sealed class IntentionalTransientFailure()
-        : Exception("Intentional failure after INSERT, before COMMIT"), ITransientMessageException;
 }

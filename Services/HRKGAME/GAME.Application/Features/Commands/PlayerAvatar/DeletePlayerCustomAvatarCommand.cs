@@ -11,35 +11,3 @@ using GAME.Application.Features.Shared.PlayerAvatar;
 namespace GAME.Application.Features.Commands.PlayerAvatar;
 
 public sealed record DeletePlayerCustomAvatarCommand(string UserId) : ICommand<BaseResponse<PlayerProfileDto>>;
-
-public sealed class DeletePlayerCustomAvatarCommandHandler(
-    IGamePlayerService playerLookups,
-    IUnitOfWork unitOfWork,
-    IPlayerReadModels readModels, IGameTemplateCatalog? templates = null)
-    : PlayerAvatarHandlerSupport(playerLookups), ICommandHandler<DeletePlayerCustomAvatarCommand, BaseResponse<PlayerProfileDto>>
-{
-    private readonly IGameTemplateCatalog _templates = templates ?? new DatabaseTemplateCatalog(unitOfWork);
-    private readonly IUnitOfWork _unitOfWork = unitOfWork;
-    private readonly IPlayerReadModels _readModels = readModels;
-    public async Task<BaseResponse<PlayerProfileDto>> Handle(DeletePlayerCustomAvatarCommand message, CancellationToken ct) => BaseResponse<PlayerProfileDto>.SuccessResponse(await ExecuteAsync(message.UserId, ct));
-    private async Task<PlayerProfileDto> ExecuteAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var player = await GetRequiredPlayerAsync(userId, cancellationToken, tracked: true);
-        var repository = _unitOfWork.Repository<HrkPlayerCustomAvatar>();
-        var avatar = await repository.Query()
-            .FirstOrDefaultAsync(x => x.PlayerId == player.Id, cancellationToken);
-        if (avatar != null)
-            repository.Remove(avatar);
-        var defaultTemplateId = (await _templates.GetAllAsync<HrkAvatarTemplate>(cancellationToken))
-            .Where(x => x.IsEnabled)
-            .OrderByDescending(x => x.IsDefault).ThenBy(x => x.DisplayOrder)
-            .Select(x => (int?)x.Id)
-            .FirstOrDefault();
-        player.AvatarType = "TEMPLATE";
-        player.AvatarTemplateId = defaultTemplateId;
-        player.UpdatedOn = DateTime.UtcNow;
-        _unitOfWork.Repository<HrkPlayer>().Update(player);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return await _readModels.BuildProfileAsync(player, cancellationToken);
-    }
-}

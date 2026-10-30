@@ -16,7 +16,7 @@ using Oservability.Correlation;
 
 namespace Core.RabbitMQ.DependencyInjection
 {
-    public static class DependencyInjection
+    public static partial class DependencyInjection
     {
         public static IServiceCollection AddRabbitMqMessaging(
             this IServiceCollection services,
@@ -75,17 +75,6 @@ namespace Core.RabbitMQ.DependencyInjection
                     sp.GetRequiredService<IMessageFailureClassifier>(),
                     consumerName));
             return services;
-        }
-
-        private sealed class TopologyHostedService : IHostedService
-        {
-            private readonly IRabbitMqTopology _topology;
-
-            public TopologyHostedService(IRabbitMqTopology topology) => _topology = topology;
-
-            public Task StartAsync(CancellationToken cancellationToken) => _topology.EnsureAsync(cancellationToken);
-
-            public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         }
     }
 }

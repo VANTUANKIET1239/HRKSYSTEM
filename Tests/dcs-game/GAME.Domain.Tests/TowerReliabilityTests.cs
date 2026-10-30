@@ -8,7 +8,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public class TowerReliabilityTests
+public partial class TowerReliabilityTests
 {
     private static (TowerTestStore store, TowerRewardService service, Factory factory) Setup(int capacity = 1, bool equipment = false)
     {
@@ -134,33 +134,4 @@ public class TowerReliabilityTests
     [Fact]
     public void InvalidRewardJson_IsNotSilentlyConvertedToNoRewards() =>
         Assert.Throws<System.Text.Json.JsonException>(() => TowerRewardService.ParseRewards("{broken"));
-
-    private sealed class Levels : ILevelExperienceService
-    {
-        public Task<LevelExperienceRequirement> GetHeroRequirementAsync(int level, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LevelExperienceRequirement(level, 100, level >= 10));
-        public Task<LevelExperienceRequirement> GetPlayerRequirementAsync(int level, CancellationToken cancellationToken = default) =>
-            GetHeroRequirementAsync(level, cancellationToken);
-    }
-    private sealed class Power : ICombatPowerService
-    {
-        public Task<List<CombatPowerConfigDto>> GetConfigsAsync(CancellationToken cancellationToken = default) => Task.FromResult(new List<CombatPowerConfigDto>());
-        public int Calculate(CalculatedStatsDto stats, IReadOnlyCollection<CombatPowerConfigDto> configs) => stats.Hp;
-        public Task<int> CalculateAsync(CalculatedStatsDto stats, CancellationToken cancellationToken = default) => Task.FromResult(stats.Hp);
-    }
-
-    private sealed class Factory : IEquipmentInstanceFactory
-    {
-        public int Created { get; private set; }
-        public Task<EquipmentInstanceCreationResult> CreateAsync(long playerId, HrkItemTemplate template,
-            EquipmentAcquisitionContext context, CancellationToken cancellationToken = default)
-        {
-            Created++;
-            return Task.FromResult(new EquipmentInstanceCreationResult
-            {
-                InventoryItem = new() { Id = Created, PlayerId = playerId, ItemTemplateId = template.Id, Count = 1, IsActive = true },
-                DroppedDto = new() { InventoryItemId = Created, Name = template.Name }
-            });
-        }
-    }
 }

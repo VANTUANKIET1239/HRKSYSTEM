@@ -5,21 +5,6 @@ using System.Linq;
 
 namespace GAME.Domain.ValueObjects
 {
-    public sealed record StoneMaterialItem(
-        long InventoryItemId,
-        int ItemTemplateId,
-        string Code,
-        string Name,
-        int Quantity,
-        decimal SuccessRateBonus);
-
-    public sealed record CharmMaterialItem(
-        long InventoryItemId,
-        int ItemTemplateId,
-        string Code,
-        string Name,
-        decimal SuccessRateBonus,
-        bool PreventLevelDrop);
 
     /// <summary>
     /// Value Object đại diện cho tập hợp nguyên liệu (đá cường hóa và bùa hộ mệnh/may mắn) được đưa vào phiên rèn.

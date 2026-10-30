@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Language.Infrastructure;
 
 // Dedicated destination for this service's outbox: writes the shared cache, no per-instance broadcast.
-public sealed class LanguageCacheOutboxWorker(IServiceScopeFactory scopes,
+public sealed partial class LanguageCacheOutboxWorker(IServiceScopeFactory scopes,
     IOptions<TransactionalMessagingOptions> options, ILogger<LanguageCacheOutboxWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,6 +59,4 @@ public sealed class LanguageCacheOutboxWorker(IServiceScopeFactory scopes,
             }
         }
     }
-
-    private sealed record CachePublication(string Group, string Culture);
 }

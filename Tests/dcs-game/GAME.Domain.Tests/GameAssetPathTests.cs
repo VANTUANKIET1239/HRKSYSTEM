@@ -6,7 +6,7 @@ using Xunit;
 
 namespace GAME.Domain.Tests;
 
-public class GameAssetPathTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
+public partial class GameAssetPathTests(SummonDatabaseFixture database) : IClassFixture<SummonDatabaseFixture>
 {
     private static string RepositoryFile(string relative)
     {
@@ -62,16 +62,5 @@ public class GameAssetPathTests(SummonDatabaseFixture database) : IClassFixture<
         Assert.Equal("images/dcs-game/equipments/combat-broom-mk2.png", rows[1].ImagePath);
         Assert.Null(rows[1].BackgroundPath);
         Assert.Equal("/api/player/avatar/custom/1?v=3", rows[2].Avatar);
-    }
-
-    public sealed class AssetRow
-    {
-        public int Id { get; set; }
-        public string? Avatar { get; set; }
-        public string? ImagePath { get; set; }
-        public string? BackgroundPath { get; set; }
-        public string? Icon { get; set; }
-        public string? BattleJson { get; set; }
-        public byte[]? ImageData { get; set; }
     }
 }

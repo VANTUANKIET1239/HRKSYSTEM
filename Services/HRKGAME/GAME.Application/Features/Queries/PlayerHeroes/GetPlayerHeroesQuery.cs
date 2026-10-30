@@ -7,19 +7,4 @@ using GAME.Application.Interfaces;
 namespace GAME.Application.Features.Queries.PlayerHeroes
 {
     public record GetPlayerHeroesQuery : IQuery<BaseResponse<List<PlayerHeroDto>>>;
-    public class GetPlayerHeroesQueryHandler : AuthenticatedGameHandler, IQueryHandler<GetPlayerHeroesQuery, BaseResponse<List<PlayerHeroDto>>>
-    {
-        private readonly IPlayerReadModels _playerService;
-        public GetPlayerHeroesQueryHandler(IPlayerReadModels playerService, IGameRequestContext requestContext) : base(requestContext)
-        {
-            _playerService = playerService;
-        }
-
-        public async Task<BaseResponse<List<PlayerHeroDto>>> Handle(GetPlayerHeroesQuery request, CancellationToken cancellationToken)
-        {
-            var userId = GetUserId();
-            var heroes = await _playerService.GetPlayerHeroesAsync(userId, cancellationToken);
-            return BaseResponse<List<PlayerHeroDto>>.SuccessResponse(heroes, "Retrieved player heroes successfully.");
-        }
-    }
 }

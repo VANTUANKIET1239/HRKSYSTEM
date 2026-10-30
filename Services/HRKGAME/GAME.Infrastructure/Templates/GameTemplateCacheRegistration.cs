@@ -29,17 +29,3 @@ public static class GameTemplateCacheRegistration
         return services;
     }
 }
-
-internal sealed class TemplateWarmup(GameTemplateStore store, IOptions<GameTemplateCacheOptions> settings,
-    ILogger<TemplateWarmup> logger) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        if (!settings.Value.WarmupOnStartup) return;
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(settings.Value.OperationTimeoutSeconds));
-        try { await store.WarmupAsync(deadline.Token); }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
-        catch (Exception ex) { logger.LogWarning(ex, "Template warmup failed. The next request will retry."); }
-    }
-}

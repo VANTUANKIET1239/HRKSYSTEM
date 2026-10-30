@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Core.Cqrs.Tests;
 
-public sealed class CoreCqrsDispatchTests
+public sealed partial class CoreCqrsDispatchTests
 {
     [Fact]
     public async Task DispatcherRunsTypedQueryAndCommandBasesWithSharedUserSessionAndScopedState()
@@ -113,62 +113,5 @@ public sealed class CoreCqrsDispatchTests
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
         };
-    }
-
-    public sealed class State
-    {
-        public int Value, QueryCalls, CommandCalls;
-        public bool Cancelled;
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
-
-    public sealed record ContextReply(string UserId, Guid SessionId, int Value);
-    public sealed record ContextQuery(string Label) : IQuery<BaseResponse<ContextReply>>;
-    public sealed record ChangeValueCommand(int Amount) : ICommand<BaseResponse<ContextReply>>;
-    public sealed record WaitingQuery : IQuery<bool>;
-
-    public sealed class ContextQueryValidator : HRKValidator<ContextQuery>
-    {
-        public ContextQueryValidator() => RuleFor(query => query.Label).NotEmpty();
-    }
-
-    public sealed class ChangeValueValidator : HRKValidator<ChangeValueCommand>
-    {
-        public ChangeValueValidator() => RuleFor(command => command.Amount).NotEqual(0);
-    }
-
-    public sealed class ContextQueryHandler(IHttpContextAccessor accessor, State state)
-        : HRKBaseQuery<ContextQuery, BaseResponse<ContextReply>>(accessor)
-    {
-        public override Task<BaseResponse<ContextReply>> Handle(ContextQuery request, CancellationToken cancellationToken)
-        {
-            var reply = new ContextReply(GetUserId(), GetCurrentLoginSession(), state.Value);
-            state.QueryCalls++;
-            return Task.FromResult(Response(reply, true));
-        }
-    }
-
-    public sealed class ChangeValueHandler(IHttpContextAccessor accessor, State state)
-        : HRKBaseCommand<ChangeValueCommand, BaseResponse<ContextReply>>(accessor)
-    {
-        public override Task<BaseResponse<ContextReply>> Handle(ChangeValueCommand request, CancellationToken cancellationToken)
-        {
-            var user = GetUserId();
-            var session = GetCurrentLoginSession();
-            state.CommandCalls++;
-            state.Value += request.Amount;
-            return Task.FromResult(Response(new ContextReply(user, session, state.Value), true));
-        }
-    }
-
-    public sealed class WaitingQueryHandler(IHttpContextAccessor accessor, State state) : HRKBaseQuery<WaitingQuery, bool>(accessor)
-    {
-        public override async Task<bool> Handle(WaitingQuery request, CancellationToken cancellationToken)
-        {
-            state.Started.TrySetResult();
-            try { await Task.Delay(Timeout.Infinite, cancellationToken); }
-            finally { state.Cancelled = cancellationToken.IsCancellationRequested; }
-            return true;
-        }
     }
 }
